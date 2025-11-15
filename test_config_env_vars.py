@@ -24,13 +24,13 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
         
         # Clear any existing config-related env vars
         env_vars_to_clear = [
-            'LATITUDE', 'LONGITUDE', 'TIMEZONE',
-            'TAPO_IP_ADDRESS', 'TAPO_USERNAME', 'TAPO_PASSWORD',
-            'THRESHOLD_TEMP_F', 'LEAD_TIME_MINUTES', 'TRAILING_TIME_MINUTES',
-            'CHECK_INTERVAL_MINUTES', 'FORECAST_HOURS',
-            'MAX_RUNTIME_HOURS', 'COOLDOWN_MINUTES',
-            'MORNING_MODE_ENABLED', 'MORNING_MODE_START_HOUR', 'MORNING_MODE_END_HOUR',
-            'LOG_LEVEL', 'CONFIG_PATH'
+            'HEATTRAX_LATITUDE', 'HEATTRAX_LONGITUDE', 'HEATTRAX_TIMEZONE',
+            'HEATTRAX_TAPO_IP_ADDRESS', 'HEATTRAX_TAPO_USERNAME', 'HEATTRAX_TAPO_PASSWORD',
+            'HEATTRAX_THRESHOLD_TEMP_F', 'HEATTRAX_LEAD_TIME_MINUTES', 'HEATTRAX_TRAILING_TIME_MINUTES',
+            'HEATTRAX_CHECK_INTERVAL_MINUTES', 'HEATTRAX_FORECAST_HOURS',
+            'HEATTRAX_MAX_RUNTIME_HOURS', 'HEATTRAX_COOLDOWN_MINUTES',
+            'HEATTRAX_MORNING_MODE_ENABLED', 'HEATTRAX_MORNING_MODE_START_HOUR', 'HEATTRAX_MORNING_MODE_END_HOUR',
+            'HEATTRAX_LOG_LEVEL', 'HEATTRAX_CONFIG_PATH'
         ]
         for var in env_vars_to_clear:
             os.environ.pop(var, None)
@@ -49,9 +49,9 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
     
     def test_env_var_overrides_location(self):
         """Test location settings can be overridden with env vars."""
-        os.environ['LATITUDE'] = '51.5074'
-        os.environ['LONGITUDE'] = '-0.1278'
-        os.environ['TIMEZONE'] = 'Europe/London'
+        os.environ['HEATTRAX_LATITUDE'] = '51.5074'
+        os.environ['HEATTRAX_LONGITUDE'] = '-0.1278'
+        os.environ['HEATTRAX_TIMEZONE'] = 'Europe/London'
         
         config = Config('config.example.yaml')
         self.assertEqual(config.location['latitude'], 51.5074)
@@ -60,9 +60,9 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
     
     def test_env_var_overrides_device(self):
         """Test device settings can be overridden with env vars."""
-        os.environ['TAPO_IP_ADDRESS'] = '10.0.0.50'
-        os.environ['TAPO_USERNAME'] = 'test@example.com'
-        os.environ['TAPO_PASSWORD'] = 'secret123'
+        os.environ['HEATTRAX_TAPO_IP_ADDRESS'] = '10.0.0.50'
+        os.environ['HEATTRAX_TAPO_USERNAME'] = 'test@example.com'
+        os.environ['HEATTRAX_TAPO_PASSWORD'] = 'secret123'
         
         config = Config('config.example.yaml')
         self.assertEqual(config.device['ip_address'], '10.0.0.50')
@@ -71,9 +71,9 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
     
     def test_env_var_overrides_thresholds(self):
         """Test threshold settings can be overridden with env vars."""
-        os.environ['THRESHOLD_TEMP_F'] = '32'
-        os.environ['LEAD_TIME_MINUTES'] = '90'
-        os.environ['TRAILING_TIME_MINUTES'] = '45'
+        os.environ['HEATTRAX_THRESHOLD_TEMP_F'] = '32'
+        os.environ['HEATTRAX_LEAD_TIME_MINUTES'] = '90'
+        os.environ['HEATTRAX_TRAILING_TIME_MINUTES'] = '45'
         
         config = Config('config.example.yaml')
         self.assertEqual(config.thresholds['temperature_f'], 32.0)
@@ -82,8 +82,8 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
     
     def test_env_var_overrides_safety(self):
         """Test safety settings can be overridden with env vars."""
-        os.environ['MAX_RUNTIME_HOURS'] = '8'
-        os.environ['COOLDOWN_MINUTES'] = '45'
+        os.environ['HEATTRAX_MAX_RUNTIME_HOURS'] = '8'
+        os.environ['HEATTRAX_COOLDOWN_MINUTES'] = '45'
         
         config = Config('config.example.yaml')
         self.assertEqual(config.safety['max_runtime_hours'], 8.0)
@@ -91,8 +91,8 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
     
     def test_env_var_overrides_scheduler(self):
         """Test scheduler settings can be overridden with env vars."""
-        os.environ['CHECK_INTERVAL_MINUTES'] = '15'
-        os.environ['FORECAST_HOURS'] = '24'
+        os.environ['HEATTRAX_CHECK_INTERVAL_MINUTES'] = '15'
+        os.environ['HEATTRAX_FORECAST_HOURS'] = '24'
         
         config = Config('config.example.yaml')
         self.assertEqual(config.scheduler['check_interval_minutes'], 15)
@@ -100,9 +100,9 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
     
     def test_env_var_overrides_morning_mode(self):
         """Test morning mode settings can be overridden with env vars."""
-        os.environ['MORNING_MODE_ENABLED'] = 'false'
-        os.environ['MORNING_MODE_START_HOUR'] = '7'
-        os.environ['MORNING_MODE_END_HOUR'] = '9'
+        os.environ['HEATTRAX_MORNING_MODE_ENABLED'] = 'false'
+        os.environ['HEATTRAX_MORNING_MODE_START_HOUR'] = '7'
+        os.environ['HEATTRAX_MORNING_MODE_END_HOUR'] = '9'
         
         config = Config('config.example.yaml')
         self.assertEqual(config.morning_mode['enabled'], False)
@@ -113,28 +113,28 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
         """Test boolean environment variable conversion."""
         # Test true values
         for true_val in ['true', 'TRUE', '1', 'yes', 'YES', 'on', 'ON']:
-            os.environ['MORNING_MODE_ENABLED'] = true_val
+            os.environ['HEATTRAX_MORNING_MODE_ENABLED'] = true_val
             config = Config('config.example.yaml')
             self.assertTrue(config.morning_mode['enabled'], f"Failed for value: {true_val}")
         
         # Test false values
         for false_val in ['false', 'FALSE', '0', 'no', 'NO', 'off', 'OFF']:
-            os.environ['MORNING_MODE_ENABLED'] = false_val
+            os.environ['HEATTRAX_MORNING_MODE_ENABLED'] = false_val
             config = Config('config.example.yaml')
             self.assertFalse(config.morning_mode['enabled'], f"Failed for value: {false_val}")
     
     def test_env_var_overrides_logging(self):
         """Test logging settings can be overridden with env vars."""
-        os.environ['LOG_LEVEL'] = 'DEBUG'
+        os.environ['HEATTRAX_LOG_LEVEL'] = 'DEBUG'
         
         config = Config('config.example.yaml')
         self.assertEqual(config.logging_config['level'], 'DEBUG')
     
     def test_type_conversions(self):
         """Test that environment variables are converted to correct types."""
-        os.environ['LATITUDE'] = '40.5'
-        os.environ['THRESHOLD_TEMP_F'] = '35.5'
-        os.environ['LEAD_TIME_MINUTES'] = '120'
+        os.environ['HEATTRAX_LATITUDE'] = '40.5'
+        os.environ['HEATTRAX_THRESHOLD_TEMP_F'] = '35.5'
+        os.environ['HEATTRAX_LEAD_TIME_MINUTES'] = '120'
         
         config = Config('config.example.yaml')
         
@@ -146,8 +146,8 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
         self.assertIsInstance(config.thresholds['lead_time_minutes'], int)
     
     def test_config_path_env_var(self):
-        """Test CONFIG_PATH environment variable."""
-        os.environ['CONFIG_PATH'] = 'config.example.yaml'
+        """Test HEATTRAX_CONFIG_PATH environment variable."""
+        os.environ['HEATTRAX_CONFIG_PATH'] = 'config.example.yaml'
         
         # Should load from config.example.yaml via env var
         config = Config()

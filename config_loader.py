@@ -16,37 +16,38 @@ class ConfigError(Exception):
 
 
 # Environment variable to config key mapping
+# All environment variables must use the HEATTRAX_ prefix
 ENV_VAR_MAPPING = {
     # Location settings
-    'LATITUDE': ('location', 'latitude', float),
-    'LONGITUDE': ('location', 'longitude', float),
-    'TIMEZONE': ('location', 'timezone', str),
+    'HEATTRAX_LATITUDE': ('location', 'latitude', float),
+    'HEATTRAX_LONGITUDE': ('location', 'longitude', float),
+    'HEATTRAX_TIMEZONE': ('location', 'timezone', str),
     
     # Device settings
-    'TAPO_IP_ADDRESS': ('device', 'ip_address', str),
-    'TAPO_USERNAME': ('device', 'username', str),
-    'TAPO_PASSWORD': ('device', 'password', str),
+    'HEATTRAX_TAPO_IP_ADDRESS': ('device', 'ip_address', str),
+    'HEATTRAX_TAPO_USERNAME': ('device', 'username', str),
+    'HEATTRAX_TAPO_PASSWORD': ('device', 'password', str),
     
     # Threshold settings
-    'THRESHOLD_TEMP_F': ('thresholds', 'temperature_f', float),
-    'LEAD_TIME_MINUTES': ('thresholds', 'lead_time_minutes', int),
-    'TRAILING_TIME_MINUTES': ('thresholds', 'trailing_time_minutes', int),
+    'HEATTRAX_THRESHOLD_TEMP_F': ('thresholds', 'temperature_f', float),
+    'HEATTRAX_LEAD_TIME_MINUTES': ('thresholds', 'lead_time_minutes', int),
+    'HEATTRAX_TRAILING_TIME_MINUTES': ('thresholds', 'trailing_time_minutes', int),
     
     # Scheduler settings
-    'CHECK_INTERVAL_MINUTES': ('scheduler', 'check_interval_minutes', int),
-    'FORECAST_HOURS': ('scheduler', 'forecast_hours', int),
+    'HEATTRAX_CHECK_INTERVAL_MINUTES': ('scheduler', 'check_interval_minutes', int),
+    'HEATTRAX_FORECAST_HOURS': ('scheduler', 'forecast_hours', int),
     
     # Safety settings
-    'MAX_RUNTIME_HOURS': ('safety', 'max_runtime_hours', float),
-    'COOLDOWN_MINUTES': ('safety', 'cooldown_minutes', int),
+    'HEATTRAX_MAX_RUNTIME_HOURS': ('safety', 'max_runtime_hours', float),
+    'HEATTRAX_COOLDOWN_MINUTES': ('safety', 'cooldown_minutes', int),
     
     # Morning mode settings
-    'MORNING_MODE_ENABLED': ('morning_mode', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
-    'MORNING_MODE_START_HOUR': ('morning_mode', 'start_hour', int),
-    'MORNING_MODE_END_HOUR': ('morning_mode', 'end_hour', int),
+    'HEATTRAX_MORNING_MODE_ENABLED': ('morning_mode', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
+    'HEATTRAX_MORNING_MODE_START_HOUR': ('morning_mode', 'start_hour', int),
+    'HEATTRAX_MORNING_MODE_END_HOUR': ('morning_mode', 'end_hour', int),
     
     # Logging settings
-    'LOG_LEVEL': ('logging', 'level', str),
+    'HEATTRAX_LOG_LEVEL': ('logging', 'level', str),
 }
 
 
@@ -109,11 +110,11 @@ class Config:
         Initialize configuration from YAML file with environment variable overrides.
         
         Args:
-            config_path: Path to the configuration file (defaults to CONFIG_PATH env var or "config.yaml")
+            config_path: Path to the configuration file (defaults to HEATTRAX_CONFIG_PATH env var or "config.yaml")
         """
-        # Check for CONFIG_PATH environment variable if no path provided
+        # Check for HEATTRAX_CONFIG_PATH environment variable if no path provided
         if config_path is None:
-            config_path = os.environ.get('CONFIG_PATH', 'config.yaml')
+            config_path = os.environ.get('HEATTRAX_CONFIG_PATH', 'config.yaml')
         
         logger.info(f"Loading configuration from: {config_path}")
         self.config_path = Path(config_path)

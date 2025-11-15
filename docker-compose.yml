@@ -12,13 +12,13 @@ services:
     environment:
       - TZ=America/New_York
       # Uncomment to override config values with environment variables:
-      # - TAPO_USERNAME=${TAPO_USERNAME}
-      # - TAPO_PASSWORD=${TAPO_PASSWORD}
-      # - TAPO_IP_ADDRESS=192.168.1.100
-      # - LATITUDE=40.7128
-      # - LONGITUDE=-74.0060
-      # - THRESHOLD_TEMP_F=34
-      # - LOG_LEVEL=INFO
+      # - HEATTRAX_TAPO_USERNAME=${HEATTRAX_TAPO_USERNAME}
+      # - HEATTRAX_TAPO_PASSWORD=${HEATTRAX_TAPO_PASSWORD}
+      # - HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
+      # - HEATTRAX_LATITUDE=40.7128
+      # - HEATTRAX_LONGITUDE=-74.0060
+      # - HEATTRAX_THRESHOLD_TEMP_F=34
+      # - HEATTRAX_LOG_LEVEL=INFO
       # See README.md for full list of supported environment variables
     network_mode: host
     

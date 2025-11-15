@@ -110,29 +110,29 @@ Configuration values are resolved in the following order (highest to lowest prio
 
 | Environment Variable | Config Section | Description | Type | Example |
 |---------------------|----------------|-------------|------|---------|
-| `CONFIG_PATH` | - | Path to configuration file | String | `/config/config.yaml` |
+| `HEATTRAX_CONFIG_PATH` | - | Path to configuration file | String | `/config/config.yaml` |
 | `TZ` | - | System timezone | String | `America/New_York` |
-| `LATITUDE` | location | Location latitude | Float | `40.7128` |
-| `LONGITUDE` | location | Location longitude | Float | `-74.0060` |
-| `TIMEZONE` | location | Location timezone | String | `America/New_York` |
-| `TAPO_IP_ADDRESS` | device | Tapo device IP address | String | `192.168.1.100` |
-| `TAPO_USERNAME` | device | Tapo account username | String | `user@example.com` |
-| `TAPO_PASSWORD` | device | Tapo account password | String | `your_password` |
-| `THRESHOLD_TEMP_F` | thresholds | Temperature threshold (°F) | Float | `34` |
-| `LEAD_TIME_MINUTES` | thresholds | Minutes before precipitation | Integer | `60` |
-| `TRAILING_TIME_MINUTES` | thresholds | Minutes after precipitation | Integer | `60` |
-| `CHECK_INTERVAL_MINUTES` | scheduler | Weather check interval | Integer | `10` |
-| `FORECAST_HOURS` | scheduler | Forecast look-ahead hours | Integer | `12` |
-| `MAX_RUNTIME_HOURS` | safety | Maximum continuous runtime | Float | `6` |
-| `COOLDOWN_MINUTES` | safety | Cooldown period | Integer | `30` |
-| `MORNING_MODE_ENABLED` | morning_mode | Enable morning mode | Boolean | `true` or `false` |
-| `MORNING_MODE_START_HOUR` | morning_mode | Morning mode start (0-23) | Integer | `6` |
-| `MORNING_MODE_END_HOUR` | morning_mode | Morning mode end (0-23) | Integer | `8` |
-| `LOG_LEVEL` | logging | Logging level | String | `INFO`, `DEBUG` |
+| `HEATTRAX_LATITUDE` | location | Location latitude | Float | `40.7128` |
+| `HEATTRAX_LONGITUDE` | location | Location longitude | Float | `-74.0060` |
+| `HEATTRAX_TIMEZONE` | location | Location timezone | String | `America/New_York` |
+| `HEATTRAX_TAPO_IP_ADDRESS` | device | Tapo device IP address | String | `192.168.1.100` |
+| `HEATTRAX_TAPO_USERNAME` | device | Tapo account username | String | `user@example.com` |
+| `HEATTRAX_TAPO_PASSWORD` | device | Tapo account password | String | `your_password` |
+| `HEATTRAX_THRESHOLD_TEMP_F` | thresholds | Temperature threshold (°F) | Float | `34` |
+| `HEATTRAX_LEAD_TIME_MINUTES` | thresholds | Minutes before precipitation | Integer | `60` |
+| `HEATTRAX_TRAILING_TIME_MINUTES` | thresholds | Minutes after precipitation | Integer | `60` |
+| `HEATTRAX_CHECK_INTERVAL_MINUTES` | scheduler | Weather check interval | Integer | `10` |
+| `HEATTRAX_FORECAST_HOURS` | scheduler | Forecast look-ahead hours | Integer | `12` |
+| `HEATTRAX_MAX_RUNTIME_HOURS` | safety | Maximum continuous runtime | Float | `6` |
+| `HEATTRAX_COOLDOWN_MINUTES` | safety | Cooldown period | Integer | `30` |
+| `HEATTRAX_MORNING_MODE_ENABLED` | morning_mode | Enable morning mode | Boolean | `true` or `false` |
+| `HEATTRAX_MORNING_MODE_START_HOUR` | morning_mode | Morning mode start (0-23) | Integer | `6` |
+| `HEATTRAX_MORNING_MODE_END_HOUR` | morning_mode | Morning mode end (0-23) | Integer | `8` |
+| `HEATTRAX_LOG_LEVEL` | logging | Logging level | String | `INFO`, `DEBUG` |
 
 ### Boolean Values
 
-For boolean environment variables (like `MORNING_MODE_ENABLED`), the following values are accepted:
+For boolean environment variables (like `HEATTRAX_MORNING_MODE_ENABLED`), the following values are accepted:
 - **True**: `true`, `TRUE`, `1`, `yes`, `YES`, `on`, `ON`
 - **False**: `false`, `FALSE`, `0`, `no`, `NO`, `off`, `OFF`
 
@@ -159,23 +159,23 @@ services:
     container_name: heattrax-scheduler
     environment:
       - TZ=America/New_York
-      - LATITUDE=40.7128
-      - LONGITUDE=-74.0060
-      - TIMEZONE=America/New_York
-      - TAPO_IP_ADDRESS=192.168.1.100
-      - TAPO_USERNAME=your_username
-      - TAPO_PASSWORD=your_password
-      - THRESHOLD_TEMP_F=34
-      - LEAD_TIME_MINUTES=60
-      - TRAILING_TIME_MINUTES=60
-      - CHECK_INTERVAL_MINUTES=10
-      - FORECAST_HOURS=12
-      - MAX_RUNTIME_HOURS=6
-      - COOLDOWN_MINUTES=30
-      - MORNING_MODE_ENABLED=true
-      - MORNING_MODE_START_HOUR=6
-      - MORNING_MODE_END_HOUR=8
-      - LOG_LEVEL=INFO
+      - HEATTRAX_LATITUDE=40.7128
+      - HEATTRAX_LONGITUDE=-74.0060
+      - HEATTRAX_TIMEZONE=America/New_York
+      - HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
+      - HEATTRAX_TAPO_USERNAME=your_username
+      - HEATTRAX_TAPO_PASSWORD=your_password
+      - HEATTRAX_THRESHOLD_TEMP_F=34
+      - HEATTRAX_LEAD_TIME_MINUTES=60
+      - HEATTRAX_TRAILING_TIME_MINUTES=60
+      - HEATTRAX_CHECK_INTERVAL_MINUTES=10
+      - HEATTRAX_FORECAST_HOURS=12
+      - HEATTRAX_MAX_RUNTIME_HOURS=6
+      - HEATTRAX_COOLDOWN_MINUTES=30
+      - HEATTRAX_MORNING_MODE_ENABLED=true
+      - HEATTRAX_MORNING_MODE_START_HOUR=6
+      - HEATTRAX_MORNING_MODE_END_HOUR=8
+      - HEATTRAX_LOG_LEVEL=INFO
     volumes:
       - ./logs:/app/logs
       - ./state:/app/state
@@ -190,23 +190,23 @@ Create a `.env` file in the same directory as your `docker-compose.yml`:
 ```bash
 # .env file
 TZ=America/New_York
-LATITUDE=40.7128
-LONGITUDE=-74.0060
-TIMEZONE=America/New_York
-TAPO_IP_ADDRESS=192.168.1.100
-TAPO_USERNAME=your_username
-TAPO_PASSWORD=your_password
-THRESHOLD_TEMP_F=34
-LEAD_TIME_MINUTES=60
-TRAILING_TIME_MINUTES=60
-CHECK_INTERVAL_MINUTES=10
-FORECAST_HOURS=12
-MAX_RUNTIME_HOURS=6
-COOLDOWN_MINUTES=30
-MORNING_MODE_ENABLED=true
-MORNING_MODE_START_HOUR=6
-MORNING_MODE_END_HOUR=8
-LOG_LEVEL=INFO
+HEATTRAX_LATITUDE=40.7128
+HEATTRAX_LONGITUDE=-74.0060
+HEATTRAX_TIMEZONE=America/New_York
+HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
+HEATTRAX_TAPO_USERNAME=your_username
+HEATTRAX_TAPO_PASSWORD=your_password
+HEATTRAX_THRESHOLD_TEMP_F=34
+HEATTRAX_LEAD_TIME_MINUTES=60
+HEATTRAX_TRAILING_TIME_MINUTES=60
+HEATTRAX_CHECK_INTERVAL_MINUTES=10
+HEATTRAX_FORECAST_HOURS=12
+HEATTRAX_MAX_RUNTIME_HOURS=6
+HEATTRAX_COOLDOWN_MINUTES=30
+HEATTRAX_MORNING_MODE_ENABLED=true
+HEATTRAX_MORNING_MODE_START_HOUR=6
+HEATTRAX_MORNING_MODE_END_HOUR=8
+HEATTRAX_LOG_LEVEL=INFO
 ```
 
 Then reference it in `docker-compose.yml`:
@@ -243,8 +243,8 @@ services:
     environment:
       - TZ=America/New_York
       # Override only sensitive values
-      - TAPO_USERNAME=${TAPO_USERNAME}
-      - TAPO_PASSWORD=${TAPO_PASSWORD}
+      - HEATTRAX_TAPO_USERNAME=${HEATTRAX_TAPO_USERNAME}
+      - HEATTRAX_TAPO_PASSWORD=${HEATTRAX_TAPO_PASSWORD}
     volumes:
       - ./config.yaml:/app/config.yaml:ro  # Mount config for non-secret settings
       - ./logs:/app/logs
@@ -404,35 +404,35 @@ services:
       - TZ=America/New_York
       
       # Location Settings (Required)
-      - LATITUDE=40.7128
-      - LONGITUDE=-74.0060
-      - TIMEZONE=America/New_York
+      - HEATTRAX_LATITUDE=40.7128
+      - HEATTRAX_LONGITUDE=-74.0060
+      - HEATTRAX_TIMEZONE=America/New_York
       
       # Tapo Device Settings (Required)
-      - TAPO_IP_ADDRESS=192.168.1.100
-      - TAPO_USERNAME=your_tapo_username
-      - TAPO_PASSWORD=your_tapo_password
+      - HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
+      - HEATTRAX_TAPO_USERNAME=your_tapo_username
+      - HEATTRAX_TAPO_PASSWORD=your_tapo_password
       
       # Weather Thresholds
-      - THRESHOLD_TEMP_F=34
-      - LEAD_TIME_MINUTES=60
-      - TRAILING_TIME_MINUTES=60
+      - HEATTRAX_THRESHOLD_TEMP_F=34
+      - HEATTRAX_LEAD_TIME_MINUTES=60
+      - HEATTRAX_TRAILING_TIME_MINUTES=60
       
       # Scheduler Settings
-      - CHECK_INTERVAL_MINUTES=10
-      - FORECAST_HOURS=12
+      - HEATTRAX_CHECK_INTERVAL_MINUTES=10
+      - HEATTRAX_FORECAST_HOURS=12
       
       # Safety Settings
-      - MAX_RUNTIME_HOURS=6
-      - COOLDOWN_MINUTES=30
+      - HEATTRAX_MAX_RUNTIME_HOURS=6
+      - HEATTRAX_COOLDOWN_MINUTES=30
       
       # Morning Mode Settings
-      - MORNING_MODE_ENABLED=true
-      - MORNING_MODE_START_HOUR=6
-      - MORNING_MODE_END_HOUR=8
+      - HEATTRAX_MORNING_MODE_ENABLED=true
+      - HEATTRAX_MORNING_MODE_START_HOUR=6
+      - HEATTRAX_MORNING_MODE_END_HOUR=8
       
       # Logging
-      - LOG_LEVEL=INFO
+      - HEATTRAX_LOG_LEVEL=INFO
     volumes:
       - heattrax-logs:/app/logs
       - heattrax-state:/app/state
@@ -447,10 +447,10 @@ volumes:
 2. **Configure Environment Variables:**
    - Update the environment variables directly in the Stack editor
    - Pay special attention to:
-     - `LATITUDE` and `LONGITUDE` - Your location coordinates
-     - `TAPO_IP_ADDRESS` - Your Tapo device's IP address
-     - `TAPO_USERNAME` - Your Tapo account email
-     - `TAPO_PASSWORD` - Your Tapo account password
+     - `HEATTRAX_LATITUDE` and `HEATTRAX_LONGITUDE` - Your location coordinates
+     - `HEATTRAX_TAPO_IP_ADDRESS` - Your Tapo device's IP address
+     - `HEATTRAX_TAPO_USERNAME` - Your Tapo account email
+     - `HEATTRAX_TAPO_PASSWORD` - Your Tapo account password
 
 3. **Deploy the Stack:**
    - Click "Deploy the stack"
@@ -491,21 +491,21 @@ services:
     container_name: heattrax-scheduler
     environment:
       - TZ=America/New_York
-      - LATITUDE=40.7128
-      - LONGITUDE=-74.0060
-      - TIMEZONE=America/New_York
-      - TAPO_IP_ADDRESS=192.168.1.100
-      - THRESHOLD_TEMP_F=34
-      - LEAD_TIME_MINUTES=60
-      - TRAILING_TIME_MINUTES=60
-      - CHECK_INTERVAL_MINUTES=10
-      - FORECAST_HOURS=12
-      - MAX_RUNTIME_HOURS=6
-      - COOLDOWN_MINUTES=30
-      - MORNING_MODE_ENABLED=true
-      - MORNING_MODE_START_HOUR=6
-      - MORNING_MODE_END_HOUR=8
-      - LOG_LEVEL=INFO
+      - HEATTRAX_LATITUDE=40.7128
+      - HEATTRAX_LONGITUDE=-74.0060
+      - HEATTRAX_TIMEZONE=America/New_York
+      - HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
+      - HEATTRAX_THRESHOLD_TEMP_F=34
+      - HEATTRAX_LEAD_TIME_MINUTES=60
+      - HEATTRAX_TRAILING_TIME_MINUTES=60
+      - HEATTRAX_CHECK_INTERVAL_MINUTES=10
+      - HEATTRAX_FORECAST_HOURS=12
+      - HEATTRAX_MAX_RUNTIME_HOURS=6
+      - HEATTRAX_COOLDOWN_MINUTES=30
+      - HEATTRAX_MORNING_MODE_ENABLED=true
+      - HEATTRAX_MORNING_MODE_START_HOUR=6
+      - HEATTRAX_MORNING_MODE_END_HOUR=8
+      - HEATTRAX_LOG_LEVEL=INFO
     secrets:
       - tapo_username
       - tapo_password
@@ -529,8 +529,8 @@ volumes:
 Then read secrets in your environment:
 ```yaml
 environment:
-  - TAPO_USERNAME_FILE=/run/secrets/tapo_username
-  - TAPO_PASSWORD_FILE=/run/secrets/tapo_password
+  - HEATTRAX_TAPO_USERNAME_FILE=/run/secrets/tapo_username
+  - HEATTRAX_TAPO_PASSWORD_FILE=/run/secrets/tapo_password
 ```
 
 ### Hybrid Approach with Config File
@@ -557,8 +557,8 @@ services:
     environment:
       - TZ=America/New_York
       # Override only secrets via environment variables
-      - TAPO_USERNAME=your_username
-      - TAPO_PASSWORD=your_password
+      - HEATTRAX_TAPO_USERNAME=your_username
+      - HEATTRAX_TAPO_PASSWORD=your_password
     volumes:
       - /opt/heattrax/config.yaml:/app/config.yaml:ro
       - heattrax-logs:/app/logs
