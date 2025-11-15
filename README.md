@@ -98,6 +98,8 @@ For troubleshooting and logging information, see [LOGGING.md](LOGGING.md).
 
 All configuration settings can be overridden using environment variables, which is ideal for Docker deployments, Portainer stacks, and keeping secrets secure.
 
+> **Note about `config.yaml`**: The configuration file is **optional** when all required environment variables are provided. If `config.yaml` is missing, the application will log `Configuration file not found: config.yaml` as an informational message, but will continue to run using environment variables. This is the recommended approach for Docker and Portainer deployments.
+
 ### Override Precedence
 
 Configuration values are resolved in the following order (highest to lowest priority):
@@ -306,6 +308,27 @@ scheduler:
   check_interval_minutes: 10   # How often to check weather
   forecast_hours: 12           # How far ahead to look for precipitation
 ```
+
+## Device Control Library (python-kasa)
+
+This scheduler uses the [python-kasa](https://github.com/python-kasa/python-kasa) library to control TP-Link Tapo smart plugs. The implementation is designed for compatibility with multiple versions of python-kasa.
+
+### Key Implementation Details
+
+- **Library Version**: Requires `python-kasa>=0.7.0`
+- **Device Initialization**: The `SmartPlug` device is initialized with only the IP address: `SmartPlug(ip_address)`
+- **Credentials Handling**: Tapo username and password are validated in configuration but are **not** passed to the `SmartPlug` constructor via a `credentials` keyword argument. This approach ensures compatibility across different python-kasa versions.
+- **Authentication**: Modern versions of python-kasa handle authentication automatically during the device update/communication phase.
+
+### Why This Matters
+
+Earlier versions of the scheduler may have used a `credentials` parameter when creating `SmartPlug` objects. This has been removed because:
+
+1. The `credentials` keyword argument is not universally supported across all python-kasa versions
+2. Modern python-kasa handles authentication internally without requiring explicit credential injection at initialization
+3. This change prevents `TypeError` exceptions related to unexpected keyword arguments
+
+The scheduler still validates that Tapo credentials are present in the configuration (for diagnostics and potential future use), but device control works without explicitly passing them to the constructor.
 
 ## How It Works
 

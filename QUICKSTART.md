@@ -15,12 +15,36 @@ Get your HeatTrax scheduler running in 5 minutes!
    cd HeatTrax_Tapo_M400_Scheduler
    ```
 
-2. **Create your config file:**
+2. **Choose your configuration method:**
+
+   **Option A: Using Environment Variables (Recommended)**
+   
+   Create a `stack.env` file with your settings:
+   ```bash
+   # stack.env
+   HEATTRAX_LATITUDE=YOUR_LATITUDE
+   HEATTRAX_LONGITUDE=YOUR_LONGITUDE
+   HEATTRAX_TIMEZONE=America/New_York
+   HEATTRAX_TAPO_IP_ADDRESS=YOUR_DEVICE_IP
+   HEATTRAX_TAPO_USERNAME=YOUR_TAPO_EMAIL
+   HEATTRAX_TAPO_PASSWORD=YOUR_TAPO_PASSWORD
+   ```
+   
+   Update `docker-compose.yml` to use it:
+   ```yaml
+   env_file:
+     - stack.env
+   ```
+   
+   > **Note**: When using environment variables, you'll see `Configuration file not found: config.yaml` in the logs - this is normal! The app will use your environment variables instead.
+
+   **Option B: Using config.yaml**
+   
    ```bash
    cp config.example.yaml config.yaml
    ```
-
-3. **Edit config.yaml with your settings:**
+   
+   Edit `config.yaml` with your settings:
    ```yaml
    location:
      latitude: YOUR_LATITUDE    # Find on Google Maps
@@ -33,12 +57,12 @@ Get your HeatTrax scheduler running in 5 minutes!
      password: "YOUR_TAPO_PASSWORD"
    ```
 
-4. **Start the scheduler:**
+3. **Start the scheduler:**
    ```bash
    docker-compose up -d
    ```
 
-5. **Check it's working:**
+4. **Check it's working:**
    ```bash
    docker-compose logs -f
    ```
