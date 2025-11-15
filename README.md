@@ -10,6 +10,8 @@ For detailed setup instructions, see [SETUP.md](SETUP.md).
 
 For troubleshooting and logging information, see [LOGGING.md](LOGGING.md).
 
+For startup diagnostic checks and debugging containerized deployments, see [STARTUP_CHECKS.md](STARTUP_CHECKS.md).
+
 ## Features
 
 - **Weather-Based Automation**: Uses Open-Meteo API for accurate weather forecasting
@@ -24,6 +26,13 @@ For troubleshooting and logging information, see [LOGGING.md](LOGGING.md).
   - Detailed error messages with troubleshooting guidance
   - Full exception tracebacks for debugging
   - See [LOGGING.md](LOGGING.md) for complete logging guide
+- **Startup Diagnostic Checks**: Comprehensive pre-flight checks for containerized deployments
+  - Python version and package verification
+  - Directory access validation
+  - Configuration file parsing
+  - Environment variable dump (with sensitive data redaction)
+  - Optional device connectivity test
+  - See [STARTUP_CHECKS.md](STARTUP_CHECKS.md) for details
 - **Docker Support**: Easy deployment with Docker and docker-compose
 - **Flexible Configuration**: YAML-based configuration with environment variable overrides
   - All settings can be overridden via environment variables
