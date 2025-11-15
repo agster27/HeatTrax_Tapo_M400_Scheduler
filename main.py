@@ -219,34 +219,55 @@ class HeatTraxScheduler:
     async def run_cycle(self):
         """Run one scheduler cycle."""
         try:
-            self.logger.info("Running scheduler cycle...")
+            self.logger.info("=" * 60)
+            self.logger.info("Starting scheduler cycle")
+            self.logger.info("=" * 60)
             
             # Get current device state
+            self.logger.info("Checking current device state...")
             device_is_on = await self.controller.get_state()
+            self.logger.info(f"Current device state: {'ON' if device_is_on else 'OFF'}")
             
             if device_is_on:
                 # Device is on, check if it should turn off
-                if await self.should_turn_off():
+                self.logger.info("Device is ON - evaluating if it should turn OFF")
+                should_off = await self.should_turn_off()
+                
+                if should_off:
+                    self.logger.info("DECISION: Device should turn OFF")
                     await self.controller.turn_off()
                     self.state.mark_turned_off()
                     self.state.start_cooldown()
+                    self.logger.info("Device turned OFF and cooldown started")
                 else:
-                    self.logger.info(
-                        f"Device staying ON (runtime: "
-                        f"{self.state.get_current_runtime_hours():.2f} hours)"
-                    )
+                    runtime_hours = self.state.get_current_runtime_hours()
+                    self.logger.info(f"DECISION: Device should stay ON")
+                    self.logger.info(f"Current runtime: {runtime_hours:.2f} hours")
             else:
                 # Device is off, check if it should turn on
-                if await self.should_turn_on():
+                self.logger.info("Device is OFF - evaluating if it should turn ON")
+                should_on = await self.should_turn_on()
+                
+                if should_on:
+                    self.logger.info("DECISION: Device should turn ON")
                     await self.controller.turn_on()
                     self.state.mark_turned_on()
+                    self.logger.info("Device turned ON and state recorded")
                 else:
-                    self.logger.info("Device staying OFF")
+                    self.logger.info("DECISION: Device should stay OFF")
+            
+            self.logger.info("Scheduler cycle completed successfully")
             
         except DeviceControllerError as e:
-            self.logger.error(f"Device controller error: {e}")
+            self.logger.error(f"Device controller error in scheduler cycle: {e}")
+            self.logger.error("Will retry on next cycle")
+        except WeatherServiceError as e:
+            self.logger.error(f"Weather service error in scheduler cycle: {e}")
+            self.logger.error("Will retry on next cycle")
         except Exception as e:
-            self.logger.error(f"Unexpected error in scheduler cycle: {e}", exc_info=True)
+            self.logger.error(f"Unexpected error in scheduler cycle: {type(e).__name__}: {e}")
+            self.logger.exception("Full traceback:")
+            self.logger.error("Will retry on next cycle")
     
     async def run(self):
         """Run the main scheduler loop."""
