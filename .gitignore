@@ -26,6 +26,7 @@ wheels/
 # Config and state files
 config.yaml
 state.json
+state/
 
 # Logs
 logs/
