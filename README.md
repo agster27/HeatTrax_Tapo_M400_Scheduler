@@ -2,6 +2,12 @@
 
 Automated control system for TP-Link Tapo smart plugs to manage heated outdoor mats based on weather conditions. The system monitors weather forecasts and automatically turns mats on before precipitation when temperatures are below freezing, with built-in safety features and optional morning frost-clearing mode.
 
+## 🚀 Quick Start
+
+Want to get started quickly? See the [Quick Start Guide](QUICKSTART.md) for a 5-minute setup.
+
+For detailed setup instructions, see [SETUP.md](SETUP.md).
+
 ## Features
 
 - **Weather-Based Automation**: Uses Open-Meteo API for accurate weather forecasting
