@@ -1,0 +1,310 @@
+"""Main scheduler application for HeatTrax Tapo M400."""
+
+import asyncio
+import logging
+import signal
+import sys
+from datetime import datetime, timedelta
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
+from config_loader import Config, ConfigError
+from weather_service import WeatherService, WeatherServiceError
+from device_controller import TapoController, DeviceControllerError
+from state_manager import StateManager
+
+
+# Global flag for graceful shutdown
+shutdown_event = asyncio.Event()
+
+
+def setup_logging(config: Config):
+    """Set up rotating file logging."""
+    log_config = config.logging_config
+    log_level = getattr(logging, log_config.get('level', 'INFO'))
+    
+    # Create logs directory
+    log_dir = Path('logs')
+    log_dir.mkdir(exist_ok=True)
+    
+    # Configure root logger
+    logger = logging.getLogger()
+    logger.setLevel(log_level)
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level)
+    console_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
+    
+    # Rotating file handler
+    max_bytes = log_config.get('max_file_size_mb', 10) * 1024 * 1024
+    backup_count = log_config.get('backup_count', 5)
+    
+    file_handler = RotatingFileHandler(
+        log_dir / 'heattrax_scheduler.log',
+        maxBytes=max_bytes,
+        backupCount=backup_count
+    )
+    file_handler.setLevel(log_level)
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    file_handler.setFormatter(file_formatter)
+    logger.addHandler(file_handler)
+    
+    logging.info("Logging initialized")
+
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals."""
+    logging.info(f"Received signal {signum}, initiating graceful shutdown...")
+    shutdown_event.set()
+
+
+class HeatTraxScheduler:
+    """Main scheduler for controlling heated mats based on weather."""
+    
+    def __init__(self, config: Config):
+        """
+        Initialize scheduler.
+        
+        Args:
+            config: Application configuration
+        """
+        self.config = config
+        self.weather = WeatherService(
+            latitude=config.location['latitude'],
+            longitude=config.location['longitude'],
+            timezone=config.location.get('timezone', 'auto')
+        )
+        self.controller = TapoController(
+            ip_address=config.device['ip_address'],
+            username=config.device['username'],
+            password=config.device['password']
+        )
+        self.state = StateManager()
+        self.logger = logging.getLogger(__name__)
+    
+    async def initialize(self):
+        """Initialize the scheduler and device connection."""
+        self.logger.info("Initializing HeatTrax Scheduler...")
+        try:
+            await self.controller.initialize()
+            self.logger.info("Scheduler initialized successfully")
+        except DeviceControllerError as e:
+            self.logger.error(f"Failed to initialize device controller: {e}")
+            raise
+    
+    async def should_turn_on(self) -> bool:
+        """
+        Determine if device should be turned on based on weather and conditions.
+        
+        Returns:
+            True if device should be on, False otherwise
+        """
+        # Check if in cooldown
+        if self.state.is_in_cooldown(self.config.safety['cooldown_minutes']):
+            self.logger.info("Device in cooldown period, cannot turn on")
+            return False
+        
+        # Check morning mode
+        current_hour = datetime.now().hour
+        morning_mode = self.config.morning_mode
+        if morning_mode.get('enabled', False):
+            start_hour = morning_mode.get('start_hour', 6)
+            end_hour = morning_mode.get('end_hour', 8)
+            
+            if start_hour <= current_hour < end_hour:
+                self.logger.info("Morning frost-clearing mode active")
+                # Check temperature only
+                try:
+                    temp, _ = await self.weather.get_current_conditions()
+                    if temp < self.config.thresholds['temperature_f']:
+                        self.logger.info(
+                            f"Morning mode: Temperature {temp}°F below threshold "
+                            f"{self.config.thresholds['temperature_f']}°F"
+                        )
+                        return True
+                except WeatherServiceError as e:
+                    self.logger.error(f"Failed to get current conditions: {e}")
+        
+        # Check precipitation forecast
+        try:
+            has_precip, precip_time, temp = await self.weather.check_precipitation_forecast(
+                hours_ahead=self.config.scheduler['forecast_hours'],
+                temperature_threshold_f=self.config.thresholds['temperature_f']
+            )
+            
+            if has_precip and precip_time:
+                # Check if we should turn on based on lead time
+                lead_time = timedelta(minutes=self.config.thresholds['lead_time_minutes'])
+                turn_on_time = precip_time - lead_time
+                now = datetime.now()
+                
+                if now >= turn_on_time:
+                    self.logger.info(
+                        f"Precipitation expected at {precip_time}, "
+                        f"temperature {temp}°F - turning on"
+                    )
+                    return True
+                else:
+                    self.logger.info(
+                        f"Precipitation expected at {precip_time}, "
+                        f"will turn on at {turn_on_time}"
+                    )
+            
+        except WeatherServiceError as e:
+            self.logger.error(f"Weather service error: {e}")
+        
+        return False
+    
+    async def should_turn_off(self) -> bool:
+        """
+        Determine if device should be turned off.
+        
+        Returns:
+            True if device should be off, False otherwise
+        """
+        # Check if exceeded max runtime
+        if self.state.exceeded_max_runtime(self.config.safety['max_runtime_hours']):
+            self.logger.warning("Maximum runtime exceeded, turning off for safety")
+            return True
+        
+        # Check if still in morning mode hours
+        current_hour = datetime.now().hour
+        morning_mode = self.config.morning_mode
+        if morning_mode.get('enabled', False):
+            start_hour = morning_mode.get('start_hour', 6)
+            end_hour = morning_mode.get('end_hour', 8)
+            
+            if start_hour <= current_hour < end_hour:
+                # Still in morning mode, check temperature
+                try:
+                    temp, _ = await self.weather.get_current_conditions()
+                    if temp < self.config.thresholds['temperature_f']:
+                        return False  # Keep on
+                except WeatherServiceError as e:
+                    self.logger.error(f"Failed to get current conditions: {e}")
+        
+        # Check if precipitation has ended
+        try:
+            has_precip, precip_time, _ = await self.weather.check_precipitation_forecast(
+                hours_ahead=self.config.scheduler['forecast_hours'],
+                temperature_threshold_f=self.config.thresholds['temperature_f']
+            )
+            
+            if not has_precip:
+                # No precipitation expected, check trailing time
+                trailing_time = timedelta(
+                    minutes=self.config.thresholds['trailing_time_minutes']
+                )
+                # If device has been on for at least the trailing time, turn off
+                if self.state.device_on and self.state.turn_on_time:
+                    time_on = datetime.now() - self.state.turn_on_time
+                    if time_on >= trailing_time:
+                        self.logger.info(
+                            f"No precipitation expected and trailing time passed "
+                            f"({time_on.total_seconds()/60:.1f} minutes), turning off"
+                        )
+                        return True
+        except WeatherServiceError as e:
+            self.logger.error(f"Weather service error: {e}")
+        
+        return False
+    
+    async def run_cycle(self):
+        """Run one scheduler cycle."""
+        try:
+            self.logger.info("Running scheduler cycle...")
+            
+            # Get current device state
+            device_is_on = await self.controller.get_state()
+            
+            if device_is_on:
+                # Device is on, check if it should turn off
+                if await self.should_turn_off():
+                    await self.controller.turn_off()
+                    self.state.mark_turned_off()
+                    self.state.start_cooldown()
+                else:
+                    self.logger.info(
+                        f"Device staying ON (runtime: "
+                        f"{self.state.get_current_runtime_hours():.2f} hours)"
+                    )
+            else:
+                # Device is off, check if it should turn on
+                if await self.should_turn_on():
+                    await self.controller.turn_on()
+                    self.state.mark_turned_on()
+                else:
+                    self.logger.info("Device staying OFF")
+            
+        except DeviceControllerError as e:
+            self.logger.error(f"Device controller error: {e}")
+        except Exception as e:
+            self.logger.error(f"Unexpected error in scheduler cycle: {e}", exc_info=True)
+    
+    async def run(self):
+        """Run the main scheduler loop."""
+        await self.initialize()
+        
+        check_interval = self.config.scheduler['check_interval_minutes'] * 60
+        self.logger.info(f"Starting scheduler with {check_interval}s check interval")
+        
+        try:
+            while not shutdown_event.is_set():
+                await self.run_cycle()
+                
+                # Wait for next cycle or shutdown
+                try:
+                    await asyncio.wait_for(
+                        shutdown_event.wait(),
+                        timeout=check_interval
+                    )
+                except asyncio.TimeoutError:
+                    pass  # Continue to next cycle
+        
+        finally:
+            self.logger.info("Shutting down scheduler...")
+            # Ensure device is off on shutdown (optional, can be removed if you want device to stay in current state)
+            # await self.controller.turn_off()
+            await self.controller.close()
+            self.logger.info("Scheduler shutdown complete")
+
+
+async def main():
+    """Main entry point for the application."""
+    # Set up signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    try:
+        # Load configuration
+        config = Config()
+        
+        # Set up logging
+        setup_logging(config)
+        
+        logger = logging.getLogger(__name__)
+        logger.info("=" * 60)
+        logger.info("HeatTrax Tapo M400 Scheduler Starting")
+        logger.info("=" * 60)
+        
+        # Create and run scheduler
+        scheduler = HeatTraxScheduler(config)
+        await scheduler.run()
+        
+    except ConfigError as e:
+        print(f"Configuration error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        logging.error(f"Fatal error: {e}", exc_info=True)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

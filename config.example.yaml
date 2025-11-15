@@ -1,0 +1,48 @@
+# HeatTrax Tapo M400 Scheduler Configuration
+
+# Location settings for weather data
+location:
+  latitude: 40.7128
+  longitude: -74.0060
+  timezone: "America/New_York"
+
+# Tapo device settings
+device:
+  ip_address: "192.168.1.100"
+  username: "your_tapo_username"
+  password: "your_tapo_password"
+
+# Weather thresholds
+thresholds:
+  # Temperature threshold in Fahrenheit
+  temperature_f: 34
+  # Minutes before precipitation to turn on
+  lead_time_minutes: 60
+  # Minutes after precipitation to turn off
+  trailing_time_minutes: 60
+
+# Optional morning frost-clearing mode
+morning_mode:
+  enabled: true
+  start_hour: 6
+  end_hour: 8
+
+# Safety settings
+safety:
+  # Maximum continuous runtime in hours
+  max_runtime_hours: 6
+  # Cooldown period after max runtime in minutes
+  cooldown_minutes: 30
+
+# Scheduler settings
+scheduler:
+  # How often to check weather in minutes
+  check_interval_minutes: 10
+  # How far ahead to look for precipitation in hours
+  forecast_hours: 12
+
+# Logging settings
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  max_file_size_mb: 10
+  backup_count: 5
