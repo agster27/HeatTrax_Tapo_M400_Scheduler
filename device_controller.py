@@ -1,9 +1,9 @@
-"""Device controller for TP-Link Tapo smart plugs using python-kasa."""
+"""Device controller for TP-Link Tapo smart plugs using python-kasa."
 
 import asyncio
 import logging
 from typing import Optional
-from kasa import SmartPlug, Credentials
+from kasa import SmartPlug
 
 
 logger = logging.getLogger(__name__)
@@ -18,8 +18,7 @@ class TapoController:
     """Controller for TP-Link Tapo smart plug."""
     
     def __init__(self, ip_address: str, username: str, password: str):
-        """
-        Initialize Tapo controller.
+        """Initialize Tapo controller.
         
         Args:
             ip_address: IP address of the Tapo device
@@ -37,22 +36,17 @@ class TapoController:
         logger.info(f"Initializing connection to Tapo device at {self.ip_address}")
         logger.debug(f"Using username: {self.username}")
         
-        # Validate IP address format (basic check)
         if not self.ip_address:
             logger.error("IP address is empty")
             raise DeviceControllerError("IP address cannot be empty")
         
-        # Validate credentials
         if not self.username or not self.password:
             logger.error("Username or password is empty")
             raise DeviceControllerError("Username and password are required")
         
         try:
-            logger.debug("Creating Tapo credentials object")
-            credentials = Credentials(username=self.username, password=self.password)
-            
             logger.debug(f"Creating SmartPlug object for {self.ip_address}")
-            self.device = SmartPlug(self.ip_address, credentials=credentials)
+            self.device = SmartPlug(self.ip_address)
             
             logger.info(f"Attempting to connect and update device at {self.ip_address}")
             await self.device.update()
@@ -60,7 +54,6 @@ class TapoController:
             self._initialized = True
             logger.info(f"Successfully connected to device at {self.ip_address}")
             
-            # Log device information
             if self.device.alias:
                 logger.info(f"Device name: {self.device.alias}")
             if hasattr(self.device, 'model'):
@@ -91,7 +84,6 @@ class TapoController:
             await self.initialize()
         
         try:
-            # Validate device object
             if not self.device:
                 logger.error("Device object is None")
                 raise DeviceControllerError("Device object is not initialized")
@@ -103,8 +95,7 @@ class TapoController:
                 logger.info(f"Turning ON device at {self.ip_address}")
                 await self.device.turn_on()
                 
-                # Verify the device actually turned on
-                await asyncio.sleep(1)  # Brief delay to allow state change
+                await asyncio.sleep(1)
                 await self.device.update()
                 
                 if self.device.is_on:
@@ -134,7 +125,6 @@ class TapoController:
             await self.initialize()
         
         try:
-            # Validate device object
             if not self.device:
                 logger.error("Device object is None")
                 raise DeviceControllerError("Device object is not initialized")
@@ -146,8 +136,7 @@ class TapoController:
                 logger.info(f"Turning OFF device at {self.ip_address}")
                 await self.device.turn_off()
                 
-                # Verify the device actually turned off
-                await asyncio.sleep(1)  # Brief delay to allow state change
+                await asyncio.sleep(1)
                 await self.device.update()
                 
                 if not self.device.is_on:
@@ -169,8 +158,7 @@ class TapoController:
             raise DeviceControllerError(f"Failed to turn off device: {e}")
     
     async def get_state(self) -> bool:
-        """
-        Get current state of the device.
+        """Get current state of the device.
         
         Returns:
             True if device is on, False otherwise
@@ -182,7 +170,6 @@ class TapoController:
             await self.initialize()
         
         try:
-            # Validate device object
             if not self.device:
                 logger.error("Device object is None")
                 raise DeviceControllerError("Device object is not initialized")
@@ -210,7 +197,6 @@ class TapoController:
         """Close connection to the device."""
         if self.device:
             try:
-                # python-kasa handles cleanup automatically
                 logger.info("Closed connection to device")
             except Exception as e:
                 logger.warning(f"Error closing device connection: {e}")
