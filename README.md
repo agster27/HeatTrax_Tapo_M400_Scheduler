@@ -8,6 +8,8 @@ Want to get started quickly? See the [Quick Start Guide](QUICKSTART.md) for a 5-
 
 For detailed setup instructions, see [SETUP.md](SETUP.md).
 
+For troubleshooting and logging information, see [LOGGING.md](LOGGING.md).
+
 ## Features
 
 - **Weather-Based Automation**: Uses Open-Meteo API for accurate weather forecasting
@@ -17,7 +19,11 @@ For detailed setup instructions, see [SETUP.md](SETUP.md).
   - Maximum 6-hour continuous runtime limit
   - 30-minute cooldown period after max runtime
   - State persistence for recovery after restarts
-- **Comprehensive Logging**: Rotating log files with configurable levels
+- **Comprehensive Logging**: Rotating log files with configurable levels (DEBUG, INFO, WARNING, ERROR)
+  - Verbose logging for all API calls and device operations
+  - Detailed error messages with troubleshooting guidance
+  - Full exception tracebacks for debugging
+  - See [LOGGING.md](LOGGING.md) for complete logging guide
 - **Docker Support**: Easy deployment with Docker and docker-compose
 - **Flexible Configuration**: YAML-based configuration for easy customization
 
