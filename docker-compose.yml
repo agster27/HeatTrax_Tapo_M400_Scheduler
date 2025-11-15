@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  heattrax-scheduler:
+    build: .
+    container_name: heattrax-scheduler
+    restart: unless-stopped
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./logs:/app/logs
+      - ./state:/app/state
+    environment:
+      - TZ=America/New_York
+    network_mode: host
