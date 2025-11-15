@@ -1,48 +1,63 @@
 # HeatTrax Tapo M400 Scheduler Configuration
+#
+# All settings can be overridden using environment variables.
+# Environment variables take precedence over values in this file.
+# This is useful for Docker deployments and keeping secrets secure.
 
 # Location settings for weather data
+# Environment variables: LATITUDE, LONGITUDE, TIMEZONE
 location:
-  latitude: 40.7128
-  longitude: -74.0060
-  timezone: "America/New_York"
+  latitude: 40.7128          # ENV: LATITUDE
+  longitude: -74.0060        # ENV: LONGITUDE
+  timezone: "America/New_York"  # ENV: TIMEZONE
 
 # Tapo device settings
+# Environment variables: TAPO_IP_ADDRESS, TAPO_USERNAME, TAPO_PASSWORD
 device:
-  ip_address: "192.168.1.100"
-  username: "your_tapo_username"
-  password: "your_tapo_password"
+  ip_address: "192.168.1.100"      # ENV: TAPO_IP_ADDRESS
+  username: "your_tapo_username"   # ENV: TAPO_USERNAME
+  password: "your_tapo_password"   # ENV: TAPO_PASSWORD
 
 # Weather thresholds
+# Environment variables: THRESHOLD_TEMP_F, LEAD_TIME_MINUTES, TRAILING_TIME_MINUTES
 thresholds:
   # Temperature threshold in Fahrenheit
-  temperature_f: 34
+  temperature_f: 34              # ENV: THRESHOLD_TEMP_F
   # Minutes before precipitation to turn on
-  lead_time_minutes: 60
+  lead_time_minutes: 60          # ENV: LEAD_TIME_MINUTES
   # Minutes after precipitation to turn off
-  trailing_time_minutes: 60
+  trailing_time_minutes: 60      # ENV: TRAILING_TIME_MINUTES
 
 # Optional morning frost-clearing mode
+# Environment variables: MORNING_MODE_ENABLED, MORNING_MODE_START_HOUR, MORNING_MODE_END_HOUR
 morning_mode:
-  enabled: true
-  start_hour: 6
-  end_hour: 8
+  enabled: true      # ENV: MORNING_MODE_ENABLED (true/false)
+  start_hour: 6      # ENV: MORNING_MODE_START_HOUR (0-23)
+  end_hour: 8        # ENV: MORNING_MODE_END_HOUR (0-23)
 
 # Safety settings
+# Environment variables: MAX_RUNTIME_HOURS, COOLDOWN_MINUTES
 safety:
   # Maximum continuous runtime in hours
-  max_runtime_hours: 6
+  max_runtime_hours: 6       # ENV: MAX_RUNTIME_HOURS
   # Cooldown period after max runtime in minutes
-  cooldown_minutes: 30
+  cooldown_minutes: 30       # ENV: COOLDOWN_MINUTES
 
 # Scheduler settings
+# Environment variables: CHECK_INTERVAL_MINUTES, FORECAST_HOURS
 scheduler:
   # How often to check weather in minutes
-  check_interval_minutes: 10
+  check_interval_minutes: 10   # ENV: CHECK_INTERVAL_MINUTES
   # How far ahead to look for precipitation in hours
-  forecast_hours: 12
+  forecast_hours: 12           # ENV: FORECAST_HOURS
 
 # Logging settings
+# Environment variable: LOG_LEVEL
 logging:
-  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL - ENV: LOG_LEVEL
   max_file_size_mb: 10
   backup_count: 5
+
+# Additional environment variables:
+# - CONFIG_PATH: Path to this configuration file (default: config.yaml)
+# - TZ: System timezone (e.g., America/New_York)

@@ -1,9 +1,10 @@
 """Configuration loader and validator for HeatTrax Scheduler."""
 
+import os
 import yaml
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
 logger = logging.getLogger(__name__)
@@ -14,30 +15,135 @@ class ConfigError(Exception):
     pass
 
 
+# Environment variable to config key mapping
+ENV_VAR_MAPPING = {
+    # Location settings
+    'LATITUDE': ('location', 'latitude', float),
+    'LONGITUDE': ('location', 'longitude', float),
+    'TIMEZONE': ('location', 'timezone', str),
+    
+    # Device settings
+    'TAPO_IP_ADDRESS': ('device', 'ip_address', str),
+    'TAPO_USERNAME': ('device', 'username', str),
+    'TAPO_PASSWORD': ('device', 'password', str),
+    
+    # Threshold settings
+    'THRESHOLD_TEMP_F': ('thresholds', 'temperature_f', float),
+    'LEAD_TIME_MINUTES': ('thresholds', 'lead_time_minutes', int),
+    'TRAILING_TIME_MINUTES': ('thresholds', 'trailing_time_minutes', int),
+    
+    # Scheduler settings
+    'CHECK_INTERVAL_MINUTES': ('scheduler', 'check_interval_minutes', int),
+    'FORECAST_HOURS': ('scheduler', 'forecast_hours', int),
+    
+    # Safety settings
+    'MAX_RUNTIME_HOURS': ('safety', 'max_runtime_hours', float),
+    'COOLDOWN_MINUTES': ('safety', 'cooldown_minutes', int),
+    
+    # Morning mode settings
+    'MORNING_MODE_ENABLED': ('morning_mode', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
+    'MORNING_MODE_START_HOUR': ('morning_mode', 'start_hour', int),
+    'MORNING_MODE_END_HOUR': ('morning_mode', 'end_hour', int),
+    
+    # Logging settings
+    'LOG_LEVEL': ('logging', 'level', str),
+}
+
+
+def get_env_var(env_var: str, convert_type: type) -> Optional[Any]:
+    """
+    Get environment variable and convert to specified type.
+    
+    Args:
+        env_var: Environment variable name
+        convert_type: Type conversion function (int, float, str, or callable)
+        
+    Returns:
+        Converted value or None if not set
+    """
+    value = os.environ.get(env_var)
+    if value is None:
+        return None
+    
+    try:
+        if callable(convert_type):
+            return convert_type(value)
+        return value
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Failed to convert environment variable {env_var}={value}: {e}")
+        return None
+
+
+def apply_env_overrides(config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Apply environment variable overrides to configuration.
+    
+    Args:
+        config: Configuration dictionary
+        
+    Returns:
+        Configuration with environment variable overrides applied
+    """
+    logger.debug("Checking for environment variable overrides...")
+    
+    for env_var, (section, key, convert_type) in ENV_VAR_MAPPING.items():
+        value = get_env_var(env_var, convert_type)
+        
+        if value is not None:
+            # Ensure section exists in config
+            if section not in config:
+                config[section] = {}
+            
+            # Apply override
+            config[section][key] = value
+            logger.info(f"Environment variable override: {env_var} -> {section}.{key} = {value}")
+    
+    return config
+
+
 class Config:
     """Configuration manager for the application."""
     
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path: str = None):
         """
-        Initialize configuration from YAML file.
+        Initialize configuration from YAML file with environment variable overrides.
         
         Args:
-            config_path: Path to the configuration file
+            config_path: Path to the configuration file (defaults to CONFIG_PATH env var or "config.yaml")
         """
+        # Check for CONFIG_PATH environment variable if no path provided
+        if config_path is None:
+            config_path = os.environ.get('CONFIG_PATH', 'config.yaml')
+        
         logger.info(f"Loading configuration from: {config_path}")
         self.config_path = Path(config_path)
         self._config = self._load_config()
+        
+        # Apply environment variable overrides
+        self._config = apply_env_overrides(self._config)
+        
         self._validate_config()
         logger.info("Configuration loaded and validated successfully")
     
     def _load_config(self) -> Dict[str, Any]:
-        """Load configuration from YAML file."""
+        """Load configuration from YAML file or create minimal config if file doesn't exist but env vars are set."""
         logger.debug(f"Checking if configuration file exists: {self.config_path}")
         
         if not self.config_path.exists():
-            logger.error(f"Configuration file not found: {self.config_path}")
-            logger.error(f"Current working directory: {Path.cwd()}")
-            raise ConfigError(f"Configuration file not found: {self.config_path}")
+            logger.warning(f"Configuration file not found: {self.config_path}")
+            logger.info("Will attempt to use environment variables for configuration")
+            
+            # Create minimal config structure that will be populated by env vars
+            config = {
+                'location': {},
+                'device': {},
+                'thresholds': {},
+                'scheduler': {},
+                'safety': {},
+                'morning_mode': {},
+                'logging': {}
+            }
+            return config
         
         try:
             logger.debug(f"Reading configuration file: {self.config_path}")
@@ -45,8 +151,16 @@ class Config:
                 config = yaml.safe_load(f)
             
             if config is None:
-                logger.error("Configuration file is empty")
-                raise ConfigError("Configuration file is empty")
+                logger.warning("Configuration file is empty, using empty config structure")
+                config = {
+                    'location': {},
+                    'device': {},
+                    'thresholds': {},
+                    'scheduler': {},
+                    'safety': {},
+                    'morning_mode': {},
+                    'logging': {}
+                }
             
             if not isinstance(config, dict):
                 logger.error(f"Configuration must be a dictionary, got: {type(config)}")
