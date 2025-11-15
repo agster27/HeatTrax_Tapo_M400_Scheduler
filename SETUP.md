@@ -53,6 +53,16 @@ kasa discover
 
 ### 3. Configure the Application
 
+You have two options for configuration:
+
+#### Option A: Using Environment Variables (Recommended for Docker)
+
+When using Docker or Portainer, you can configure the application entirely through environment variables without creating a `config.yaml` file. See the "Using Environment Variables with Docker" section below for examples.
+
+> **Note**: If you use environment variables and don't have a `config.yaml` file, the application will log `Configuration file not found: config.yaml` as an informational message. This is normal and expected - the application will continue to run using your environment variables.
+
+#### Option B: Using config.yaml
+
 Create your `config.yaml` file:
 
 ```bash
@@ -73,6 +83,8 @@ device:
   username: "your_email@example.com"  # Your Tapo account email
   password: "your_tapo_password"      # Your Tapo account password
 ```
+
+> **Tip**: You can also use a hybrid approach - put non-sensitive settings in `config.yaml` and override sensitive values (like username and password) with environment variables.
 
 ### 4. Choose Deployment Method
 
@@ -98,6 +110,52 @@ docker-compose logs -f
 # Stop the scheduler
 docker-compose down
 ```
+
+**Using Environment Variables with Docker:**
+
+Instead of mounting a `config.yaml` file, you can configure everything via environment variables. This is ideal for Portainer and secure deployments.
+
+Create a `stack.env` file:
+```bash
+# stack.env - Environment variables for HeatTrax Scheduler
+TZ=America/New_York
+
+# Location Settings
+HEATTRAX_LATITUDE=40.7128
+HEATTRAX_LONGITUDE=-74.0060
+HEATTRAX_TIMEZONE=America/New_York
+
+# Tapo Device Settings
+HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
+HEATTRAX_TAPO_USERNAME=your_tapo_email@example.com
+HEATTRAX_TAPO_PASSWORD=your_tapo_password
+
+# Optional: Override defaults
+HEATTRAX_THRESHOLD_TEMP_F=34
+HEATTRAX_LEAD_TIME_MINUTES=60
+HEATTRAX_MORNING_MODE_ENABLED=true
+HEATTRAX_LOG_LEVEL=INFO
+```
+
+Then use it in your `docker-compose.yml`:
+```yaml
+version: '3.8'
+
+services:
+  heattrax-scheduler:
+    image: ghcr.io/agster27/heattrax_tapo_m400_scheduler:latest
+    container_name: heattrax-scheduler
+    env_file:
+      - stack.env  # Load all environment variables from file
+    volumes:
+      - ./logs:/app/logs
+      - ./state:/app/state
+    restart: unless-stopped
+    network_mode: host
+```
+
+> **Important**: Add `stack.env` to your `.gitignore` to prevent committing secrets! When using this approach, you'll see a log message `Configuration file not found: config.yaml` - this is normal and expected.
+
 
 #### Option B: Direct Python
 
