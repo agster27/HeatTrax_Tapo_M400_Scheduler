@@ -1,4 +1,4 @@
-"""Device controller for TP-Link Tapo smart plugs using python-kasa."
+"""Device controller for TP-Link Tapo smart plugs using python-kasa."""
 
 import asyncio
 import logging
@@ -200,3 +200,4 @@ class TapoController:
                 logger.info("Closed connection to device")
             except Exception as e:
                 logger.warning(f"Error closing device connection: {e}")
+
