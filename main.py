@@ -4,6 +4,7 @@ import asyncio
 import logging
 import signal
 import sys
+import os
 from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -12,6 +13,7 @@ from config_loader import Config, ConfigError
 from weather_service import WeatherService, WeatherServiceError
 from device_controller import TapoController, DeviceControllerError
 from state_manager import StateManager
+from startup_checks import run_startup_checks
 
 
 # Global flag for graceful shutdown
@@ -299,6 +301,18 @@ class HeatTraxScheduler:
 
 async def main():
     """Main entry point for the application."""
+    # Run startup sanity checks FIRST (before logging or config)
+    # This provides maximum diagnostic value for containerized deployments
+    config_path = os.environ.get('HEATTRAX_CONFIG_PATH', 'config.yaml')
+    
+    # Run checks - get device IP from environment for connectivity test if available
+    device_ip = os.environ.get('HEATTRAX_TAPO_IP_ADDRESS')
+    
+    startup_ok = run_startup_checks(config_path=config_path, device_ip=device_ip)
+    if not startup_ok:
+        print("\nERROR: Critical startup checks failed. Exiting.", file=sys.stderr)
+        sys.exit(1)
+    
     # Set up signal handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
