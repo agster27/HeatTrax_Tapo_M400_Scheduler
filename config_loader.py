@@ -131,6 +131,13 @@ class Config:
         logger.debug(f"Checking if configuration file exists: {self.config_path}")
         
         if not self.config_path.exists():
+            # Use print() here since logging may not be initialized yet when Config() is instantiated
+            # This provides clear, formatted messaging before the logging system is configured
+            print(f"INFO: Configuration file not found: {self.config_path}")
+            print("INFO: Attempting to load configuration from environment variables...")
+            print("INFO: This is normal when using environment-based configuration (Docker/Portainer deployments)")
+            
+            # Also log for when logging is configured (these may not appear until logging is set up)
             logger.warning(f"Configuration file not found: {self.config_path}")
             logger.info("Will attempt to use environment variables for configuration")
             
