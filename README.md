@@ -25,7 +25,10 @@ For troubleshooting and logging information, see [LOGGING.md](LOGGING.md).
   - Full exception tracebacks for debugging
   - See [LOGGING.md](LOGGING.md) for complete logging guide
 - **Docker Support**: Easy deployment with Docker and docker-compose
-- **Flexible Configuration**: YAML-based configuration for easy customization
+- **Flexible Configuration**: YAML-based configuration with environment variable overrides
+  - All settings can be overridden via environment variables
+  - Perfect for containerized deployments and secret management
+  - See [Environment Variable Configuration](#environment-variable-configuration) below
 
 ## Requirements
 
@@ -90,6 +93,165 @@ For troubleshooting and logging information, see [LOGGING.md](LOGGING.md).
    ```bash
    python main.py
    ```
+
+## Environment Variable Configuration
+
+All configuration settings can be overridden using environment variables, which is ideal for Docker deployments, Portainer stacks, and keeping secrets secure.
+
+### Override Precedence
+
+Configuration values are resolved in the following order (highest to lowest priority):
+
+1. **Environment Variables** - Always checked first
+2. **YAML Configuration File** - Used if no environment variable is set
+3. **Default Values** - Used if neither environment variable nor YAML value is provided
+
+### Supported Environment Variables
+
+| Environment Variable | Config Section | Description | Type | Example |
+|---------------------|----------------|-------------|------|---------|
+| `CONFIG_PATH` | - | Path to configuration file | String | `/config/config.yaml` |
+| `TZ` | - | System timezone | String | `America/New_York` |
+| `LATITUDE` | location | Location latitude | Float | `40.7128` |
+| `LONGITUDE` | location | Location longitude | Float | `-74.0060` |
+| `TIMEZONE` | location | Location timezone | String | `America/New_York` |
+| `TAPO_IP_ADDRESS` | device | Tapo device IP address | String | `192.168.1.100` |
+| `TAPO_USERNAME` | device | Tapo account username | String | `user@example.com` |
+| `TAPO_PASSWORD` | device | Tapo account password | String | `your_password` |
+| `THRESHOLD_TEMP_F` | thresholds | Temperature threshold (°F) | Float | `34` |
+| `LEAD_TIME_MINUTES` | thresholds | Minutes before precipitation | Integer | `60` |
+| `TRAILING_TIME_MINUTES` | thresholds | Minutes after precipitation | Integer | `60` |
+| `CHECK_INTERVAL_MINUTES` | scheduler | Weather check interval | Integer | `10` |
+| `FORECAST_HOURS` | scheduler | Forecast look-ahead hours | Integer | `12` |
+| `MAX_RUNTIME_HOURS` | safety | Maximum continuous runtime | Float | `6` |
+| `COOLDOWN_MINUTES` | safety | Cooldown period | Integer | `30` |
+| `MORNING_MODE_ENABLED` | morning_mode | Enable morning mode | Boolean | `true` or `false` |
+| `MORNING_MODE_START_HOUR` | morning_mode | Morning mode start (0-23) | Integer | `6` |
+| `MORNING_MODE_END_HOUR` | morning_mode | Morning mode end (0-23) | Integer | `8` |
+| `LOG_LEVEL` | logging | Logging level | String | `INFO`, `DEBUG` |
+
+### Boolean Values
+
+For boolean environment variables (like `MORNING_MODE_ENABLED`), the following values are accepted:
+- **True**: `true`, `TRUE`, `1`, `yes`, `YES`, `on`, `ON`
+- **False**: `false`, `FALSE`, `0`, `no`, `NO`, `off`, `OFF`
+
+### Security Best Practices
+
+When using environment variables for secrets:
+
+1. **Never commit secrets to version control** - Use `.env` files locally and add them to `.gitignore`
+2. **Use Docker secrets or Portainer secrets** for production deployments
+3. **Restrict file permissions** on any files containing sensitive data
+4. **Rotate credentials regularly** and update environment variables accordingly
+5. **Use separate credentials** for different environments (dev/staging/prod)
+
+### Using Environment Variables with Docker
+
+#### Option 1: Environment Variables in docker-compose.yml
+
+```yaml
+version: '3.8'
+
+services:
+  heattrax-scheduler:
+    image: ghcr.io/agster27/heattrax_tapo_m400_scheduler:latest
+    container_name: heattrax-scheduler
+    environment:
+      - TZ=America/New_York
+      - LATITUDE=40.7128
+      - LONGITUDE=-74.0060
+      - TIMEZONE=America/New_York
+      - TAPO_IP_ADDRESS=192.168.1.100
+      - TAPO_USERNAME=your_username
+      - TAPO_PASSWORD=your_password
+      - THRESHOLD_TEMP_F=34
+      - LEAD_TIME_MINUTES=60
+      - TRAILING_TIME_MINUTES=60
+      - CHECK_INTERVAL_MINUTES=10
+      - FORECAST_HOURS=12
+      - MAX_RUNTIME_HOURS=6
+      - COOLDOWN_MINUTES=30
+      - MORNING_MODE_ENABLED=true
+      - MORNING_MODE_START_HOUR=6
+      - MORNING_MODE_END_HOUR=8
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./logs:/app/logs
+      - ./state:/app/state
+    restart: unless-stopped
+    network_mode: host
+```
+
+#### Option 2: Using .env File
+
+Create a `.env` file in the same directory as your `docker-compose.yml`:
+
+```bash
+# .env file
+TZ=America/New_York
+LATITUDE=40.7128
+LONGITUDE=-74.0060
+TIMEZONE=America/New_York
+TAPO_IP_ADDRESS=192.168.1.100
+TAPO_USERNAME=your_username
+TAPO_PASSWORD=your_password
+THRESHOLD_TEMP_F=34
+LEAD_TIME_MINUTES=60
+TRAILING_TIME_MINUTES=60
+CHECK_INTERVAL_MINUTES=10
+FORECAST_HOURS=12
+MAX_RUNTIME_HOURS=6
+COOLDOWN_MINUTES=30
+MORNING_MODE_ENABLED=true
+MORNING_MODE_START_HOUR=6
+MORNING_MODE_END_HOUR=8
+LOG_LEVEL=INFO
+```
+
+Then reference it in `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  heattrax-scheduler:
+    image: ghcr.io/agster27/heattrax_tapo_m400_scheduler:latest
+    container_name: heattrax-scheduler
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./state:/app/state
+    restart: unless-stopped
+    network_mode: host
+```
+
+**Important**: Add `.env` to your `.gitignore` file to prevent committing secrets!
+
+#### Option 3: Hybrid Approach (Recommended)
+
+Use YAML for non-sensitive settings and environment variables for secrets:
+
+```yaml
+version: '3.8'
+
+services:
+  heattrax-scheduler:
+    image: ghcr.io/agster27/heattrax_tapo_m400_scheduler:latest
+    container_name: heattrax-scheduler
+    environment:
+      - TZ=America/New_York
+      # Override only sensitive values
+      - TAPO_USERNAME=${TAPO_USERNAME}
+      - TAPO_PASSWORD=${TAPO_PASSWORD}
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro  # Mount config for non-secret settings
+      - ./logs:/app/logs
+      - ./state:/app/state
+    restart: unless-stopped
+    network_mode: host
+```
 
 ## Configuration
 
@@ -219,49 +381,221 @@ docker-compose up -d --build
 
 ## Deploying with Portainer
 
-You can also deploy HeatTrax Tapo M400 Scheduler using [Portainer](https://www.portainer.io/), a popular web UI for managing Docker environments. Portainer is ideal if you want to visually manage your containers, stacks, and Docker Compose files.
+[Portainer](https://www.portainer.io/) provides a web-based UI for managing Docker environments, making it easy to deploy and manage HeatTrax Scheduler with visual controls for environment variables and secrets.
 
-### Example docker-compose.yml
+### Quick Deployment (Environment Variables Only)
 
-Below is an example `docker-compose.yml` you can use with Portainer's "Stacks" feature. Modify the `volumes` and `restart` policy as needed for your setup.
+This method uses environment variables exclusively, eliminating the need for a config file. Perfect for Portainer deployments where you can manage environment variables through the UI.
+
+1. **Create a new Stack in Portainer:**
+   - Navigate to `Stacks` → `Add Stack`
+   - Give your stack a name (e.g., `heattrax-scheduler`)
+   - Paste the following docker-compose configuration:
 
 ```yaml
-version: "3.8"
+version: '3.8'
 
 services:
   heattrax-scheduler:
     image: ghcr.io/agster27/heattrax_tapo_m400_scheduler:latest
     container_name: heattrax-scheduler
-    volumes:
-      - ./config.yaml:/app/config.yaml           # Make sure to edit config.yaml for your environment
-      - ./logs:/app/logs                         # Optional: Persist logs outside container
-      - ./state:/app/state                       # Optional: Persist state for recovery
     environment:
-      # Set any environment variables if needed
-      # Example: TZ=America/New_York
+      # System Settings
+      - TZ=America/New_York
+      
+      # Location Settings (Required)
+      - LATITUDE=40.7128
+      - LONGITUDE=-74.0060
+      - TIMEZONE=America/New_York
+      
+      # Tapo Device Settings (Required)
+      - TAPO_IP_ADDRESS=192.168.1.100
+      - TAPO_USERNAME=your_tapo_username
+      - TAPO_PASSWORD=your_tapo_password
+      
+      # Weather Thresholds
+      - THRESHOLD_TEMP_F=34
+      - LEAD_TIME_MINUTES=60
+      - TRAILING_TIME_MINUTES=60
+      
+      # Scheduler Settings
+      - CHECK_INTERVAL_MINUTES=10
+      - FORECAST_HOURS=12
+      
+      # Safety Settings
+      - MAX_RUNTIME_HOURS=6
+      - COOLDOWN_MINUTES=30
+      
+      # Morning Mode Settings
+      - MORNING_MODE_ENABLED=true
+      - MORNING_MODE_START_HOUR=6
+      - MORNING_MODE_END_HOUR=8
+      
+      # Logging
+      - LOG_LEVEL=INFO
+    volumes:
+      - heattrax-logs:/app/logs
+      - heattrax-state:/app/state
     restart: unless-stopped
+    network_mode: host
+
+volumes:
+  heattrax-logs:
+  heattrax-state:
 ```
 
-1. **Prepare your configuration:**  
-   Copy `config.example.yaml` to `config.yaml` and edit it with your Tapo device and location details, following the [Configuration](#configuration) section above.
+2. **Configure Environment Variables:**
+   - Update the environment variables directly in the Stack editor
+   - Pay special attention to:
+     - `LATITUDE` and `LONGITUDE` - Your location coordinates
+     - `TAPO_IP_ADDRESS` - Your Tapo device's IP address
+     - `TAPO_USERNAME` - Your Tapo account email
+     - `TAPO_PASSWORD` - Your Tapo account password
 
-2. **Upload your stack in Portainer:**  
-   - Open Portainer and go to `Stacks` → `Add Stack`.
-   - Give your stack a name.
-   - Copy and paste the example YAML above, or upload your customized `docker-compose.yml`.
-   - Make sure your `config.yaml` and optional `logs`/`state` folders are present and correctly mapped.
+3. **Deploy the Stack:**
+   - Click "Deploy the stack"
+   - Portainer will pull the image and start the service
+   - Monitor deployment in the Portainer UI
 
-3. **Deploy the stack:**  
-   Click "Deploy the stack". Portainer will pull the image and start the service. Check logs in Portainer or by viewing the container logs directory mapped on your host.
+4. **View Logs:**
+   - Navigate to `Containers` → `heattrax-scheduler` → `Logs`
+   - Or use Quick Actions → `Logs` from the container list
 
-4. **Update or Redeploy:**  
-   If you change any settings in your config, simply redeploy the stack from Portainer to apply changes.
+### Using Portainer Environment Variables Editor
 
-**Note:**  
-- You can set additional environment variables using the `environment:` block, e.g., `TZ` for timezone.
-- For advanced Docker/Portainer users, adapt bind mounts and network settings as needed.
+Portainer provides a convenient UI for managing environment variables:
 
-For more on configuration, see the [Configuration](#configuration) section above.
+1. After deploying the stack, go to `Stacks` → `heattrax-scheduler` → `Editor`
+2. Click on the stack name to edit
+3. Use Portainer's environment variable editor to add/modify variables
+4. Click "Update the stack" to apply changes
+
+### Using Portainer Secrets (Advanced)
+
+For enhanced security with sensitive credentials:
+
+1. **Create Secrets in Portainer:**
+   - Navigate to `Secrets` → `Add secret`
+   - Create secrets for sensitive data:
+     - `tapo_username`
+     - `tapo_password`
+
+2. **Reference secrets in your stack:**
+
+```yaml
+version: '3.8'
+
+services:
+  heattrax-scheduler:
+    image: ghcr.io/agster27/heattrax_tapo_m400_scheduler:latest
+    container_name: heattrax-scheduler
+    environment:
+      - TZ=America/New_York
+      - LATITUDE=40.7128
+      - LONGITUDE=-74.0060
+      - TIMEZONE=America/New_York
+      - TAPO_IP_ADDRESS=192.168.1.100
+      - THRESHOLD_TEMP_F=34
+      - LEAD_TIME_MINUTES=60
+      - TRAILING_TIME_MINUTES=60
+      - CHECK_INTERVAL_MINUTES=10
+      - FORECAST_HOURS=12
+      - MAX_RUNTIME_HOURS=6
+      - COOLDOWN_MINUTES=30
+      - MORNING_MODE_ENABLED=true
+      - MORNING_MODE_START_HOUR=6
+      - MORNING_MODE_END_HOUR=8
+      - LOG_LEVEL=INFO
+    secrets:
+      - tapo_username
+      - tapo_password
+    volumes:
+      - heattrax-logs:/app/logs
+      - heattrax-state:/app/state
+    restart: unless-stopped
+    network_mode: host
+
+secrets:
+  tapo_username:
+    external: true
+  tapo_password:
+    external: true
+
+volumes:
+  heattrax-logs:
+  heattrax-state:
+```
+
+Then read secrets in your environment:
+```yaml
+environment:
+  - TAPO_USERNAME_FILE=/run/secrets/tapo_username
+  - TAPO_PASSWORD_FILE=/run/secrets/tapo_password
+```
+
+### Hybrid Approach with Config File
+
+If you prefer using a configuration file for some settings:
+
+1. **Prepare your configuration file** on the Portainer host:
+   ```bash
+   # On your Docker host
+   mkdir -p /opt/heattrax
+   cp config.example.yaml /opt/heattrax/config.yaml
+   # Edit /opt/heattrax/config.yaml with your base settings
+   ```
+
+2. **Create stack with config volume:**
+
+```yaml
+version: '3.8'
+
+services:
+  heattrax-scheduler:
+    image: ghcr.io/agster27/heattrax_tapo_m400_scheduler:latest
+    container_name: heattrax-scheduler
+    environment:
+      - TZ=America/New_York
+      # Override only secrets via environment variables
+      - TAPO_USERNAME=your_username
+      - TAPO_PASSWORD=your_password
+    volumes:
+      - /opt/heattrax/config.yaml:/app/config.yaml:ro
+      - heattrax-logs:/app/logs
+      - heattrax-state:/app/state
+    restart: unless-stopped
+    network_mode: host
+
+volumes:
+  heattrax-logs:
+  heattrax-state:
+```
+
+### Managing and Updating Your Deployment
+
+- **View Container Status**: Navigate to `Containers` in Portainer
+- **View Logs**: Click on the container and select `Logs`
+- **Update Configuration**: Edit stack environment variables and click "Update the stack"
+- **Restart Service**: Use the `Restart` button in the container details
+- **Update Image**: Click "Recreate" to pull the latest image version
+
+### Troubleshooting in Portainer
+
+1. **Check Container Logs**:
+   - Go to `Containers` → `heattrax-scheduler` → `Logs`
+   - Look for connection errors or configuration issues
+
+2. **Verify Environment Variables**:
+   - Go to `Containers` → `heattrax-scheduler` → `Inspect`
+   - Check the "Env" section to verify variables are set correctly
+
+3. **Check Container Status**:
+   - Container should show as "running" with a green indicator
+   - If restarting frequently, check logs for errors
+
+4. **Network Connectivity**:
+   - Ensure `network_mode: host` is set for direct device access
+   - Verify the Tapo device IP is accessible from the Docker host
 
 ## License
 
