@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
-from device_discovery import discover_devices, DeviceInfo
+from device_discovery import discover_devices, DeviceInfo, get_local_ip_and_subnet, is_ip_in_same_subnet
 from notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -111,11 +111,28 @@ class HealthCheckService:
         
         self.state.last_check_time = datetime.now()
         
+        # Get local network information for subnet diagnostics
+        local_info = get_local_ip_and_subnet()
+        if local_info:
+            local_ip, subnet_cidr = local_info
+            logger.debug(f"Local network: {local_ip} (subnet: {subnet_cidr})")
+        
         # Discover devices
         devices = await discover_devices(timeout=10)
         
         if not devices:
             logger.warning("⚠ No devices found during health check!")
+            
+            # Check if configured IP is outside subnet
+            if self.configured_ip and local_info:
+                local_ip, subnet_cidr = local_info
+                if not is_ip_in_same_subnet(self.configured_ip, local_ip, subnet_cidr):
+                    logger.warning(f"\n⚠ SUBNET LIMITATION: Configured device IP {self.configured_ip} is outside")
+                    logger.warning(f"   the container's subnet ({subnet_cidr}).")
+                    logger.warning("   python-kasa discovery cannot detect devices across subnet boundaries.")
+                    logger.warning("   This is expected - relying on static configuration for cross-subnet devices.")
+                    logger.warning("   See README FAQ for more details on subnet/VLAN limitations.")
+            
             self.state.consecutive_failures += 1
             
             # Notify if configured device is missing
@@ -227,6 +244,13 @@ class HealthCheckService:
                 
             else:
                 logger.warning(f"⚠ Configured device not found at {self.configured_ip}")
+                
+                # Check if this is expected due to subnet limitations
+                if local_info:
+                    local_ip, subnet_cidr = local_info
+                    if not is_ip_in_same_subnet(self.configured_ip, local_ip, subnet_cidr):
+                        logger.info(f"  Note: Device is outside local subnet ({subnet_cidr}) - this is expected")
+                        logger.info("  Discovery cannot detect cross-subnet devices. Relying on static configuration.")
                 
                 # Provide recovery suggestions based on discovery
                 logger.warning("\n  RECOVERY SUGGESTIONS:")
