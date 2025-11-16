@@ -229,6 +229,20 @@ notifications:
     url: "https://your-webhook-url.com/notifications"  # ENV: HEATTRAX_NOTIFICATION_WEBHOOK_URL
     # Optional custom headers can be added here
   
+  # Forecast summary notifications (optional, default: disabled)
+  # Sends human-friendly forecast summaries via email/webhook after successful weather fetch
+  forecast:
+    enabled: false  # ENV: HEATTRAX_NOTIFICATION_FORECAST_ENABLED (true/false)
+    # Notification mode:
+    #   - "always": Send on every successful forecast fetch (default)
+    #   - "on_change": Only send when forecast changes meaningfully
+    notify_mode: "always"  # ENV: HEATTRAX_NOTIFICATION_FORECAST_NOTIFY_MODE
+    # Thresholds for detecting "meaningful" changes (used when notify_mode=on_change)
+    temp_change_threshold_f: 5.0  # Significant temperature change (°F)
+    precip_change_threshold_mm: 2.0  # Significant precipitation change (mm)
+    # Path to state file for tracking last sent forecast
+    state_file: "state/forecast_notification_state.json"
+  
   # Per-event routing configuration (optional)
   # If not specified, all events go to all enabled providers (default behavior)
   # Use this to control which events go to which providers
@@ -248,6 +262,15 @@ notifications:
   #   connectivity_restored: # Device connection restored
   #     email: false
   #     webhook: true
+  #   weather_service_recovered:  # Weather service came back online
+  #     email: true
+  #     webhook: true
+  #   weather_service_offline:    # Weather service went offline
+  #     email: true
+  #     webhook: true
+  #   forecast_summary:           # New forecast data (if forecast.enabled=true)
+  #     email: true
+  #     webhook: false
 
 # Additional environment variables:
 # - HEATTRAX_CONFIG_PATH: Path to this configuration file (default: config.yaml)
@@ -260,3 +283,8 @@ notifications:
 # - device_ip_changed: Device MAC/IP mapping changed (critical)
 # - connectivity_lost: Failed to reinitialize device connection
 # - connectivity_restored: Device connection restored after failures
+# - weather_service_recovered: Weather service came back online
+# - weather_service_degraded: Weather service offline but using cached data
+# - weather_service_offline: Weather service offline with no valid cache
+# - weather_service_outage_alert: Weather service offline too long
+# - forecast_summary: New forecast data fetched (human-friendly summary)

@@ -324,6 +324,8 @@ Configuration values are resolved in the following order (highest to lowest prio
 | `HEATTRAX_NOTIFICATION_EMAIL_USE_TLS` | notifications.email | Use TLS for SMTP | Boolean | `true` or `false` |
 | `HEATTRAX_NOTIFICATION_WEBHOOK_ENABLED` | notifications.webhook | Enable webhook notifications | Boolean | `true` or `false` |
 | `HEATTRAX_NOTIFICATION_WEBHOOK_URL` | notifications.webhook | Webhook URL | String | `https://hooks.example.com/notify` |
+| `HEATTRAX_NOTIFICATION_FORECAST_ENABLED` | notifications.forecast | Enable forecast summary notifications | Boolean | `true` or `false` |
+| `HEATTRAX_NOTIFICATION_FORECAST_NOTIFY_MODE` | notifications.forecast | Notification mode: "always" or "on_change" | String | `always` |
 
 **Note**: Per-event routing configuration must be specified in `config.yaml` and cannot be overridden via environment variables. See [HEALTH_CHECK.md](HEALTH_CHECK.md) for routing examples.
 

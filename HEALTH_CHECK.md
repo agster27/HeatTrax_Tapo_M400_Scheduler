@@ -332,6 +332,11 @@ The notification system sends alerts for important events:
 - `connectivity_restored` - Device connection restored successfully after failures
 - `weather_mode_enabled` - Weather-based scheduling enabled on startup (includes current conditions and forecast)
 - `weather_mode_disabled` - Weather-based scheduling disabled on startup (using fixed schedule behavior)
+- `weather_service_recovered` - Weather service came back online after being offline
+- `weather_service_degraded` - Weather service offline but using valid cached data
+- `weather_service_offline` - Weather service offline with no valid cached data (reverting to static schedule)
+- `weather_service_outage_alert` - Weather service has been offline longer than alert threshold
+- `forecast_summary` - New forecast data fetched (human-friendly summary email)
 
 **Notification Providers:**
 - **Email** - Send notifications via SMTP
@@ -451,6 +456,115 @@ HEATTRAX_NOTIFICATION_WEBHOOK_URL=https://your-webhook-url.com/notifications
   "source": "heattrax_scheduler"
 }
 ```
+
+#### Forecast Summary Notifications
+
+**NEW:** The scheduler can send human-friendly forecast summaries via email/webhook after successfully fetching weather data.
+
+**Features:**
+- Plain-text email format with forecast table
+- Highlights rows with precipitation + low temperature
+- Shows next N hours of forecast (configurable)
+- Includes planned scheduler actions based on forecast
+- Two notification modes:
+  - `always`: Send on every successful forecast fetch
+  - `on_change`: Only send when forecast changes meaningfully
+
+**Configuration via `config.yaml`:**
+
+```yaml
+notifications:
+  forecast:
+    enabled: false  # Must be true to enable (default: false)
+    notify_mode: "always"  # "always" or "on_change"
+    temp_change_threshold_f: 5.0  # Temperature change threshold (°F) for "on_change" mode
+    precip_change_threshold_mm: 2.0  # Precipitation change threshold (mm) for "on_change" mode
+    state_file: "state/forecast_notification_state.json"  # State persistence file
+```
+
+Or via environment variables:
+
+```bash
+HEATTRAX_NOTIFICATION_FORECAST_ENABLED=true
+HEATTRAX_NOTIFICATION_FORECAST_NOTIFY_MODE=always  # or "on_change"
+```
+
+**Notification Modes:**
+
+- **`always` mode (default):**
+  - Sends forecast summary on every successful weather fetch
+  - Useful for regular updates regardless of change
+  - May result in frequent emails (every 10 minutes by default)
+  - Recommended for initial testing
+
+- **`on_change` mode (recommended):**
+  - Compares current forecast to last sent forecast
+  - Only sends if forecast has changed meaningfully
+  - Reduces notification frequency
+  - Based on 24-hour forecast window hash
+  - Recommended for production use
+
+**Change Detection:**
+
+The `on_change` mode uses a hash of the following data from the next 24 hours:
+- Hourly timestamps
+- Temperature (rounded to 0.1°F)
+- Precipitation amount (rounded to 0.1mm)
+- Precipitation probability (rounded to nearest %)
+
+If the hash changes, the forecast is considered "meaningfully changed" and a notification is sent.
+
+**Example Forecast Summary Email:**
+
+```
+======================================================================
+WEATHER FORECAST SUMMARY
+======================================================================
+
+Forecast retrieved: 2025-11-16 15:30:00
+Temperature threshold: 34.0°F
+
+Next 12 Hours:
+----------------------------------------------------------------------
+Time              Temp     Feels    Precip       Prob   Wind     Condition
+----------------------------------------------------------------------
+11/16 16:00        35.0°F   32.0°F     0.0mm     0%   5.0mph  Clear                
+11/16 17:00        33.0°F   29.0°F     2.5mm    80%  10.0mph  Light Snow           ***
+11/16 18:00        31.0°F   26.0°F     5.0mm    90%  12.0mph  Snow                 ***
+11/16 19:00        30.0°F   25.0°F     8.0mm    95%  15.0mph  Heavy Snow           ***
+11/16 20:00        32.0°F   28.0°F     3.0mm    70%  10.0mph  Light Snow           ***
+11/16 21:00        34.0°F   31.0°F     1.0mm    50%   8.0mph  Cloudy               
+----------------------------------------------------------------------
+
+*** = Precipitation + Temperature below threshold
+
+PLANNED SCHEDULER ACTIONS:
+----------------------------------------------------------------------
+  • Turn on heated mats at 16:30 (60 min before precipitation)
+  • Keep mats on during precipitation period (17:00-21:00)
+  • Turn off mats at 22:00 (60 min after precipitation ends)
+
+======================================================================
+```
+
+**Routing:**
+
+Forecast summaries respect the per-event routing configuration. Add `forecast_summary` to your routing:
+
+```yaml
+notifications:
+  routing:
+    forecast_summary:
+      email: true     # Send forecast summaries via email
+      webhook: false  # Don't send via webhook (too verbose for webhook services)
+```
+
+**Performance Impact:**
+
+- Forecast notifications are sent asynchronously (non-blocking)
+- `always` mode: One notification per weather fetch (default: every 10 minutes)
+- `on_change` mode: Only when forecast changes (typically a few times per day)
+- Each notification takes ~1-2 seconds for email delivery
 
 ### Startup Validation
 

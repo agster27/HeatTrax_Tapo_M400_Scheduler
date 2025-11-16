@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 from weather_service import WeatherService, WeatherServiceError
 from weather_openweathermap import OpenWeatherMapService, OpenWeatherMapError
 from resilient_weather_service import ResilientWeatherService
+from forecast_notifier import ForecastNotifier
 
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,26 @@ class WeatherServiceFactory:
         
         logger.info(f"Wrapping with resilient weather service (cache_valid_hours={cache_valid_hours})")
         
+        # Create forecast notifier if configured
+        forecast_notifier = None
+        notifications_config = config.get('notifications', {})
+        forecast_config = notifications_config.get('forecast', {})
+        
+        if forecast_config.get('enabled', False) and notification_service:
+            notify_mode = forecast_config.get('notify_mode', 'always')
+            temp_threshold = forecast_config.get('temp_change_threshold_f', 5.0)
+            precip_threshold = forecast_config.get('precip_change_threshold_mm', 2.0)
+            state_file = forecast_config.get('state_file', 'state/forecast_notification_state.json')
+            
+            logger.info(f"Creating forecast notifier (mode={notify_mode})")
+            forecast_notifier = ForecastNotifier(
+                notification_service=notification_service,
+                notify_mode=notify_mode,
+                temp_change_threshold_f=temp_threshold,
+                precip_change_threshold_mm=precip_threshold,
+                state_file=state_file
+            )
+        
         # Wrap with resilient service
         return ResilientWeatherService(
             weather_service=base_service,
@@ -111,5 +132,6 @@ class WeatherServiceFactory:
             retry_interval_minutes=retry_interval_minutes,
             max_retry_interval_minutes=max_retry_interval_minutes,
             outage_alert_after_minutes=outage_alert_after_minutes,
-            notification_service=notification_service
+            notification_service=notification_service,
+            forecast_notifier=forecast_notifier
         )

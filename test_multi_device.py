@@ -124,6 +124,7 @@ class TestWeatherFactory(unittest.TestCase):
         """Test Open-Meteo service creation."""
         from weather_factory import WeatherServiceFactory
         from weather_service import WeatherService
+        from resilient_weather_service import ResilientWeatherService
         
         config = {
             'location': {
@@ -137,7 +138,10 @@ class TestWeatherFactory(unittest.TestCase):
         }
         
         service = WeatherServiceFactory.create_weather_service(config)
-        self.assertIsInstance(service, WeatherService)
+        # Factory now returns ResilientWeatherService wrapper
+        self.assertIsInstance(service, ResilientWeatherService)
+        # The underlying service should be WeatherService
+        self.assertIsInstance(service.weather_service, WeatherService)
     
     def test_openweathermap_creation_fails_without_key(self):
         """Test OpenWeatherMap service fails without API key."""
@@ -163,6 +167,7 @@ class TestWeatherFactory(unittest.TestCase):
         """Test OpenWeatherMap service creation with API key."""
         from weather_factory import WeatherServiceFactory
         from weather_openweathermap import OpenWeatherMapService
+        from resilient_weather_service import ResilientWeatherService
         
         config = {
             'location': {
@@ -179,8 +184,11 @@ class TestWeatherFactory(unittest.TestCase):
         }
         
         service = WeatherServiceFactory.create_weather_service(config)
-        self.assertIsInstance(service, OpenWeatherMapService)
-        self.assertEqual(service.api_key, 'test_key_123')
+        # Factory now returns ResilientWeatherService wrapper
+        self.assertIsInstance(service, ResilientWeatherService)
+        # The underlying service should be OpenWeatherMapService
+        self.assertIsInstance(service.weather_service, OpenWeatherMapService)
+        self.assertEqual(service.weather_service.api_key, 'test_key_123')
 
 
 def main():
