@@ -118,7 +118,7 @@ reboot:
 Or via environment variable:
 
 ```bash
-REBOOT_PAUSE_SECONDS=60
+HEATTRAX_REBOOT_PAUSE_SECONDS=60
 ```
 
 The pause:

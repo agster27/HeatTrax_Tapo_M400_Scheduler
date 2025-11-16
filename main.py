@@ -404,7 +404,7 @@ async def main():
     device_ip = os.environ.get('HEATTRAX_TAPO_IP_ADDRESS')
     
     # Get pause seconds from environment variable (for use before config is loaded)
-    pause_seconds_env = os.environ.get('REBOOT_PAUSE_SECONDS', '60')
+    pause_seconds_env = os.environ.get('HEATTRAX_REBOOT_PAUSE_SECONDS', '60')
     try:
         pause_seconds = int(pause_seconds_env)
     except ValueError:

@@ -117,7 +117,7 @@ class TestRebootPauseIntegration(unittest.TestCase):
         import os
         
         # Test with environment variable and minimal required config
-        os.environ['REBOOT_PAUSE_SECONDS'] = '30'
+        os.environ['HEATTRAX_REBOOT_PAUSE_SECONDS'] = '30'
         os.environ['HEATTRAX_LATITUDE'] = '40.0'
         os.environ['HEATTRAX_LONGITUDE'] = '-74.0'
         os.environ['HEATTRAX_TAPO_IP_ADDRESS'] = '192.168.1.100'
@@ -143,7 +143,7 @@ class TestRebootPauseIntegration(unittest.TestCase):
             self.assertEqual(reboot_config['pause_seconds'], 30)
         finally:
             # Clean up
-            for key in ['REBOOT_PAUSE_SECONDS', 'HEATTRAX_LATITUDE', 'HEATTRAX_LONGITUDE',
+            for key in ['HEATTRAX_REBOOT_PAUSE_SECONDS', 'HEATTRAX_LATITUDE', 'HEATTRAX_LONGITUDE',
                        'HEATTRAX_TAPO_IP_ADDRESS', 'HEATTRAX_TAPO_USERNAME', 'HEATTRAX_TAPO_PASSWORD',
                        'HEATTRAX_THRESHOLD_TEMP_F', 'HEATTRAX_LEAD_TIME_MINUTES', 
                        'HEATTRAX_TRAILING_TIME_MINUTES', 'HEATTRAX_CHECK_INTERVAL_MINUTES',
@@ -157,8 +157,8 @@ class TestRebootPauseIntegration(unittest.TestCase):
         import os
         
         # Make sure env var is not set
-        if 'REBOOT_PAUSE_SECONDS' in os.environ:
-            del os.environ['REBOOT_PAUSE_SECONDS']
+        if 'HEATTRAX_REBOOT_PAUSE_SECONDS' in os.environ:
+            del os.environ['HEATTRAX_REBOOT_PAUSE_SECONDS']
         
         try:
             config = Config()
