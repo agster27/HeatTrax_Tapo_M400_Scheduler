@@ -1,6 +1,6 @@
 # HeatTrax Tapo M400 Scheduler
 
-Automated control system for TP-Link Tapo smart plugs to manage heated outdoor mats based on weather conditions. The system monitors weather forecasts and automatically turns mats on before precipitation when temperatures are below freezing, with built-in safety features and optional morning frost-clearing mode.
+Automated control system for TP-Link Kasa/Tapo smart plugs to manage heated outdoor mats and other devices based on weather conditions and schedules. The system monitors weather forecasts and automatically controls device groups with weather-based automation (heated mats) and schedule-based automation (Christmas lights, etc.).
 
 ## 🚀 Quick Start
 
@@ -16,15 +16,47 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
 
 ## Features
 
-- **Weather-Based Automation**: Uses Open-Meteo API for accurate weather forecasting
-- **Smart Scheduling**: Turns mats on 60 minutes before precipitation if temperature is below 34°F
-- **Morning Frost Mode**: Optional mode to clear frost between 6-8 AM
-- **Device Auto-Discovery**: Automatic network discovery and diagnostics at startup
+### Device Management
+- **Multi-Device Support**: Control multiple Kasa/Tapo devices organized into logical groups
+  - Heated mats group with weather-based automation
+  - Christmas lights group with schedule-based automation
+  - Support for Kasa EP40M smart plugs with 2 outlets each
+  - Outlet-specific control (control individual outlets independently)
+  - Group actions (turn all devices in a group on/off together)
+- **Backward Compatible**: Fully supports legacy single-device configuration
+- **Device Auto-Discovery**: Automatic network discovery and diagnostics at startup (legacy mode)
   - Discovers all Kasa/Tapo devices on the network
   - Logs detailed device information (IP, MAC, alias, model, state, RSSI, features)
   - Auto-selects device if only one found
   - Provides configuration suggestions when multiple devices detected
-- **Periodic Health Checks**: Background monitoring of device connectivity
+
+### Weather Integration
+- **Multi-Provider Support**: Choose between weather APIs
+  - **OpenWeatherMap**: Industry-standard API with detailed forecasts (requires API key)
+  - **Open-Meteo**: Free API with no key required (default)
+- **Weather-Based Automation**: Intelligent control based on weather conditions
+  - Turns mats on 60 minutes before precipitation when temperature is below 34°F
+  - Keeps mats on during precipitation
+  - Turns mats off 60 minutes after precipitation ends
+  - All thresholds and timings fully configurable via YAML
+- **Morning Frost/Black Ice Protection**: Optional early morning mode
+  - Activates between 6-8 AM (configurable)
+  - Enables mats if temperature is below threshold
+  - Separate temperature threshold for morning mode
+
+### Schedule-Based Control
+- **Time-Based Scheduling**: Perfect for Christmas lights and decorations
+  - Configure on/off times for each group
+  - Optional day-of-week filtering
+  - Independent from weather conditions
+
+### Safety & Reliability
+- **Safety Features**:
+  - Maximum 6-hour continuous runtime limit (configurable)
+  - 30-minute cooldown period after max runtime (configurable)
+  - State persistence for recovery after restarts
+  - Per-group runtime tracking
+- **Periodic Health Checks**: Background monitoring of device connectivity (legacy mode)
   - Configurable check interval (default: every 24 hours)
   - Detects lost/found devices and configuration mismatches
   - Monitors device IP changes and alias changes
@@ -34,15 +66,19 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
   - Webhook notifications via HTTP POST
   - Configurable via environment variables
   - Events: device lost, device found, IP changed, connectivity issues
-- **Safety Features**:
-  - Maximum 6-hour continuous runtime limit
-  - 30-minute cooldown period after max runtime
-  - State persistence for recovery after restarts
+- **Robust Error Handling**: Continues operation even if individual devices fail
+
+### Configuration & Logging
 - **Comprehensive Logging**: Rotating log files with configurable levels (DEBUG, INFO, WARNING, ERROR)
   - Verbose logging for all API calls and device operations
   - Detailed error messages with troubleshooting guidance
   - Full exception tracebacks for debugging
   - See [LOGGING.md](LOGGING.md) for complete logging guide
+- **Flexible Configuration**: YAML-based configuration with environment variable overrides
+  - All settings can be overridden via environment variables
+  - Perfect for containerized deployments and secret management
+  - Support for both single-device and multi-device configurations
+  - See [Environment Variable Configuration](#environment-variable-configuration) below
 - **Startup Diagnostic Checks**: Comprehensive pre-flight checks for containerized deployments
   - Python version and package verification
   - Directory access validation
@@ -51,10 +87,6 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
   - Optional device connectivity test
   - See [STARTUP_CHECKS.md](STARTUP_CHECKS.md) for details
 - **Docker Support**: Easy deployment with Docker and docker-compose
-- **Flexible Configuration**: YAML-based configuration with environment variable overrides
-  - All settings can be overridden via environment variables
-  - Perfect for containerized deployments and secret management
-  - See [Environment Variable Configuration](#environment-variable-configuration) below
 
 ## Requirements
 
@@ -120,6 +152,109 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
    python main.py
    ```
 
+## Configuration Modes
+
+The scheduler supports two configuration modes to fit different use cases:
+
+### 1. Legacy Single-Device Mode (Backward Compatible)
+
+Perfect for simple deployments with one device controlling heated mats.
+
+```yaml
+# config.yaml
+location:
+  latitude: 40.7128
+  longitude: -74.0060
+  timezone: "America/New_York"
+
+device:
+  ip_address: "192.168.1.100"
+  username: "your_tapo_username"
+  password: "your_tapo_password"
+
+thresholds:
+  temperature_f: 34
+  lead_time_minutes: 60
+  trailing_time_minutes: 60
+
+# ... rest of config
+```
+
+This mode uses the classic single-device behavior with all original features intact.
+
+### 2. Multi-Device Group Mode (New)
+
+For advanced deployments with multiple devices organized by function.
+
+```yaml
+# config.yaml
+location:
+  latitude: 40.7128
+  longitude: -74.0060
+  timezone: "America/New_York"
+
+# Choose your weather provider
+weather_api:
+  provider: "open-meteo"  # or "openweathermap"
+  # OpenWeatherMap requires an API key
+  openweathermap:
+    api_key: "your_api_key_here"
+
+devices:
+  credentials:
+    username: "your_tapo_username"
+    password: "your_tapo_password"
+  
+  groups:
+    # Weather-controlled heated mats
+    heated_mats:
+      enabled: true
+      automation:
+        weather_control: true
+        precipitation_control: true
+        morning_mode: true
+      items:
+        - name: "Front Walkway Mat"
+          ip_address: "192.168.1.100"
+          outlets: [0, 1]  # EP40M with 2 outlets
+        - name: "Driveway Mat"
+          ip_address: "192.168.1.101"
+    
+    # Schedule-controlled Christmas lights
+    christmas_lights:
+      enabled: true
+      automation:
+        weather_control: false
+        schedule_control: true
+      schedule:
+        on_time: "17:00"
+        off_time: "23:00"
+      items:
+        - name: "Front Yard Lights"
+          ip_address: "192.168.1.110"
+          outlets: [0, 1]
+
+# ... rest of config
+```
+
+**Key Features:**
+- **Groups**: Organize devices by function (mats, lights, etc.)
+- **Automation Rules**: Different rules per group (weather vs schedule)
+- **Outlet Control**: Control individual outlets on multi-outlet plugs
+- **Group Actions**: Turn entire groups on/off together
+- **Independent State**: Each group tracks its own runtime and cooldown
+
+### Choosing a Mode
+
+- Use **Legacy Mode** if you have a single device and want simplicity
+- Use **Multi-Device Mode** if you:
+  - Have multiple devices to control
+  - Want different automation rules for different devices
+  - Need outlet-specific control for EP40M plugs
+  - Want to control Christmas lights on a schedule
+
+The scheduler automatically detects which mode to use based on your configuration.
+
 ## Environment Variable Configuration
 
 All configuration settings can be overridden using environment variables, which is ideal for Docker deployments, Portainer stacks, and keeping secrets secure.
@@ -143,9 +278,11 @@ Configuration values are resolved in the following order (highest to lowest prio
 | `HEATTRAX_LATITUDE` | location | Location latitude | Float | `40.7128` |
 | `HEATTRAX_LONGITUDE` | location | Location longitude | Float | `-74.0060` |
 | `HEATTRAX_TIMEZONE` | location | Location timezone | String | `America/New_York` |
-| `HEATTRAX_TAPO_IP_ADDRESS` | device | Tapo device IP address | String | `192.168.1.100` |
-| `HEATTRAX_TAPO_USERNAME` | device | Tapo account username | String | `user@example.com` |
-| `HEATTRAX_TAPO_PASSWORD` | device | Tapo account password | String | `your_password` |
+| `HEATTRAX_WEATHER_PROVIDER` | weather_api | Weather provider (open-meteo or openweathermap) | String | `open-meteo` |
+| `HEATTRAX_OPENWEATHERMAP_API_KEY` | weather_api.openweathermap | OpenWeatherMap API key | String | `your_api_key` |
+| `HEATTRAX_TAPO_IP_ADDRESS` | device | Tapo device IP address (legacy mode) | String | `192.168.1.100` |
+| `HEATTRAX_TAPO_USERNAME` | device / devices.credentials | Tapo account username | String | `user@example.com` |
+| `HEATTRAX_TAPO_PASSWORD` | device / devices.credentials | Tapo account password | String | `your_password` |
 | `HEATTRAX_THRESHOLD_TEMP_F` | thresholds | Temperature threshold (°F) | Float | `34` |
 | `HEATTRAX_LEAD_TIME_MINUTES` | thresholds | Minutes before precipitation | Integer | `60` |
 | `HEATTRAX_TRAILING_TIME_MINUTES` | thresholds | Minutes after precipitation | Integer | `60` |
@@ -296,6 +433,8 @@ services:
 
 ## Configuration
 
+See [Configuration Modes](#configuration-modes) above for an overview of single-device vs multi-device configurations.
+
 ### Location Settings
 
 ```yaml
@@ -305,7 +444,25 @@ location:
   timezone: "America/New_York"  # Your timezone
 ```
 
-### Device Settings
+### Weather API Settings
+
+```yaml
+weather_api:
+  # Choose provider: 'open-meteo' (free, no key) or 'openweathermap' (requires key)
+  provider: "open-meteo"
+  
+  # OpenWeatherMap configuration (if using that provider)
+  openweathermap:
+    api_key: "your_api_key_here"
+```
+
+**Getting an OpenWeatherMap API Key:**
+1. Create a free account at [OpenWeatherMap](https://openweathermap.org/)
+2. Navigate to API keys section
+3. Generate a new API key
+4. Add it to your configuration
+
+### Device Settings (Legacy Single-Device Mode)
 
 ```yaml
 device:
@@ -313,6 +470,59 @@ device:
   username: "your_tapo_username"   # Tapo account username/email
   password: "your_tapo_password"   # Tapo account password
 ```
+
+### Device Settings (Multi-Device Group Mode)
+
+```yaml
+devices:
+  # Global credentials for all devices
+  credentials:
+    username: "your_tapo_username"
+    password: "your_tapo_password"
+  
+  # Define device groups
+  groups:
+    # Weather-controlled heated mats
+    heated_mats:
+      enabled: true
+      automation:
+        weather_control: true          # Enable weather-based control
+        precipitation_control: true    # Turn on before precipitation
+        morning_mode: true             # Enable black ice protection
+      items:
+        - name: "Front Walkway Mat"
+          ip_address: "192.168.1.100"
+          outlets: [0, 1]              # Control both outlets (EP40M)
+        - name: "Driveway Mat"
+          ip_address: "192.168.1.101"
+          outlets: [0]                 # Control only first outlet
+        - name: "Back Porch Mat"
+          ip_address: "192.168.1.102"
+          # No outlets = control entire device
+    
+    # Schedule-controlled Christmas lights
+    christmas_lights:
+      enabled: true
+      automation:
+        weather_control: false         # Disable weather control
+        schedule_control: true         # Enable schedule control
+      schedule:
+        on_time: "17:00"               # Turn on at 5:00 PM
+        off_time: "23:00"              # Turn off at 11:00 PM
+        # days: [5, 6]                 # Optional: only Sat/Sun (0=Mon, 6=Sun)
+      items:
+        - name: "Front Yard Lights"
+          ip_address: "192.168.1.110"
+          outlets: [0, 1]
+        - name: "Tree Lights"
+          ip_address: "192.168.1.111"
+```
+
+**Multi-Device Features:**
+- **Groups**: Organize devices by function
+- **Automation Rules**: Different per group (weather/schedule/both)
+- **Outlet Control**: Control individual outlets on multi-outlet plugs
+- **Independent State**: Each group tracks its own runtime/cooldown
 
 ### Weather Thresholds
 
@@ -325,11 +535,14 @@ thresholds:
 
 ### Morning Mode (Optional)
 
+Black ice protection - enables mats early in the morning if temperature is low.
+
 ```yaml
 morning_mode:
-  enabled: true      # Enable morning frost-clearing mode
-  start_hour: 6      # Start time (24-hour format)
-  end_hour: 8        # End time (24-hour format)
+  enabled: true              # Enable morning frost-clearing mode
+  start_hour: 6              # Start time (24-hour format)
+  end_hour: 8                # End time (24-hour format)
+  temperature_f: 32          # Optional: separate threshold for morning (default: uses main threshold)
 ```
 
 ### Safety Settings
@@ -450,6 +663,8 @@ The scheduler still validates that Tapo credentials are present in the configura
 
 ## How It Works
 
+### Legacy Single-Device Mode
+
 1. **Startup Device Discovery**: At startup, the scheduler automatically:
    - Discovers all Kasa/Tapo devices on the network
    - Logs detailed information about each device found
@@ -464,7 +679,7 @@ The scheduler still validates that Tapo credentials are present in the configura
 
 4. **Morning Frost Mode**: Between 6-8 AM (configurable):
    - Mats turn ON if temperature is below threshold
-   - Helps clear morning frost for safe walking
+   - Helps clear morning frost/black ice for safe walking
 
 5. **Periodic Health Checks**: Background monitoring (every 24 hours by default):
    - Verifies device connectivity
@@ -476,6 +691,45 @@ The scheduler still validates that Tapo credentials are present in the configura
    - Automatic shutoff after 6 hours of continuous runtime
    - 30-minute cooldown before mats can turn on again
    - State is saved to disk for recovery after restarts
+
+### Multi-Device Group Mode
+
+1. **Group Initialization**: At startup, the scheduler:
+   - Initializes all configured device groups
+   - Establishes connection to each device
+   - Validates group configurations
+   - Creates independent state tracking per group
+
+2. **Weather-Based Groups** (e.g., heated mats):
+   - **Weather Monitoring**: Checks weather forecasts every 10 minutes (configurable)
+   - **Precipitation Control**: 
+     - Group turns ON 60 minutes before precipitation when temp < 34°F
+     - Group stays ON during precipitation
+     - Group turns OFF 60 minutes after precipitation ends
+   - **Morning Mode**: Enables group between 6-8 AM if temp is below threshold
+   - **Group Action**: All devices in group turn on/off together
+
+3. **Schedule-Based Groups** (e.g., Christmas lights):
+   - **Time-Based Control**: Follows configured on/off times
+   - **Daily Schedule**: Automatically activates at `on_time`, deactivates at `off_time`
+   - **Optional Day Filtering**: Can restrict to specific days of the week
+   - **Independent of Weather**: Operates regardless of weather conditions
+
+4. **Per-Group Safety**:
+   - Each group has independent runtime tracking
+   - Maximum 6-hour continuous runtime per group (configurable)
+   - 30-minute cooldown per group after max runtime
+   - State persistence per group for recovery after restarts
+
+5. **Robust Error Handling**:
+   - Continues operation even if individual devices fail
+   - Logs errors for failed devices without stopping scheduler
+   - Retries device operations on next cycle
+
+6. **Outlet Control**:
+   - For multi-outlet plugs (EP40M), can control individual outlets
+   - Specify outlets in config: `outlets: [0, 1]` for both, `outlets: [0]` for first only
+   - Omit outlets to control entire device
 
 ## Logs
 
