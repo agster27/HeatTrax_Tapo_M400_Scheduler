@@ -185,6 +185,46 @@ The notification system sends alerts for important events:
 
 **Important:** Notifications are **disabled by default**. You must explicitly enable them.
 
+#### Global Notification Settings
+
+```yaml
+notifications:
+  # Global settings
+  required: false              # If true, misconfigured enabled providers cause startup failure
+  test_on_startup: false       # If true, send test notification on successful startup
+  
+  # Per-event routing (optional)
+  # If not specified, all events go to all enabled providers
+  routing:
+    device_lost:
+      email: true              # Send to email
+      webhook: true            # Send to webhook
+    device_found:
+      email: false             # Don't send to email
+      webhook: true            # Only send to webhook
+    device_ip_changed:
+      email: true              # Critical events to both
+      webhook: true
+```
+
+Environment variables:
+```bash
+HEATTRAX_NOTIFICATIONS_REQUIRED=false
+HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP=false
+```
+
+**Behavior:**
+- **`notifications.required`**: Controls whether misconfigured enabled providers cause startup failure
+  - `false` (default): Log errors but allow startup to continue
+  - `true`: Startup fails if an enabled provider is misconfigured or unreachable
+- **`notifications.test_on_startup`**: Send test notification after successful validation
+  - `false` (default): No test notification
+  - `true`: Send test notification to all enabled providers on startup
+- **`notifications.routing`**: Control which events go to which providers
+  - If not specified: All events go to all enabled providers (default behavior)
+  - If specified for an event: Only send to providers marked `true` for that event
+  - Unknown event types are sent to all providers
+
 #### Email Notifications
 
 Configure via `config.yaml`:
@@ -256,25 +296,114 @@ HEATTRAX_NOTIFICATION_WEBHOOK_URL=https://your-webhook-url.com/notifications
 }
 ```
 
+### Startup Validation
+
+When the scheduler starts, it performs validation of notification configuration:
+
+1. **Configuration Validation**: Checks that all required fields are present for enabled providers
+   - Email: `smtp_host`, `smtp_port`, `smtp_username`, `smtp_password`, `from_email`, `to_emails`
+   - Webhook: `url` (must be valid HTTP/HTTPS URL)
+
+2. **Connectivity Testing**: Attempts lightweight connection to each enabled provider
+   - Email: Connects to SMTP server and authenticates
+   - Webhook: Sends HEAD request to verify endpoint is reachable
+
+3. **Test Notification** (optional): If `test_on_startup: true`, sends test notification
+
+**Behavior based on `notifications.required` flag:**
+- `required: false` (default):
+  - Validation errors are logged as ERROR
+  - Startup continues even if providers fail validation
+  - Failed providers are not used for notifications
+- `required: true`:
+  - Validation errors cause startup failure
+  - Ensures notifications will work before scheduler starts
+  - Use this if notifications are critical for your deployment
+
+**Logging Behavior:**
+- Disabled providers: Log single INFO message (no errors about missing config)
+- Enabled but misconfigured: Log clear ERROR with guidance on how to fix
+- Transient notification failures at runtime: Log at WARNING level (not ERROR)
+
 ### Testing Notifications
+
+**Option 1: Use `test_on_startup` flag**
+
+```yaml
+notifications:
+  test_on_startup: true
+  email:
+    enabled: true
+    # ... email config ...
+```
+
+Restart the scheduler and check for test notification.
+
+**Option 2: Trigger health check event**
 
 To test your notification configuration:
 
 1. Enable notifications in your config
-2. Set `HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS=0.1` (6 minutes) for faster testing
-3. Restart the scheduler
+2. Set `test_on_startup: true` or wait for a health check event
+3. To trigger faster: Set `HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS=0.1` (6 minutes)
 4. Disconnect your device or change its IP
 5. Wait for the next health check
 6. You should receive a notification about the device being lost
+
+### Per-Event Routing Examples
+
+**Example 1: Email for critical events only**
+```yaml
+notifications:
+  email:
+    enabled: true
+    # ... email config ...
+  webhook:
+    enabled: true
+    # ... webhook config ...
+  
+  routing:
+    device_lost:
+      email: true   # Email and webhook
+      webhook: true
+    device_ip_changed:
+      email: true   # Email and webhook (critical)
+      webhook: true
+    device_found:
+      email: false  # Webhook only
+      webhook: true
+    connectivity_restored:
+      email: false  # Webhook only
+      webhook: true
+```
+
+**Example 2: Email only for specific events**
+```yaml
+notifications:
+  email:
+    enabled: true
+    # ... email config ...
+  
+  routing:
+    device_lost:
+      email: true
+    device_ip_changed:
+      email: true
+    # All other events won't trigger email (no webhook configured)
+```
 
 ## Extensibility
 
 The notification system is designed to be extensible. To add a new notification provider:
 
 1. Create a new class that inherits from `NotificationProvider`
-2. Implement the `send()` method
+2. Implement the required abstract methods:
+   - `send()`: Send a notification
+   - `validate_config()`: Validate provider configuration
+   - `test_connectivity()`: Test connection to provider
 3. Update `create_notification_service_from_config()` to instantiate your provider
 4. Add configuration options to `config.example.yaml` and environment variables
+5. Add the provider to routing configuration if using per-event routing
 
 Example:
 
@@ -283,9 +412,29 @@ class SlackNotificationProvider(NotificationProvider):
     def __init__(self, webhook_url: str):
         self.webhook_url = webhook_url
     
+    def validate_config(self) -> Tuple[bool, Optional[str]]:
+        if not self.webhook_url:
+            return False, "webhook_url is required"
+        return True, None
+    
+    async def test_connectivity(self, timeout: float = 5.0) -> Tuple[bool, Optional[str]]:
+        try:
+            # Test connection to Slack
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.webhook_url, timeout=timeout) as response:
+                    return response.status < 500, None
+        except Exception as e:
+            return False, str(e)
+    
     async def send(self, event_type: str, message: str, details: Dict[str, Any]) -> bool:
         # Implement Slack-specific notification logic
-        pass
+        payload = {
+            "text": f"*{event_type}*\n{message}",
+            "blocks": [...]
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(self.webhook_url, json=payload) as response:
+                return response.status < 400
 ```
 
 ## Troubleshooting
@@ -308,6 +457,29 @@ class SlackNotificationProvider(NotificationProvider):
 
 1. Verify SMTP credentials are correct
 2. For Gmail: Use an App Password, not your regular password
+3. Check `notifications.email.enabled` is set to `true`
+4. Review startup logs for validation errors
+5. Test connectivity with `test_on_startup: true`
+6. Ensure firewall allows outbound SMTP connections
+
+### Webhook Notifications Not Working
+
+1. Verify the webhook URL is correct and reachable
+2. Check `notifications.webhook.enabled` is set to `true`
+3. Review startup logs for validation errors
+4. Test connectivity with `test_on_startup: true`
+5. Check webhook endpoint logs for received requests
+6. Ensure firewall allows outbound HTTPS connections
+
+### Notifications Required but Startup Failing
+
+If you've set `notifications.required: true` and startup is failing:
+
+1. Check startup logs for detailed error messages
+2. Verify all required fields are configured for enabled providers
+3. Test SMTP/webhook connectivity manually
+4. Temporarily set `required: false` to diagnose issues
+5. Use `test_on_startup: true` to verify configuration before making it required
 3. Check SMTP server and port are correct
 4. Try `use_tls: false` if connection fails with TLS
 5. Review logs for SMTP error messages

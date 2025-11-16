@@ -32,7 +32,7 @@ class TestNotificationService(unittest.TestCase):
         service = NotificationService()
         provider = Mock()
         
-        service.add_provider(provider)
+        service.add_provider('test', provider)
         
         self.assertTrue(service.is_enabled())
         self.assertEqual(len(service.providers), 1)
@@ -56,7 +56,7 @@ class TestNotificationService(unittest.TestCase):
             mock_provider = Mock()
             mock_provider.send = AsyncMock(return_value=True)
             
-            service.add_provider(mock_provider)
+            service.add_provider('test', mock_provider)
             
             await service.notify("test_event", "Test message", {"key": "value"})
             
