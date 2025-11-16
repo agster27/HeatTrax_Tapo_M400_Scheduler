@@ -3,7 +3,7 @@
 import aiohttp
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 import logging
 
 

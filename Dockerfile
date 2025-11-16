@@ -1,5 +1,13 @@
 FROM python:3.11-slim
 
+# Metadata labels
+LABEL org.opencontainers.image.title="HeatTrax Tapo M400 Scheduler"
+LABEL org.opencontainers.image.description="Automated control system for TP-Link Kasa/Tapo smart plugs based on weather conditions"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.authors="agster27"
+LABEL org.opencontainers.image.source="https://github.com/agster27/HeatTrax_Tapo_M400_Scheduler"
+LABEL org.opencontainers.image.licenses="MIT"
+
 WORKDIR /app
 
 # Install dependencies

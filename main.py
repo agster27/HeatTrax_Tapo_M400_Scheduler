@@ -6,13 +6,13 @@ import signal
 import sys
 import os
 import time
-from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from config_loader import Config, ConfigError
 from startup_checks import run_startup_checks
 from scheduler_enhanced import EnhancedScheduler
+from version import __version__
 
 
 # Global flag for graceful shutdown
@@ -143,7 +143,7 @@ async def main():
         
         logger = logging.getLogger(__name__)
         logger.info("=" * 60)
-        logger.info("HeatTrax Tapo M400 Scheduler Starting")
+        logger.info(f"HeatTrax Tapo M400 Scheduler v{__version__}")
         logger.info("=" * 60)
         logger.info(f"Reboot pause configured: {pause_seconds} seconds")
         

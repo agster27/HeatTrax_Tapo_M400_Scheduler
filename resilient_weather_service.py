@@ -5,9 +5,8 @@ import logging
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional, Tuple, Any, Dict, List
-from pathlib import Path
 
-from weather_cache import WeatherCache, WeatherSnapshot
+from weather_cache import WeatherCache
 from weather_service import WeatherServiceError
 
 

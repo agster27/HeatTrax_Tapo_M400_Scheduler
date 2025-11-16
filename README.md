@@ -2,17 +2,32 @@
 
 Automated control system for TP-Link Kasa/Tapo smart plugs to manage heated outdoor mats and other devices based on weather conditions and schedules. The system monitors weather forecasts and automatically controls device groups with weather-based automation (heated mats) and schedule-based automation (Christmas lights, etc.).
 
+## 📚 Documentation
+
+- **[Quick Start Guide](QUICKSTART.md)** - 5-minute setup guide
+- **[Setup Instructions](SETUP.md)** - Detailed installation and configuration
+- **[Environment Variables Reference](ENVIRONMENT_VARIABLES.md)** - Complete environment variable documentation
+- **[Logging Guide](LOGGING.md)** - Troubleshooting and logging information
+- **[Startup Checks](STARTUP_CHECKS.md)** - Debugging containerized deployments
+- **[Health Checks & Notifications](HEALTH_CHECK.md)** - Device monitoring and notification system
+- **[Changelog](CHANGELOG.md)** - Version history and release notes
+
+## 🎉 Version 1.0 Release
+
+HeatTrax Scheduler v1.0 is the first production-ready release with comprehensive features:
+
+- ✅ **Multi-device group support** with independent automation rules
+- ✅ **Weather resilience** with caching and automatic recovery
+- ✅ **Comprehensive notifications** via email and webhook
+- ✅ **HTTP health endpoints** for container orchestration
+- ✅ **Full environment variable configuration** for Docker/Portainer
+- ✅ **Extensive documentation** and examples
+
+See [CHANGELOG.md](CHANGELOG.md) for complete release details.
+
 ## 🚀 Quick Start
 
 Want to get started quickly? See the [Quick Start Guide](QUICKSTART.md) for a 5-minute setup.
-
-For detailed setup instructions, see [SETUP.md](SETUP.md).
-
-For troubleshooting and logging information, see [LOGGING.md](LOGGING.md).
-
-For startup diagnostic checks and debugging containerized deployments, see [STARTUP_CHECKS.md](STARTUP_CHECKS.md).
-
-For device discovery, health checks, and notification system, see [HEALTH_CHECK.md](HEALTH_CHECK.md).
 
 ## Features
 
