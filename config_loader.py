@@ -48,6 +48,24 @@ ENV_VAR_MAPPING = {
     
     # Logging settings
     'HEATTRAX_LOG_LEVEL': ('logging', 'level', str),
+    
+    # Health check settings
+    'HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS': ('health_check', 'interval_hours', float),
+    'HEATTRAX_HEALTH_CHECK_MAX_FAILURES': ('health_check', 'max_consecutive_failures', int),
+    
+    # Notification settings - Email
+    'HEATTRAX_NOTIFICATION_EMAIL_ENABLED': ('notifications', 'email', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
+    'HEATTRAX_NOTIFICATION_EMAIL_SMTP_HOST': ('notifications', 'email', 'smtp_host', str),
+    'HEATTRAX_NOTIFICATION_EMAIL_SMTP_PORT': ('notifications', 'email', 'smtp_port', int),
+    'HEATTRAX_NOTIFICATION_EMAIL_SMTP_USERNAME': ('notifications', 'email', 'smtp_username', str),
+    'HEATTRAX_NOTIFICATION_EMAIL_SMTP_PASSWORD': ('notifications', 'email', 'smtp_password', str),
+    'HEATTRAX_NOTIFICATION_EMAIL_FROM': ('notifications', 'email', 'from_email', str),
+    'HEATTRAX_NOTIFICATION_EMAIL_TO': ('notifications', 'email', 'to_emails', lambda x: [e.strip() for e in x.split(',')]),
+    'HEATTRAX_NOTIFICATION_EMAIL_USE_TLS': ('notifications', 'email', 'use_tls', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
+    
+    # Notification settings - Webhook
+    'HEATTRAX_NOTIFICATION_WEBHOOK_ENABLED': ('notifications', 'webhook', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
+    'HEATTRAX_NOTIFICATION_WEBHOOK_URL': ('notifications', 'webhook', 'url', str),
 }
 
 
@@ -87,17 +105,27 @@ def apply_env_overrides(config: Dict[str, Any]) -> Dict[str, Any]:
     """
     logger.debug("Checking for environment variable overrides...")
     
-    for env_var, (section, key, convert_type) in ENV_VAR_MAPPING.items():
-        value = get_env_var(env_var, convert_type)
+    for env_var, mapping_tuple in ENV_VAR_MAPPING.items():
+        value = get_env_var(env_var, mapping_tuple[-1])  # Last element is the convert function
         
         if value is not None:
-            # Ensure section exists in config
-            if section not in config:
-                config[section] = {}
+            # Handle nested configuration (e.g., notifications.email.enabled)
+            sections = mapping_tuple[:-1]  # All but the last element are path components
             
-            # Apply override
-            config[section][key] = value
-            logger.info(f"Environment variable override: {env_var} -> {section}.{key} = {value}")
+            # Navigate/create nested structure
+            current = config
+            for i, section in enumerate(sections[:-1]):
+                if section not in current:
+                    current[section] = {}
+                current = current[section]
+            
+            # Set the final value
+            final_key = sections[-1]
+            current[final_key] = value
+            
+            # Build path string for logging
+            path = '.'.join(sections)
+            logger.info(f"Environment variable override: {env_var} -> {path} = {value}")
     
     return config
 
@@ -149,7 +177,9 @@ class Config:
                 'scheduler': {},
                 'safety': {},
                 'morning_mode': {},
-                'logging': {}
+                'logging': {},
+                'health_check': {},
+                'notifications': {'email': {}, 'webhook': {}}
             }
             return config
         
@@ -167,7 +197,9 @@ class Config:
                     'scheduler': {},
                     'safety': {},
                     'morning_mode': {},
-                    'logging': {}
+                    'logging': {},
+                    'health_check': {},
+                    'notifications': {'email': {}, 'webhook': {}}
                 }
             
             if not isinstance(config, dict):
@@ -338,4 +370,20 @@ class Config:
             'level': 'INFO',
             'max_file_size_mb': 10,
             'backup_count': 5
+        })
+    
+    @property
+    def health_check(self) -> Dict[str, Any]:
+        """Get health check configuration."""
+        return self._config.get('health_check', {
+            'interval_hours': 24,
+            'max_consecutive_failures': 3
+        })
+    
+    @property
+    def notifications(self) -> Dict[str, Any]:
+        """Get notifications configuration."""
+        return self._config.get('notifications', {
+            'email': {'enabled': False},
+            'webhook': {'enabled': False}
         })
