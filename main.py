@@ -381,15 +381,51 @@ async def main():
         logger.info("HeatTrax Tapo M400 Scheduler Starting")
         logger.info("=" * 60)
         
-        # Run device discovery and diagnostics
-        logger.info("\n" + "=" * 80)
-        logger.info("DEVICE AUTO-DISCOVERY AND DIAGNOSTICS")
-        logger.info("=" * 80)
+        # Step 1: Attempt to connect to configured device (if IP is specified)
         configured_ip = config.device.get('ip_address')
-        discovered_device = await run_device_discovery_and_diagnostics(configured_ip)
+        connection_successful = False
+        
+        if configured_ip:
+            logger.info("\n" + "=" * 80)
+            logger.info("STEP 1: ATTEMPTING CONNECTION TO CONFIGURED DEVICE")
+            logger.info("=" * 80)
+            logger.info(f"Configured IP: {configured_ip}")
+            
+            try:
+                # Create temporary controller to test connection
+                test_controller = TapoController(
+                    ip_address=configured_ip,
+                    username=config.device['username'],
+                    password=config.device['password']
+                )
+                await test_controller.initialize()
+                logger.info("✓ Successfully connected to configured device!")
+                await test_controller.close()
+                connection_successful = True
+            except Exception as e:
+                logger.warning(f"⚠ Failed to connect to configured device: {e}")
+                logger.warning("Will check discovery for alternatives...")
+                connection_successful = False
+        else:
+            logger.info("\n" + "=" * 80)
+            logger.info("STEP 1: NO DEVICE IP CONFIGURED")
+            logger.info("=" * 80)
+            logger.info("No explicit device IP configured - will use discovery")
+        
+        # Step 2: Always run device discovery and diagnostics
+        logger.info("\n" + "=" * 80)
+        logger.info("STEP 2: NETWORK DEVICE DISCOVERY")
+        logger.info("=" * 80)
+        discovered_device = await run_device_discovery_and_diagnostics(
+            configured_ip=configured_ip,
+            connection_successful=connection_successful
+        )
         logger.info("")  # Blank line for readability
         
-        # Create and run scheduler
+        # Step 3: Create and run scheduler
+        logger.info("=" * 80)
+        logger.info("STEP 3: STARTING SCHEDULER")
+        logger.info("=" * 80)
         scheduler = HeatTraxScheduler(config)
         await scheduler.run()
         

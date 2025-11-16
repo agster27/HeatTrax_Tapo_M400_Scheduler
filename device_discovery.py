@@ -163,19 +163,22 @@ def print_config_suggestions(devices: List[DeviceInfo]):
     logger.info("\n" + "=" * 60)
 
 
-async def run_device_discovery_and_diagnostics(configured_ip: Optional[str] = None) -> Optional[DeviceInfo]:
+async def run_device_discovery_and_diagnostics(configured_ip: Optional[str] = None, 
+                                               connection_successful: bool = False) -> Optional[DeviceInfo]:
     """
     Run device discovery at startup and provide diagnostics.
     
-    This function:
+    This function always runs network discovery and:
     1. Discovers all Kasa/Tapo devices on the network
-    2. Logs details for each device
-    3. If only one device is found, auto-selects it
-    4. If multiple devices are found, prints configuration suggestions
-    5. If a configured IP is provided, validates it exists
+    2. Logs details for each device (IP, MAC, alias, model)
+    3. Validates configured IP exists in discovered devices (if provided)
+    4. Logs warnings if configured device not found
+    5. Suggests alternatives if only one device discovered
+    6. Provides configuration suggestions for multiple devices
     
     Args:
         configured_ip: The IP address configured for use (if any)
+        connection_successful: Whether connection to configured IP was successful
         
     Returns:
         DeviceInfo for the selected device, or None if no device selected
@@ -184,7 +187,17 @@ async def run_device_discovery_and_diagnostics(configured_ip: Optional[str] = No
     logger.info("DEVICE DISCOVERY AND DIAGNOSTICS")
     logger.info("=" * 80)
     
-    # Discover all devices
+    if configured_ip:
+        if connection_successful:
+            logger.info(f"✓ Successfully connected to configured device at {configured_ip}")
+            logger.info(f"  Running discovery to validate and log network devices...")
+        else:
+            logger.warning(f"⚠ Failed to connect to configured device at {configured_ip}")
+            logger.warning(f"  Running discovery to find alternatives...")
+    else:
+        logger.info("No device IP configured - discovering devices on network...")
+    
+    # Always discover all devices on the network
     devices = await discover_devices(timeout=10)
     
     if not devices:
@@ -193,38 +206,96 @@ async def run_device_discovery_and_diagnostics(configured_ip: Optional[str] = No
         logger.warning("  - Devices are powered on and connected to the network")
         logger.warning("  - This application is on the same network as the devices")
         logger.warning("  - Firewall is not blocking discovery (UDP port 9999)")
-        logger.warning("\nProceeding with configured IP address (if provided)...")
+        
+        if configured_ip:
+            logger.warning(f"\nConfigured device at {configured_ip} not discovered.")
+            if connection_successful:
+                logger.info("However, direct connection succeeded - will continue with configured IP")
+            else:
+                logger.error("Direct connection also failed - device may be offline or unreachable")
+        else:
+            logger.error("No devices found and no IP configured - cannot proceed")
+        
+        logger.info("\n" + "=" * 80)
+        logger.info("DEVICE DISCOVERY COMPLETE")
+        logger.info("=" * 80 + "\n")
         return None
+    
+    # Log all discovered devices
+    logger.info(f"\n{'=' * 80}")
+    logger.info(f"DISCOVERED DEVICES ({len(devices)} found)")
+    logger.info(f"{'=' * 80}")
+    for i, device in enumerate(devices, 1):
+        logger.info(f"\nDevice {i}:")
+        logger.info(f"  IP Address: {device.ip}")
+        logger.info(f"  MAC Address: {device.mac}")
+        logger.info(f"  Alias: {device.alias}")
+        logger.info(f"  Model: {device.model}")
+        logger.info(f"  State: {'ON' if device.is_on else 'OFF' if device.is_on is not None else 'Unknown'}")
+    logger.info(f"{'=' * 80}\n")
     
     # Check if configured IP matches any discovered device
     selected_device = None
     
     if configured_ip:
-        logger.info(f"\nConfigured device IP: {configured_ip}")
+        logger.info(f"CONFIGURED DEVICE VALIDATION:")
+        logger.info(f"  Configured IP: {configured_ip}")
         
         # Find matching device
         for device in devices:
             if device.ip == configured_ip:
                 selected_device = device
-                logger.info(f"✓ Configured device found and validated!")
-                logger.info(f"  Using: {device.alias} at {device.ip}")
+                logger.info(f"  ✓ VALIDATION SUCCESS: Configured device found in discovery!")
+                logger.info(f"    Using: {device.alias} (MAC: {device.mac})")
                 break
         
         if not selected_device:
-            logger.warning(f"\n⚠ WARNING: Configured IP {configured_ip} not found in discovery!")
-            logger.warning("  The device may be offline or on a different network")
-            logger.warning("  Will attempt to use configured IP anyway...")
+            logger.warning(f"  ⚠ VALIDATION WARNING: Configured IP {configured_ip} NOT found in discovery!")
+            logger.warning(f"    The device may be:")
+            logger.warning(f"      - On a different network segment")
+            logger.warning(f"      - Blocking broadcast discovery")
+            logger.warning(f"      - Using a static IP outside DHCP range")
+            
+            if connection_successful:
+                logger.info(f"    However, direct connection succeeded.")
+                logger.info(f"    Continuing with configured IP {configured_ip}")
+            else:
+                logger.error(f"    Direct connection FAILED and device not discovered.")
+                logger.error(f"    Device appears to be offline or unreachable!")
+                
+                # Suggest alternatives
+                if len(devices) == 1:
+                    logger.info(f"\n  SUGGESTION: Only one device discovered on network:")
+                    logger.info(f"    IP: {devices[0].ip}")
+                    logger.info(f"    Alias: {devices[0].alias} ({devices[0].model})")
+                    logger.info(f"    MAC: {devices[0].mac}")
+                    logger.info(f"    Consider updating configuration: HEATTRAX_TAPO_IP_ADDRESS={devices[0].ip}")
+                    selected_device = devices[0]
+                elif len(devices) > 1:
+                    logger.info(f"\n  AVAILABLE ALTERNATIVES ({len(devices)} devices):")
+                    for i, device in enumerate(devices, 1):
+                        logger.info(f"    {i}. {device.ip} - {device.alias} ({device.model}) [MAC: {device.mac}]")
+                    logger.info(f"    Update HEATTRAX_TAPO_IP_ADDRESS to use one of these devices")
+        
+        # If multiple devices, still provide config suggestions
+        if len(devices) > 1:
+            logger.info(f"\n  NOTE: Multiple devices detected on network")
+            print_config_suggestions(devices)
     
     elif len(devices) == 1:
-        # Auto-select the only device found
+        # Auto-select the only device found (when no IP configured)
         selected_device = devices[0]
-        logger.info(f"\n✓ Auto-selected single device found:")
-        logger.info(f"  {selected_device.alias} at {selected_device.ip}")
-        logger.info("\nTo use this device, set the following:")
-        logger.info(f"  HEATTRAX_TAPO_IP_ADDRESS={selected_device.ip}")
+        logger.info(f"✓ AUTO-SELECT: Only one device discovered on network")
+        logger.info(f"  IP: {selected_device.ip}")
+        logger.info(f"  Alias: {selected_device.alias} ({selected_device.model})")
+        logger.info(f"  MAC: {selected_device.mac}")
+        logger.info(f"\n  To persist this selection, set:")
+        logger.info(f"    HEATTRAX_TAPO_IP_ADDRESS={selected_device.ip}")
     
     else:
         # Multiple devices found - provide configuration suggestions
+        logger.warning(f"⚠ No device IP configured and multiple devices found")
+        logger.warning(f"  Please specify which device to use")
         print_config_suggestions(devices)
     
     logger.info("\n" + "=" * 80)
