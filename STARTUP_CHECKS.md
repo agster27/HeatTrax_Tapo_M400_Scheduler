@@ -67,7 +67,7 @@ Checks for `config.yaml` presence and validates YAML parsing:
 Configuration file check:
   ✓ Config file found: config.yaml
   ✓ Config file parsed successfully
-  Configuration sections: location, device, thresholds, morning_mode, safety, scheduler, logging
+  Configuration sections: location, devices, thresholds, morning_mode, safety, scheduler, logging
   ✓ All required sections present in config file
 ```
 
@@ -86,7 +86,6 @@ Environment variables:
 
   HEATTRAX Configuration Variables (13):
     HEATTRAX_LATITUDE=40.7128
-    HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
     HEATTRAX_TAPO_PASSWORD=***REDACTED***
     HEATTRAX_TAPO_USERNAME=user@example.com
     ...

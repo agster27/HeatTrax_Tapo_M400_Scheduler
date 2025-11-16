@@ -25,9 +25,10 @@ Get your HeatTrax scheduler running in 5 minutes!
    HEATTRAX_LATITUDE=YOUR_LATITUDE
    HEATTRAX_LONGITUDE=YOUR_LONGITUDE
    HEATTRAX_TIMEZONE=America/New_York
-   HEATTRAX_TAPO_IP_ADDRESS=YOUR_DEVICE_IP
    HEATTRAX_TAPO_USERNAME=YOUR_TAPO_EMAIL
    HEATTRAX_TAPO_PASSWORD=YOUR_TAPO_PASSWORD
+   # Note: Device IP addresses are configured in config.yaml under devices.groups
+   # or you can use a minimal config.yaml and override other settings via env vars
    ```
    
    Update `docker-compose.yml` to use it:
@@ -188,7 +189,7 @@ Ctrl+C (if running in foreground)
 ## Tips
 
 - 💡 Run `docker-compose logs -f` to watch what the scheduler is doing
-- 💡 Check `state/state.json` to see current runtime and cooldown status
+- 💡 Check `state/{group_name}.json` files to see per-group runtime and cooldown status
 - 💡 Logs are saved in `logs/` directory for troubleshooting
 - 💡 The scheduler survives restarts - state is preserved to disk
 - 💡 You can still manually control the device via Tapo app if needed
