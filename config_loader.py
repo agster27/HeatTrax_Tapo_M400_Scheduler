@@ -68,7 +68,7 @@ ENV_VAR_MAPPING = {
     'HEATTRAX_NOTIFICATION_WEBHOOK_URL': ('notifications', 'webhook', 'url', str),
     
     # Reboot settings
-    'REBOOT_PAUSE_SECONDS': ('reboot', 'pause_seconds', int),
+    'HEATTRAX_REBOOT_PAUSE_SECONDS': ('reboot', 'pause_seconds', int),
 }
 
 

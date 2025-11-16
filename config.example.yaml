@@ -65,9 +65,9 @@ health_check:
   max_consecutive_failures: 3  # Max failures before triggering re-init (ENV: HEATTRAX_HEALTH_CHECK_MAX_FAILURES)
 
 # Reboot settings - pause before container restart
-# Environment variable: REBOOT_PAUSE_SECONDS
+# Environment variable: HEATTRAX_REBOOT_PAUSE_SECONDS
 reboot:
-  pause_seconds: 60  # Pause duration (in seconds) before container restart on critical failures (ENV: REBOOT_PAUSE_SECONDS)
+  pause_seconds: 60  # Pause duration (in seconds) before container restart on critical failures (ENV: HEATTRAX_REBOOT_PAUSE_SECONDS)
                      # This allows time for console troubleshooting before automatic restart
                      # Set to 0 to disable the pause
 

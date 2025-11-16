@@ -159,7 +159,7 @@ Configuration values are resolved in the following order (highest to lowest prio
 | `HEATTRAX_LOG_LEVEL` | logging | Logging level | String | `INFO`, `DEBUG` |
 | `HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS` | health_check | Hours between health checks | Float | `24` |
 | `HEATTRAX_HEALTH_CHECK_MAX_FAILURES` | health_check | Max consecutive failures before re-init | Integer | `3` |
-| `REBOOT_PAUSE_SECONDS` | reboot | Pause (seconds) before container restart | Integer | `60` |
+| `HEATTRAX_REBOOT_PAUSE_SECONDS` | reboot | Pause (seconds) before container restart | Integer | `60` |
 | `HEATTRAX_NOTIFICATION_EMAIL_ENABLED` | notifications.email | Enable email notifications | Boolean | `true` or `false` |
 | `HEATTRAX_NOTIFICATION_EMAIL_SMTP_HOST` | notifications.email | SMTP server hostname | String | `smtp.gmail.com` |
 | `HEATTRAX_NOTIFICATION_EMAIL_SMTP_PORT` | notifications.email | SMTP server port | Integer | `587` |
@@ -375,7 +375,7 @@ When a critical error occurs that would cause the container to restart (e.g., fa
 - Defaults to 60 seconds
 - Displays clear countdown messages in logs and console
 - Can be set to 0 to disable the pause
-- Configurable via `REBOOT_PAUSE_SECONDS` environment variable
+- Configurable via `HEATTRAX_REBOOT_PAUSE_SECONDS` environment variable
 
 This is particularly useful in containerized deployments where Docker's restart policy would immediately restart the container, making it difficult to troubleshoot the root cause of failures.
 
