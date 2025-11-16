@@ -26,6 +26,10 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
   - Single-device deployments use the same multi-device format with one group
 
 ### Weather Integration
+- **Weather Toggle**: Enable or disable weather-based scheduling
+  - `HEATTRAX_WEATHER_ENABLED` environment variable (default: true)
+  - When disabled, uses fixed schedule behavior instead of weather forecasts
+  - Sends notifications on startup indicating weather mode status
 - **Multi-Provider Support**: Choose between weather APIs
   - **OpenWeatherMap**: Industry-standard API with detailed forecasts (requires API key)
   - **Open-Meteo**: Free API with no key required (default)
@@ -51,6 +55,14 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
   - 30-minute cooldown period after max runtime (configurable)
   - State persistence for recovery after restarts
   - Per-group runtime tracking
+- **HTTP Health Check Endpoints**: Monitor application health via HTTP (default port 8080)
+  - `GET /health` - Basic application health check (always returns 200 if app is running)
+  - `GET /health/weather` - Weather-specific health check
+    - Returns status='disabled' when weather is disabled
+    - Returns status='ok' with current conditions and forecast when weather is enabled
+    - Returns status='timeout' or 'error' if weather API is unreachable
+  - Configurable host and port via `HEATTRAX_HEALTH_SERVER_*` environment variables
+  - Can be disabled entirely with `HEATTRAX_HEALTH_SERVER_ENABLED=false`
 - **Periodic Health Checks**: Background monitoring of device connectivity
   - Configurable check interval (default: every 24 hours)
   - Multi-device aware: tracks all configured devices
@@ -61,10 +73,11 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
   - **Email notifications** via SMTP (Gmail, Office365, custom SMTP)
   - **Webhook notifications** via HTTP POST (Slack, Discord, custom webhooks)
   - **Startup validation** with connectivity testing and optional test notifications
+  - **Weather mode notifications** sent on startup with current weather snapshot
   - **Per-event routing** to control which events go to which providers
   - **Required mode** to ensure notifications work before starting scheduler
   - Configurable via YAML and environment variables
-  - Events: device lost, device found, IP changed, connectivity issues, etc.
+  - Events: device lost, device found, IP changed, connectivity issues, weather mode, etc.
   - See [HEALTH_CHECK.md](HEALTH_CHECK.md) for detailed notification configuration
 - **Robust Error Handling**: Continues operation even if individual devices fail
 
