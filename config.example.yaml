@@ -32,6 +32,33 @@ weather_api:
   open_meteo:
     # Optional: API endpoint (defaults to official API)
     # api_url: "https://api.open-meteo.com/v1"
+  
+  # Weather Resilience & Caching Configuration
+  # Provides reliable operation during temporary internet/API outages
+  resilience:
+    # Path to weather cache file (stores last successful forecast)
+    cache_file: "state/weather_cache.json"  # ENV: HEATTRAX_WEATHER_CACHE_FILE
+    
+    # How long cached data is trusted for decision-making (in hours)
+    # During an outage, cached data within this horizon will be used
+    # After this time, system reverts to static schedule
+    cache_valid_hours: 6.0  # ENV: HEATTRAX_WEATHER_CACHE_VALID_HOURS
+    
+    # How many hours of forecast to store in cache (should be >= cache_valid_hours)
+    forecast_horizon_hours: 12  # ENV: HEATTRAX_WEATHER_FORECAST_HORIZON_HOURS
+    
+    # Normal polling interval when service is online (in minutes)
+    refresh_interval_minutes: 10  # ENV: HEATTRAX_WEATHER_REFRESH_INTERVAL_MINUTES
+    
+    # Initial retry delay after a failure (in minutes)
+    retry_interval_minutes: 5  # ENV: HEATTRAX_WEATHER_RETRY_INTERVAL_MINUTES
+    
+    # Maximum backoff interval for retries (in minutes)
+    # Uses exponential backoff: 5min, 10min, 20min, 40min, up to this max
+    max_retry_interval_minutes: 60  # ENV: HEATTRAX_WEATHER_MAX_RETRY_INTERVAL_MINUTES
+    
+    # How long service can be offline before triggering an alert (in minutes)
+    outage_alert_after_minutes: 30  # ENV: HEATTRAX_WEATHER_OUTAGE_ALERT_AFTER_MINUTES
 
 # Device Configuration
 # Multi-device mode with groups for organizing devices by function

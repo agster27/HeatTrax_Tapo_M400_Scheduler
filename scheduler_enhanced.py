@@ -43,12 +43,12 @@ class EnhancedScheduler:
         weather_config = config.weather_api
         self.weather_enabled = weather_config.get('enabled', True)
         
+        # Weather service will be created after notification service initialization
+        self.weather = None
+        
         if self.weather_enabled:
-            # Create weather service using factory
-            self.weather = WeatherServiceFactory.create_weather_service(config._config)
-            self.logger.info("Weather-based scheduling ENABLED")
+            self.logger.info("Weather-based scheduling will be ENABLED")
         else:
-            self.weather = None
             self.logger.info("Weather-based scheduling DISABLED - using fixed schedule behavior")
         
         # Initialize device management (multi-device mode only)
@@ -149,6 +149,15 @@ class EnhancedScheduler:
         
         self.logger.info("=" * 80)
         
+        # Create weather service now that we have notification service
+        if self.weather_enabled:
+            self.logger.info("Creating resilient weather service...")
+            self.weather = WeatherServiceFactory.create_weather_service(
+                self.config._config, 
+                notification_service=self.notification_service
+            )
+            self.logger.info("Weather-based scheduling ENABLED with resilience layer")
+        
         try:
             await self.device_manager.initialize()
             
@@ -180,31 +189,46 @@ class EnhancedScheduler:
                 # Get current weather snapshot
                 weather_details = {}
                 try:
-                    temp, conditions = await self.weather.get_current_conditions()
-                    weather_details['current_temperature_f'] = round(temp, 1)
-                    weather_details['current_conditions'] = conditions
+                    conditions = await self.weather.get_current_conditions()
+                    if conditions:
+                        temp, precip = conditions
+                        weather_details['current_temperature_f'] = round(temp, 1)
+                        weather_details['current_precipitation_mm'] = precip
+                    else:
+                        weather_details['note'] = 'Weather data unavailable at startup'
                     
                     # Get forecast info
-                    has_precip, precip_time, precip_temp = await self.weather.check_precipitation_forecast(
+                    result = await self.weather.check_precipitation_forecast(
                         hours_ahead=self.config.scheduler['forecast_hours'],
                         temperature_threshold_f=self.config.thresholds['temperature_f']
                     )
                     
-                    if has_precip and precip_time:
-                        weather_details['precipitation_expected'] = True
-                        weather_details['precipitation_time'] = precip_time.isoformat()
-                        weather_details['precipitation_temp_f'] = round(precip_temp, 1)
+                    if result and result != (False, None, None):
+                        has_precip, precip_time, precip_temp = result
+                        if has_precip and precip_time:
+                            weather_details['precipitation_expected'] = True
+                            weather_details['precipitation_time'] = precip_time.isoformat()
+                            weather_details['precipitation_temp_f'] = round(precip_temp, 1)
+                        else:
+                            weather_details['precipitation_expected'] = False
                     else:
                         weather_details['precipitation_expected'] = False
                     
                     weather_details['provider'] = self.config.weather_api.get('provider', 'open-meteo')
+                    
+                    # Add resilience info
+                    if hasattr(self.weather, 'get_state_info'):
+                        state_info = self.weather.get_state_info()
+                        weather_details['resilience_state'] = state_info.get('state', 'unknown')
+                        weather_details['cache_age_hours'] = state_info.get('cache_age_hours')
+                    
                 except WeatherServiceError as e:
                     self.logger.warning(f"Failed to get weather snapshot for notification: {e}")
                     weather_details['error'] = str(e)
                 
                 await self.notification_service.notify(
                     event_type="weather_mode_enabled",
-                    message="Weather-based scheduling ENABLED",
+                    message="Weather-based scheduling ENABLED with resilience layer",
                     details=weather_details
                 )
                 self.logger.info("Sent weather mode enabled notification")
@@ -264,42 +288,60 @@ class EnhancedScheduler:
                     if start_hour <= current_hour < end_hour:
                         self.logger.info(f"Group '{group_name}': Morning mode active")
                         try:
-                            temp, _ = await self.weather.get_current_conditions()
-                            morning_temp_threshold = morning_mode.get('temperature_f', 
-                                                                       self.config.thresholds['temperature_f'])
-                            if temp < morning_temp_threshold:
-                                self.logger.info(
-                                    f"Group '{group_name}': Temperature {temp}°F below "
-                                    f"morning threshold {morning_temp_threshold}°F"
+                            conditions = await self.weather.get_current_conditions()
+                            if conditions is None:
+                                self.logger.warning(
+                                    f"Group '{group_name}': Weather data unavailable (fail-safe mode) - "
+                                    "morning mode check skipped"
                                 )
-                                return True
+                            else:
+                                temp, _ = conditions
+                                morning_temp_threshold = morning_mode.get('temperature_f', 
+                                                                           self.config.thresholds['temperature_f'])
+                                if temp < morning_temp_threshold:
+                                    self.logger.info(
+                                        f"Group '{group_name}': Temperature {temp}°F below "
+                                        f"morning threshold {morning_temp_threshold}°F"
+                                    )
+                                    return True
                         except WeatherServiceError as e:
                             self.logger.error(f"Failed to get current conditions: {e}")
             
             # Precipitation control
             if automation.get('precipitation_control', False):
                 try:
-                    has_precip, precip_time, temp = await self.weather.check_precipitation_forecast(
+                    result = await self.weather.check_precipitation_forecast(
                         hours_ahead=self.config.scheduler['forecast_hours'],
                         temperature_threshold_f=self.config.thresholds['temperature_f']
                     )
                     
-                    if has_precip and precip_time:
-                        lead_time = timedelta(minutes=self.config.thresholds['lead_time_minutes'])
-                        turn_on_time = precip_time - lead_time
-                        now = datetime.now()
+                    # Check if result is None or valid tuple
+                    if result is None or result == (False, None, None):
+                        # No precipitation or weather data unavailable (fail-safe mode)
+                        if result is None:
+                            self.logger.warning(
+                                f"Group '{group_name}': Weather data unavailable (fail-safe mode) - "
+                                "precipitation check skipped"
+                            )
+                    else:
+                        has_precip, precip_time, temp = result
                         
-                        if now >= turn_on_time:
-                            self.logger.info(
-                                f"Group '{group_name}': Precipitation expected at {precip_time}, "
-                                f"temperature {temp}°F - turning on"
-                            )
-                            return True
-                        else:
-                            self.logger.info(
-                                f"Group '{group_name}': Precipitation expected at {precip_time}, "
-                                f"will turn on at {turn_on_time}"
-                            )
+                        if has_precip and precip_time:
+                            lead_time = timedelta(minutes=self.config.thresholds['lead_time_minutes'])
+                            turn_on_time = precip_time - lead_time
+                            now = datetime.now()
+                            
+                            if now >= turn_on_time:
+                                self.logger.info(
+                                    f"Group '{group_name}': Precipitation expected at {precip_time}, "
+                                    f"temperature {temp}°F - turning on"
+                                )
+                                return True
+                            else:
+                                self.logger.info(
+                                    f"Group '{group_name}': Precipitation expected at {precip_time}, "
+                                    f"will turn on at {turn_on_time}"
+                                )
                 except WeatherServiceError as e:
                     self.logger.error(f"Weather service error: {e}")
         
@@ -477,6 +519,49 @@ class EnhancedScheduler:
         
         self.logger.info("Multi-device scheduler cycle completed")
     
+    async def _weather_fetch_loop(self):
+        """Background task to fetch weather data at regular intervals."""
+        from main import shutdown_event
+        
+        self.logger.info("Weather fetch loop started")
+        
+        # Initial fetch
+        await self.weather.fetch_and_cache_forecast()
+        
+        try:
+            while not shutdown_event.is_set():
+                # Get next fetch interval from resilient weather service
+                interval_minutes = self.weather.get_next_fetch_interval_minutes()
+                interval_seconds = interval_minutes * 60
+                
+                self.logger.info(f"Next weather fetch in {interval_minutes} minutes")
+                
+                # Wait for interval or shutdown
+                try:
+                    await asyncio.wait_for(
+                        shutdown_event.wait(),
+                        timeout=interval_seconds
+                    )
+                    # Shutdown was signaled
+                    break
+                except asyncio.TimeoutError:
+                    # Time to fetch weather
+                    pass
+                
+                # Fetch weather forecast
+                success = await self.weather.fetch_and_cache_forecast()
+                
+                if not success:
+                    # Update retry interval with exponential backoff
+                    self.weather.update_retry_interval()
+                
+        except asyncio.CancelledError:
+            self.logger.info("Weather fetch loop cancelled")
+            raise
+        except Exception as e:
+            self.logger.error(f"Error in weather fetch loop: {type(e).__name__}: {e}")
+            raise
+    
     
     async def run(self):
         """Run the main scheduler loop."""
@@ -491,6 +576,12 @@ class EnhancedScheduler:
         
         check_interval = self.config.scheduler['check_interval_minutes'] * 60
         self.logger.info(f"Starting scheduler with {check_interval}s check interval")
+        
+        # Start weather fetch task if weather is enabled
+        weather_task = None
+        if self.weather_enabled and self.weather:
+            self.logger.info("Starting weather fetch background task...")
+            weather_task = asyncio.create_task(self._weather_fetch_loop())
         
         # Import shutdown event from main
         from main import shutdown_event
@@ -546,6 +637,15 @@ class EnhancedScheduler:
         
         finally:
             self.logger.info("Shutting down scheduler...")
+            
+            # Cancel weather fetch task
+            if weather_task and not weather_task.done():
+                self.logger.info("Cancelling weather fetch task...")
+                weather_task.cancel()
+                try:
+                    await weather_task
+                except asyncio.CancelledError:
+                    pass
             
             # Stop health check service
             await self.health_check.stop()
