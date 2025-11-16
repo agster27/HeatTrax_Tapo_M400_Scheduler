@@ -26,6 +26,7 @@ class HealthCheckService:
     """Service for periodic health checks of devices."""
     
     def __init__(self, check_interval_hours: float, configured_ips: list = None,
+                 configured_devices: Dict[str, str] = None,
                  notification_service: Optional[NotificationService] = None,
                  max_consecutive_failures: int = 3):
         """
@@ -33,19 +34,29 @@ class HealthCheckService:
         
         Args:
             check_interval_hours: Hours between health checks
-            configured_ips: List of configured device IP addresses
+            configured_ips: List of configured device IP addresses (deprecated, use configured_devices)
+            configured_devices: Dict mapping IP address -> label (e.g., "group_name: device_name")
             notification_service: Optional notification service for alerts
             max_consecutive_failures: Maximum consecutive failures before triggering re-init
         """
         self.check_interval_hours = check_interval_hours
-        self.configured_ips_list = configured_ips or []
         self.notification_service = notification_service
         self.max_consecutive_failures = max_consecutive_failures
         
         self.state = HealthCheckState()
-        # Initialize configured IPs mapping (IP -> IP as label for now)
-        for ip in self.configured_ips_list:
-            self.state.configured_ips[ip] = ip
+        
+        # Support both old list format and new dict format
+        if configured_devices:
+            # New format: dict with IP -> label
+            self.state.configured_ips = configured_devices.copy()
+            self.configured_ips_list = list(configured_devices.keys())
+        elif configured_ips:
+            # Legacy format: list of IPs (use IP as label)
+            self.configured_ips_list = configured_ips or []
+            for ip in self.configured_ips_list:
+                self.state.configured_ips[ip] = ip
+        else:
+            self.configured_ips_list = []
         
         self._running = False
         self._task: Optional[asyncio.Task] = None
