@@ -233,7 +233,7 @@ class Config:
         """Validate required configuration fields."""
         logger.info("Validating configuration...")
         
-        # Multi-device mode only
+        # Required sections for multi-device configuration
         required_sections = ['location', 'devices', 'thresholds', 'safety', 'scheduler']
         
         logger.debug(f"Checking for required sections: {required_sections}")
@@ -270,8 +270,8 @@ class Config:
             logger.error(f"Invalid latitude/longitude values: {e}")
             raise ConfigError(f"Latitude and longitude must be valid numbers: {e}")
         
-        # Validate devices section (multi-device mode)
-        logger.debug("Validating multi-device configuration")
+        # Validate devices section
+        logger.debug("Validating devices configuration")
         devices = self._config['devices']
         
         if not isinstance(devices, dict):
@@ -381,7 +381,7 @@ class Config:
     
     @property
     def devices(self) -> Dict[str, Any]:
-        """Get devices configuration (multi-device mode)."""
+        """Get devices configuration."""
         return self._config.get('devices', {})
     
     @property
