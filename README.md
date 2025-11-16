@@ -58,10 +58,14 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
   - Monitors device IP changes and alias changes
   - Automatic re-initialization on critical failures
 - **Notification System**: Extensible alerting for device issues (optional, disabled by default)
-  - Email notifications via SMTP
-  - Webhook notifications via HTTP POST
-  - Configurable via environment variables
-  - Events: device lost, device found, IP changed, connectivity issues
+  - **Email notifications** via SMTP (Gmail, Office365, custom SMTP)
+  - **Webhook notifications** via HTTP POST (Slack, Discord, custom webhooks)
+  - **Startup validation** with connectivity testing and optional test notifications
+  - **Per-event routing** to control which events go to which providers
+  - **Required mode** to ensure notifications work before starting scheduler
+  - Configurable via YAML and environment variables
+  - Events: device lost, device found, IP changed, connectivity issues, etc.
+  - See [HEALTH_CHECK.md](HEALTH_CHECK.md) for detailed notification configuration
 - **Robust Error Handling**: Continues operation even if individual devices fail
 
 ### Configuration & Logging
@@ -280,6 +284,8 @@ Configuration values are resolved in the following order (highest to lowest prio
 | `HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS` | health_check | Hours between health checks | Float | `24` |
 | `HEATTRAX_HEALTH_CHECK_MAX_FAILURES` | health_check | Max consecutive failures before re-init | Integer | `3` |
 | `HEATTRAX_REBOOT_PAUSE_SECONDS` | reboot | Pause (seconds) before container restart | Integer | `60` |
+| `HEATTRAX_NOTIFICATIONS_REQUIRED` | notifications | If true, misconfigured providers cause startup failure | Boolean | `false` |
+| `HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP` | notifications | Send test notification on startup | Boolean | `false` |
 | `HEATTRAX_NOTIFICATION_EMAIL_ENABLED` | notifications.email | Enable email notifications | Boolean | `true` or `false` |
 | `HEATTRAX_NOTIFICATION_EMAIL_SMTP_HOST` | notifications.email | SMTP server hostname | String | `smtp.gmail.com` |
 | `HEATTRAX_NOTIFICATION_EMAIL_SMTP_PORT` | notifications.email | SMTP server port | Integer | `587` |
@@ -290,6 +296,8 @@ Configuration values are resolved in the following order (highest to lowest prio
 | `HEATTRAX_NOTIFICATION_EMAIL_USE_TLS` | notifications.email | Use TLS for SMTP | Boolean | `true` or `false` |
 | `HEATTRAX_NOTIFICATION_WEBHOOK_ENABLED` | notifications.webhook | Enable webhook notifications | Boolean | `true` or `false` |
 | `HEATTRAX_NOTIFICATION_WEBHOOK_URL` | notifications.webhook | Webhook URL | String | `https://hooks.example.com/notify` |
+
+**Note**: Per-event routing configuration must be specified in `config.yaml` and cannot be overridden via environment variables. See [HEALTH_CHECK.md](HEALTH_CHECK.md) for routing examples.
 
 ### Boolean Values
 

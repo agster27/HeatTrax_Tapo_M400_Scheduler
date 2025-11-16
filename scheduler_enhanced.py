@@ -12,7 +12,11 @@ from weather_service import WeatherServiceError
 from device_group_manager import DeviceGroupManager
 from state_manager import StateManager
 from health_check import HealthCheckService
-from notification_service import create_notification_service_from_config
+from notification_service import (
+    create_notification_service_from_config,
+    validate_and_test_notifications,
+    NotificationValidationError
+)
 
 
 logger = logging.getLogger(__name__)
@@ -44,8 +48,8 @@ class EnhancedScheduler:
         # State management per group
         self.states = {}  # group_name -> StateManager
         
-        # Initialize notification service
-        self.notification_service = create_notification_service_from_config(config.notifications)
+        # Initialize notification service (will be set during validation)
+        self.notification_service = None
         
         # Collect all configured device IPs with labels for health check
         configured_devices = {}  # IP -> label mapping
@@ -59,18 +63,69 @@ class EnhancedScheduler:
                     label = f"{group_name}: {name}"
                     configured_devices[ip] = label
         
-        # Health check service
+        # Health check service (will set notification_service later)
         health_check_config = config.health_check
         self.health_check = HealthCheckService(
             check_interval_hours=health_check_config.get('interval_hours', 24),
             configured_devices=configured_devices,
-            notification_service=self.notification_service,
+            notification_service=None,  # Set after validation
             max_consecutive_failures=health_check_config.get('max_consecutive_failures', 3)
         )
     
     async def initialize(self):
         """Initialize the scheduler and device connections."""
         self.logger.info("Initializing Enhanced Scheduler...")
+        
+        # Validate and initialize notification service
+        self.logger.info("=" * 80)
+        self.logger.info("NOTIFICATION SERVICE INITIALIZATION")
+        self.logger.info("=" * 80)
+        
+        notifications_config = self.config.notifications
+        required = notifications_config.get('required', False)
+        test_on_startup = notifications_config.get('test_on_startup', False)
+        
+        self.logger.info(f"Notifications required: {required}")
+        self.logger.info(f"Test on startup: {test_on_startup}")
+        
+        try:
+            # Validate notification configuration and test connectivity
+            success, notification_service = await validate_and_test_notifications(
+                notifications_config,
+                test_connectivity=True,
+                send_test=test_on_startup
+            )
+            
+            if not success:
+                if required:
+                    self.logger.error("Notification validation failed and notifications are required")
+                    raise RuntimeError("Notification validation failed (notifications.required=true)")
+                else:
+                    self.logger.warning("Notification validation failed, but notifications are not required - continuing")
+                    # Create a disabled service
+                    notification_service = None
+            
+            self.notification_service = notification_service
+            
+            # Update health check service with validated notification service
+            self.health_check.notification_service = notification_service
+            
+            if notification_service and notification_service.is_enabled():
+                self.logger.info(f"✓ Notification service initialized with {len(notification_service.providers)} provider(s)")
+            else:
+                self.logger.info("Notification service disabled or not configured")
+        
+        except NotificationValidationError as e:
+            if required:
+                self.logger.error(f"Notification validation failed: {e}")
+                raise RuntimeError(f"Notification validation failed (notifications.required=true): {e}")
+            else:
+                self.logger.warning(f"Notification validation failed: {e}")
+                self.logger.warning("Continuing without notifications (notifications.required=false)")
+                self.notification_service = None
+                self.health_check.notification_service = None
+        
+        self.logger.info("=" * 80)
         
         try:
             await self.device_manager.initialize()
