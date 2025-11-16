@@ -184,10 +184,109 @@ class TestDeviceDiscovery(unittest.TestCase):
             with patch('device_discovery.discover_devices', new_callable=AsyncMock) as mock_discover:
                 mock_discover.return_value = [DeviceInfo(mock_device)]
                 
-                result = await run_device_discovery_and_diagnostics(configured_ip="192.168.1.100")
+                result = await run_device_discovery_and_diagnostics(
+                    configured_ip="192.168.1.100",
+                    connection_successful=True
+                )
                 
                 self.assertIsNotNone(result)
                 self.assertEqual(result.ip, "192.168.1.100")
+        
+        asyncio.run(run_test())
+    
+    def test_run_device_discovery_ip_not_found_connection_failed(self):
+        """Test discovery when configured IP not found and connection failed."""
+        async def run_test():
+            # Mock device at different IP
+            mock_device = Mock()
+            mock_device.host = "192.168.1.101"
+            mock_device.alias = "Alternative Device"
+            mock_device.model = "Tapo P110"
+            mock_device.mac = "AA:BB:CC:DD:EE:FF"
+            mock_device.is_on = True
+            mock_device.features = []
+            mock_device.hw_version = "1.0"
+            mock_device.sw_version = "1.2.3"
+            mock_device.update = AsyncMock()
+            
+            with patch('device_discovery.discover_devices', new_callable=AsyncMock) as mock_discover:
+                mock_discover.return_value = [DeviceInfo(mock_device)]
+                
+                # Configured IP is 192.168.1.100, but only 192.168.1.101 found
+                result = await run_device_discovery_and_diagnostics(
+                    configured_ip="192.168.1.100",
+                    connection_successful=False
+                )
+                
+                # Should suggest the alternative device
+                self.assertIsNotNone(result)
+                self.assertEqual(result.ip, "192.168.1.101")
+        
+        asyncio.run(run_test())
+    
+    def test_run_device_discovery_ip_not_found_connection_succeeded(self):
+        """Test discovery when configured IP not found but connection succeeded."""
+        async def run_test():
+            # Mock device at different IP
+            mock_device = Mock()
+            mock_device.host = "192.168.1.101"
+            mock_device.alias = "Other Device"
+            mock_device.model = "Tapo P110"
+            mock_device.mac = "BB:BB:CC:DD:EE:FF"
+            mock_device.is_on = True
+            mock_device.features = []
+            mock_device.hw_version = "1.0"
+            mock_device.sw_version = "1.2.3"
+            mock_device.update = AsyncMock()
+            
+            with patch('device_discovery.discover_devices', new_callable=AsyncMock) as mock_discover:
+                mock_discover.return_value = [DeviceInfo(mock_device)]
+                
+                # Connection succeeded to 192.168.1.100 but only 192.168.1.101 discovered
+                result = await run_device_discovery_and_diagnostics(
+                    configured_ip="192.168.1.100",
+                    connection_successful=True
+                )
+                
+                # Should not return a device since connection succeeded to configured IP
+                # but it wasn't discovered (might be blocking broadcast)
+                self.assertIsNone(result)
+        
+        asyncio.run(run_test())
+    
+    def test_run_device_discovery_multiple_devices_no_config(self):
+        """Test discovery with multiple devices and no configured IP."""
+        async def run_test():
+            # Mock two devices
+            mock_device1 = Mock()
+            mock_device1.host = "192.168.1.100"
+            mock_device1.alias = "Device 1"
+            mock_device1.model = "Tapo P110"
+            mock_device1.mac = "AA:BB:CC:DD:EE:FF"
+            mock_device1.is_on = True
+            mock_device1.features = []
+            mock_device1.hw_version = "1.0"
+            mock_device1.sw_version = "1.2.3"
+            mock_device1.update = AsyncMock()
+            
+            mock_device2 = Mock()
+            mock_device2.host = "192.168.1.101"
+            mock_device2.alias = "Device 2"
+            mock_device2.model = "Tapo P110"
+            mock_device2.mac = "BB:BB:CC:DD:EE:FF"
+            mock_device2.is_on = False
+            mock_device2.features = []
+            mock_device2.hw_version = "1.0"
+            mock_device2.sw_version = "1.2.3"
+            mock_device2.update = AsyncMock()
+            
+            with patch('device_discovery.discover_devices', new_callable=AsyncMock) as mock_discover:
+                mock_discover.return_value = [DeviceInfo(mock_device1), DeviceInfo(mock_device2)]
+                
+                result = await run_device_discovery_and_diagnostics(configured_ip=None)
+                
+                # Should return None when multiple devices and no config
+                self.assertIsNone(result)
         
         asyncio.run(run_test())
 
