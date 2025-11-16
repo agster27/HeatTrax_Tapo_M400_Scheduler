@@ -18,6 +18,7 @@ from startup_checks import run_startup_checks
 from device_discovery import run_device_discovery_and_diagnostics
 from health_check import HealthCheckService
 from notification_service import create_notification_service_from_config
+from scheduler_enhanced import EnhancedScheduler
 
 
 # Global flag for graceful shutdown
@@ -436,52 +437,82 @@ async def main():
         logger.info("=" * 60)
         logger.info(f"Reboot pause configured: {pause_seconds} seconds")
         
-        # Step 1: Attempt to connect to configured device (if IP is specified)
-        configured_ip = config.device.get('ip_address')
+        # Step 1: Attempt to connect to configured device (if IP is specified in legacy mode)
+        configured_ip = None
         connection_successful = False
         
-        if configured_ip:
-            logger.info("\n" + "=" * 80)
-            logger.info("STEP 1: ATTEMPTING CONNECTION TO CONFIGURED DEVICE")
-            logger.info("=" * 80)
-            logger.info(f"Configured IP: {configured_ip}")
+        if not config.has_multi_device_config:
+            # Legacy single-device mode
+            configured_ip = config.device.get('ip_address')
             
-            try:
-                # Create temporary controller to test connection
-                test_controller = TapoController(
-                    ip_address=configured_ip,
-                    username=config.device['username'],
-                    password=config.device['password']
-                )
-                await test_controller.initialize()
-                logger.info("✓ Successfully connected to configured device!")
-                await test_controller.close()
-                connection_successful = True
-            except Exception as e:
-                logger.warning(f"⚠ Failed to connect to configured device: {e}")
-                logger.warning("Will check discovery for alternatives...")
-                connection_successful = False
+            if configured_ip:
+                logger.info("\n" + "=" * 80)
+                logger.info("STEP 1: ATTEMPTING CONNECTION TO CONFIGURED DEVICE (Legacy Mode)")
+                logger.info("=" * 80)
+                logger.info(f"Configured IP: {configured_ip}")
+                
+                try:
+                    # Create temporary controller to test connection
+                    test_controller = TapoController(
+                        ip_address=configured_ip,
+                        username=config.device['username'],
+                        password=config.device['password']
+                    )
+                    await test_controller.initialize()
+                    logger.info("✓ Successfully connected to configured device!")
+                    await test_controller.close()
+                    connection_successful = True
+                except Exception as e:
+                    logger.warning(f"⚠ Failed to connect to configured device: {e}")
+                    logger.warning("Will check discovery for alternatives...")
+                    connection_successful = False
+            else:
+                logger.info("\n" + "=" * 80)
+                logger.info("STEP 1: NO DEVICE IP CONFIGURED (Legacy Mode)")
+                logger.info("=" * 80)
+                logger.info("No explicit device IP configured - will use discovery")
+        else:
+            # Multi-device mode
+            logger.info("\n" + "=" * 80)
+            logger.info("STEP 1: MULTI-DEVICE CONFIGURATION DETECTED")
+            logger.info("=" * 80)
+            devices_config = config.devices
+            groups = devices_config.get('groups', {})
+            
+            enabled_groups = [name for name, cfg in groups.items() if cfg.get('enabled', True)]
+            logger.info(f"Found {len(groups)} groups, {len(enabled_groups)} enabled:")
+            
+            for group_name in enabled_groups:
+                group_cfg = groups[group_name]
+                items = group_cfg.get('items', [])
+                logger.info(f"  - {group_name}: {len(items)} devices")
+            
+            logger.info("Device connections will be established during initialization")
+        
+        # Step 2: Always run device discovery and diagnostics (for legacy mode only)
+        if not config.has_multi_device_config:
+            logger.info("\n" + "=" * 80)
+            logger.info("STEP 2: NETWORK DEVICE DISCOVERY (Legacy Mode)")
+            logger.info("=" * 80)
+            discovered_device = await run_device_discovery_and_diagnostics(
+                configured_ip=configured_ip,
+                connection_successful=connection_successful
+            )
+            logger.info("")  # Blank line for readability
         else:
             logger.info("\n" + "=" * 80)
-            logger.info("STEP 1: NO DEVICE IP CONFIGURED")
+            logger.info("STEP 2: SKIPPING DEVICE DISCOVERY (Multi-Device Mode)")
             logger.info("=" * 80)
-            logger.info("No explicit device IP configured - will use discovery")
+            logger.info("Device discovery is handled during group initialization")
+            logger.info("")
         
-        # Step 2: Always run device discovery and diagnostics
-        logger.info("\n" + "=" * 80)
-        logger.info("STEP 2: NETWORK DEVICE DISCOVERY")
+        # Step 3: Create and run enhanced scheduler
         logger.info("=" * 80)
-        discovered_device = await run_device_discovery_and_diagnostics(
-            configured_ip=configured_ip,
-            connection_successful=connection_successful
-        )
-        logger.info("")  # Blank line for readability
+        logger.info("STEP 3: STARTING ENHANCED SCHEDULER")
+        logger.info("=" * 80)
         
-        # Step 3: Create and run scheduler
-        logger.info("=" * 80)
-        logger.info("STEP 3: STARTING SCHEDULER")
-        logger.info("=" * 80)
-        scheduler = HeatTraxScheduler(config)
+        # Use EnhancedScheduler which handles both legacy and multi-device modes
+        scheduler = EnhancedScheduler(config)
         await scheduler.run()
         
     except ConfigError as e:
