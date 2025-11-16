@@ -23,12 +23,7 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
   - Support for Kasa EP40M smart plugs with 2 outlets each
   - Outlet-specific control (control individual outlets independently)
   - Group actions (turn all devices in a group on/off together)
-- **Backward Compatible**: Fully supports legacy single-device configuration
-- **Device Auto-Discovery**: Automatic network discovery and diagnostics at startup (legacy mode)
-  - Discovers all Kasa/Tapo devices on the network
-  - Logs detailed device information (IP, MAC, alias, model, state, RSSI, features)
-  - Auto-selects device if only one found
-  - Provides configuration suggestions when multiple devices detected
+  - Single-device deployments use the same multi-device format with one group
 
 ### Weather Integration
 - **Multi-Provider Support**: Choose between weather APIs
@@ -56,8 +51,9 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
   - 30-minute cooldown period after max runtime (configurable)
   - State persistence for recovery after restarts
   - Per-group runtime tracking
-- **Periodic Health Checks**: Background monitoring of device connectivity (legacy mode)
+- **Periodic Health Checks**: Background monitoring of device connectivity
   - Configurable check interval (default: every 24 hours)
+  - Multi-device aware: tracks all configured devices
   - Detects lost/found devices and configuration mismatches
   - Monitors device IP changes and alias changes
   - Automatic re-initialization on critical failures
@@ -77,7 +73,7 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
 - **Flexible Configuration**: YAML-based configuration with environment variable overrides
   - All settings can be overridden via environment variables
   - Perfect for containerized deployments and secret management
-  - Support for both single-device and multi-device configurations
+  - Multi-device configuration with logical grouping
   - See [Environment Variable Configuration](#environment-variable-configuration) below
 - **Startup Diagnostic Checks**: Comprehensive pre-flight checks for containerized deployments
   - Python version and package verification
@@ -152,39 +148,13 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
    python main.py
    ```
 
-## Configuration Modes
+## Configuration
 
-The scheduler supports two configuration modes to fit different use cases:
+The scheduler uses a multi-device group configuration that can handle both single and multiple devices.
 
-### 1. Legacy Single-Device Mode (Backward Compatible)
+### Configuration Format
 
-Perfect for simple deployments with one device controlling heated mats.
-
-```yaml
-# config.yaml
-location:
-  latitude: 40.7128
-  longitude: -74.0060
-  timezone: "America/New_York"
-
-device:
-  ip_address: "192.168.1.100"
-  username: "your_tapo_username"
-  password: "your_tapo_password"
-
-thresholds:
-  temperature_f: 34
-  lead_time_minutes: 60
-  trailing_time_minutes: 60
-
-# ... rest of config
-```
-
-This mode uses the classic single-device behavior with all original features intact.
-
-### 2. Multi-Device Group Mode (New)
-
-For advanced deployments with multiple devices organized by function.
+For deployments with multiple devices organized by function:
 
 ```yaml
 # config.yaml
@@ -244,16 +214,30 @@ devices:
 - **Group Actions**: Turn entire groups on/off together
 - **Independent State**: Each group tracks its own runtime and cooldown
 
-### Choosing a Mode
+### Single Device Deployments
 
-- Use **Legacy Mode** if you have a single device and want simplicity
-- Use **Multi-Device Mode** if you:
-  - Have multiple devices to control
-  - Want different automation rules for different devices
-  - Need outlet-specific control for EP40M plugs
-  - Want to control Christmas lights on a schedule
+For simple deployments with just one device, use the same format with a single group:
 
-The scheduler automatically detects which mode to use based on your configuration.
+```yaml
+devices:
+  credentials:
+    username: "your_tapo_username"
+    password: "your_tapo_password"
+  groups:
+    my_device:
+      enabled: true
+      automation:
+        weather_control: true
+        precipitation_control: true
+        morning_mode: true
+      items:
+        - name: "Heated Mat"
+          ip_address: "192.168.1.100"
+```
+
+### Migration from Legacy Configuration
+
+If you have an old single-device configuration (using `device:` instead of `devices:`), it is no longer supported. Please migrate to the multi-device format shown above. For single-device setups, simply create one group with one device.
 
 ## Environment Variable Configuration
 
@@ -280,9 +264,8 @@ Configuration values are resolved in the following order (highest to lowest prio
 | `HEATTRAX_TIMEZONE` | location | Location timezone | String | `America/New_York` |
 | `HEATTRAX_WEATHER_PROVIDER` | weather_api | Weather provider (open-meteo or openweathermap) | String | `open-meteo` |
 | `HEATTRAX_OPENWEATHERMAP_API_KEY` | weather_api.openweathermap | OpenWeatherMap API key | String | `your_api_key` |
-| `HEATTRAX_TAPO_IP_ADDRESS` | device | Tapo device IP address (legacy mode) | String | `192.168.1.100` |
-| `HEATTRAX_TAPO_USERNAME` | device / devices.credentials | Tapo account username | String | `user@example.com` |
-| `HEATTRAX_TAPO_PASSWORD` | device / devices.credentials | Tapo account password | String | `your_password` |
+| `HEATTRAX_TAPO_USERNAME` | devices.credentials | Tapo account username | String | `user@example.com` |
+| `HEATTRAX_TAPO_PASSWORD` | devices.credentials | Tapo account password | String | `your_password` |
 | `HEATTRAX_THRESHOLD_TEMP_F` | thresholds | Temperature threshold (°F) | Float | `34` |
 | `HEATTRAX_LEAD_TIME_MINUTES` | thresholds | Minutes before precipitation | Integer | `60` |
 | `HEATTRAX_TRAILING_TIME_MINUTES` | thresholds | Minutes after precipitation | Integer | `60` |
@@ -340,7 +323,8 @@ services:
       - HEATTRAX_LATITUDE=40.7128
       - HEATTRAX_LONGITUDE=-74.0060
       - HEATTRAX_TIMEZONE=America/New_York
-      - HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
+      # Note: Device IPs and group configuration must be in config.yaml
+      # Environment variables can only override credentials and settings
       - HEATTRAX_TAPO_USERNAME=your_username
       - HEATTRAX_TAPO_PASSWORD=your_password
       - HEATTRAX_THRESHOLD_TEMP_F=34
@@ -355,6 +339,7 @@ services:
       - HEATTRAX_MORNING_MODE_END_HOUR=8
       - HEATTRAX_LOG_LEVEL=INFO
     volumes:
+      - ./config.yaml:/app/config.yaml  # Required: device IPs and groups
       - ./logs:/app/logs
       - ./state:/app/state
     restart: unless-stopped
@@ -371,7 +356,7 @@ TZ=America/New_York
 HEATTRAX_LATITUDE=40.7128
 HEATTRAX_LONGITUDE=-74.0060
 HEATTRAX_TIMEZONE=America/New_York
-HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
+# Note: Device IPs and group configuration must be in config.yaml mounted as volume
 HEATTRAX_TAPO_USERNAME=your_username
 HEATTRAX_TAPO_PASSWORD=your_password
 HEATTRAX_THRESHOLD_TEMP_F=34
@@ -462,16 +447,7 @@ weather_api:
 3. Generate a new API key
 4. Add it to your configuration
 
-### Device Settings (Legacy Single-Device Mode)
-
-```yaml
-device:
-  ip_address: "192.168.1.100"     # IP address of your Tapo device
-  username: "your_tapo_username"   # Tapo account username/email
-  password: "your_tapo_password"   # Tapo account password
-```
-
-### Device Settings (Multi-Device Group Mode)
+### Device Settings
 
 ```yaml
 devices:
@@ -663,36 +639,7 @@ The scheduler still validates that Tapo credentials are present in the configura
 
 ## How It Works
 
-### Legacy Single-Device Mode
-
-1. **Startup Device Discovery**: At startup, the scheduler automatically:
-   - Discovers all Kasa/Tapo devices on the network
-   - Logs detailed information about each device found
-   - Validates the configured device IP
-   - Provides configuration suggestions if multiple devices detected
-
-2. **Weather Monitoring**: The scheduler checks weather forecasts every 10 minutes (configurable)
-
-3. **Precipitation Detection**: When precipitation is forecasted within the next 12 hours and temperature is below 34°F:
-   - Mats turn ON 60 minutes before expected precipitation
-   - Mats turn OFF 60 minutes after precipitation ends
-
-4. **Morning Frost Mode**: Between 6-8 AM (configurable):
-   - Mats turn ON if temperature is below threshold
-   - Helps clear morning frost/black ice for safe walking
-
-5. **Periodic Health Checks**: Background monitoring (every 24 hours by default):
-   - Verifies device connectivity
-   - Detects device changes or network issues
-   - Sends notifications if enabled
-   - Automatically re-initializes connection on repeated failures
-
-6. **Safety Features**:
-   - Automatic shutoff after 6 hours of continuous runtime
-   - 30-minute cooldown before mats can turn on again
-   - State is saved to disk for recovery after restarts
-
-### Multi-Device Group Mode
+### Scheduler Operation
 
 1. **Group Initialization**: At startup, the scheduler:
    - Initializes all configured device groups
