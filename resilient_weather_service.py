@@ -97,7 +97,7 @@ class ResilientWeatherService:
         else:
             logger.info("Starting with no valid cached weather data")
     
-    def _update_state(self) -> None:
+    async def _update_state(self) -> None:
         """Update service state based on current conditions."""
         old_state = self.state
         
@@ -144,15 +144,16 @@ class ResilientWeatherService:
             
             # Update previous state for next transition
             self.previous_state = old_state
+            await self._send_state_change_notification(old_state, self.state)
         
         # Check for outage alert
         if self.offline_since and not self.alert_sent_for_outage:
             offline_minutes = (datetime.now() - self.offline_since).total_seconds() / 60
             if offline_minutes >= self.outage_alert_after_minutes:
-                self._send_outage_alert(offline_minutes)
+                await self._send_outage_alert(offline_minutes)
                 self.alert_sent_for_outage = True
     
-    def _send_state_change_notification(
+    async def _send_state_change_notification(
         self,
         old_state: WeatherServiceState,
         new_state: WeatherServiceState
@@ -179,21 +180,19 @@ class ResilientWeatherService:
             return
         
         try:
-            asyncio.create_task(
-                self.notification_service.send_notification(
-                    event_type=event_type,
-                    message=message,
-                    details={
-                        'previous_state': old_state.value,
-                        'current_state': new_state.value,
-                        'cache_age_hours': self.cache.get_cache_age_hours()
-                    }
-                )
+            await self.notification_service.notify(
+                event_type=event_type,
+                message=message,
+                details={
+                    'previous_state': old_state.value,
+                    'current_state': new_state.value,
+                    'cache_age_hours': self.cache.get_cache_age_hours()
+                }
             )
         except Exception as e:
             logger.warning(f"Failed to send state change notification: {e}")
     
-    def _send_outage_alert(self, offline_minutes: float) -> None:
+    async def _send_outage_alert(self, offline_minutes: float) -> None:
         """Send alert that weather service has been offline too long."""
         if not self.notification_service:
             return
@@ -204,17 +203,15 @@ class ResilientWeatherService:
         )
         
         try:
-            asyncio.create_task(
-                self.notification_service.send_notification(
-                    event_type="weather_service_outage_alert",
-                    message=f"Weather service has been offline for {offline_minutes:.1f} minutes",
-                    details={
-                        'offline_since': self.offline_since.isoformat() if self.offline_since else None,
-                        'offline_minutes': offline_minutes,
-                        'alert_threshold_minutes': self.outage_alert_after_minutes,
-                        'state': self.state.value
-                    }
-                )
+            await self.notification_service.notify(
+                event_type="weather_service_outage_alert",
+                message=f"Weather service has been offline for {offline_minutes:.1f} minutes",
+                details={
+                    'offline_since': self.offline_since.isoformat() if self.offline_since else None,
+                    'offline_minutes': offline_minutes,
+                    'alert_threshold_minutes': self.outage_alert_after_minutes,
+                    'state': self.state.value
+                }
             )
         except Exception as e:
             logger.warning(f"Failed to send outage alert: {e}")
@@ -276,7 +273,7 @@ class ResilientWeatherService:
                 self.current_retry_interval = self.retry_interval_minutes
                 
                 # Update state
-                self._update_state()
+                await self._update_state()
                 
                 logger.info(f"Successfully fetched and cached weather forecast")
                 
@@ -305,7 +302,7 @@ class ResilientWeatherService:
                 logger.warning("Weather service went offline")
             
             # Update state
-            self._update_state()
+            await self._update_state()
             
             return False
         
@@ -318,7 +315,7 @@ class ResilientWeatherService:
                 logger.warning("Weather service went offline")
             
             # Update state
-            self._update_state()
+            await self._update_state()
             
             return False
     

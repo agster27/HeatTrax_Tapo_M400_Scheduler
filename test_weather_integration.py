@@ -129,7 +129,7 @@ async def test_full_outage_recovery_cycle():
         await asyncio.sleep(4)  # Wait for cache to expire (>3.6 seconds)
         
         # Update state to reflect expired cache
-        service._update_state()
+        await service._update_state()
         assert service.state == WeatherServiceState.OFFLINE_NO_WEATHER_DATA
         conditions = await service.get_current_conditions()
         assert conditions is None, "Should return None when OFFLINE (fail-safe)"
