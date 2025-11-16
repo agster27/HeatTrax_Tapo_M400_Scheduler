@@ -328,6 +328,136 @@ async def test_resilient_weather_service_retry_backoff():
         return True
 
 
+async def test_notification_service_integration():
+    """Test that notification service is called correctly during state changes."""
+    logger.info("Testing notification service integration...")
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_file = Path(tmpdir) / "test_cache.json"
+        
+        # Create mock weather service
+        mock_weather = Mock()
+        mock_weather.latitude = 40.7128
+        mock_weather.longitude = -74.006
+        
+        # Successful forecast
+        now = datetime.now()
+        mock_forecast = {
+            'hourly': {
+                'time': [(now + timedelta(hours=i)).isoformat() for i in range(12)],
+                'temperature_2m': [32.0] * 12,
+                'precipitation': [0.0] * 12
+            }
+        }
+        mock_weather.get_forecast = AsyncMock(return_value=mock_forecast)
+        
+        # Create mock notification service
+        mock_notification = Mock()
+        mock_notification.notify = AsyncMock(return_value=None)
+        
+        # Create resilient service with notification service
+        service = ResilientWeatherService(
+            weather_service=mock_weather,
+            cache_file=str(cache_file),
+            cache_valid_hours=6.0,
+            forecast_horizon_hours=12,
+            refresh_interval_minutes=10,
+            retry_interval_minutes=5,
+            max_retry_interval_minutes=60,
+            outage_alert_after_minutes=30,
+            notification_service=mock_notification
+        )
+        
+        # Fetch should succeed and transition to ONLINE
+        # This should trigger a state change notification (offline_no_weather_data -> online)
+        success = await service.fetch_and_cache_forecast()
+        assert success, "Fetch should succeed"
+        
+        # Verify notification service was called
+        assert mock_notification.notify.called, "notify should have been called"
+        call_args = mock_notification.notify.call_args
+        assert call_args is not None, "notify call_args should not be None"
+        
+        # Check the event type
+        assert call_args[1]['event_type'] == 'weather_service_recovered', \
+            f"Expected 'weather_service_recovered', got {call_args[1]['event_type']}"
+        
+        # Check the details contain expected keys
+        details = call_args[1]['details']
+        assert 'previous_state' in details, "Details should contain 'previous_state'"
+        assert 'current_state' in details, "Details should contain 'current_state'"
+        assert details['previous_state'] == 'offline_no_weather_data'
+        assert details['current_state'] == 'online'
+        
+        # Reset mock
+        mock_notification.notify.reset_mock()
+        
+        # Simulate failure - should transition to DEGRADED
+        mock_weather.get_forecast = AsyncMock(side_effect=Exception("Network error"))
+        success = await service.fetch_and_cache_forecast()
+        assert not success, "Fetch should fail"
+        
+        # Verify notification service was called again
+        assert mock_notification.notify.called, "notify should have been called on state change to degraded"
+        call_args = mock_notification.notify.call_args
+        assert call_args[1]['event_type'] == 'weather_service_degraded', \
+            f"Expected 'weather_service_degraded', got {call_args[1]['event_type']}"
+        
+        logger.info("✓ Notification service integration tests passed")
+        return True
+
+
+async def test_notification_failure_handling():
+    """Test that notification failures are logged but don't break the service."""
+    logger.info("Testing notification failure handling...")
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_file = Path(tmpdir) / "test_cache.json"
+        
+        # Create mock weather service
+        mock_weather = Mock()
+        mock_weather.latitude = 40.7128
+        mock_weather.longitude = -74.006
+        
+        now = datetime.now()
+        mock_forecast = {
+            'hourly': {
+                'time': [(now + timedelta(hours=i)).isoformat() for i in range(12)],
+                'temperature_2m': [32.0] * 12,
+                'precipitation': [0.0] * 12
+            }
+        }
+        mock_weather.get_forecast = AsyncMock(return_value=mock_forecast)
+        
+        # Create mock notification service that raises exceptions
+        mock_notification = Mock()
+        mock_notification.notify = AsyncMock(side_effect=Exception("Notification service down"))
+        
+        # Create resilient service with failing notification service
+        service = ResilientWeatherService(
+            weather_service=mock_weather,
+            cache_file=str(cache_file),
+            cache_valid_hours=6.0,
+            forecast_horizon_hours=12,
+            refresh_interval_minutes=10,
+            retry_interval_minutes=5,
+            max_retry_interval_minutes=60,
+            outage_alert_after_minutes=30,
+            notification_service=mock_notification
+        )
+        
+        # Fetch should succeed despite notification failure
+        success = await service.fetch_and_cache_forecast()
+        assert success, "Fetch should succeed even when notification fails"
+        assert service.state == WeatherServiceState.ONLINE, "Should be ONLINE"
+        
+        # Verify notification was attempted
+        assert mock_notification.notify.called, "notify should have been called"
+        
+        logger.info("✓ Notification failure handling tests passed")
+        return True
+
+
 def main_test():
     """Run all tests."""
     logger.info("=" * 60)
@@ -346,6 +476,8 @@ def main_test():
     results.append(("Resilient Service States", loop.run_until_complete(test_resilient_weather_service_states())))
     results.append(("Fail-Safe Behavior", loop.run_until_complete(test_resilient_weather_service_fail_safe())))
     results.append(("Retry Backoff", loop.run_until_complete(test_resilient_weather_service_retry_backoff())))
+    results.append(("Notification Service Integration", loop.run_until_complete(test_notification_service_integration())))
+    results.append(("Notification Failure Handling", loop.run_until_complete(test_notification_failure_handling())))
     
     # Print summary
     logger.info("=" * 60)
