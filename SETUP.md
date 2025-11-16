@@ -136,9 +136,9 @@ HEATTRAX_LONGITUDE=-74.0060
 HEATTRAX_TIMEZONE=America/New_York
 
 # Tapo Device Settings
-HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
 HEATTRAX_TAPO_USERNAME=your_tapo_email@example.com
 HEATTRAX_TAPO_PASSWORD=your_tapo_password
+# Note: Device IPs are configured in config.yaml under devices.groups
 
 # Optional: Override defaults
 HEATTRAX_THRESHOLD_TEMP_F=34

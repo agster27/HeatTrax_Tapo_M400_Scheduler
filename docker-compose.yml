@@ -14,11 +14,11 @@ services:
       # Uncomment to override config values with environment variables:
       # - HEATTRAX_TAPO_USERNAME=${HEATTRAX_TAPO_USERNAME}
       # - HEATTRAX_TAPO_PASSWORD=${HEATTRAX_TAPO_PASSWORD}
-      # - HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
       # - HEATTRAX_LATITUDE=40.7128
       # - HEATTRAX_LONGITUDE=-74.0060
       # - HEATTRAX_THRESHOLD_TEMP_F=34
       # - HEATTRAX_LOG_LEVEL=INFO
+      # Note: Device IPs are configured in config.yaml under devices.groups
       # See README.md for full list of supported environment variables
     network_mode: host
     

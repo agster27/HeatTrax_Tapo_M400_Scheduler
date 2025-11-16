@@ -152,10 +152,10 @@ notifications:
 # Set environment variables
 export HEATTRAX_LATITUDE=40.7128
 export HEATTRAX_LONGITUDE=-74.0060
-export HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
 export HEATTRAX_TAPO_USERNAME=your_username
 export HEATTRAX_TAPO_PASSWORD=your_password
 # ... other required vars ...
+# Note: Device IPs configured in config.yaml under devices.groups
 
 # Run the scheduler
 python main.py
