@@ -30,19 +30,10 @@ weather_api:
     # api_url: "https://api.open-meteo.com/v1"
 
 # Device Configuration
-# Two modes supported:
-# 1. Legacy mode: Single device (backward compatible)
-# 2. Multi-device mode: Multiple devices with groups
+# Multi-device mode with groups for organizing devices by function
 
-# LEGACY MODE (backward compatible - single device)
-# Uncomment this section to use single device mode
-# device:
-#   ip_address: "192.168.1.100"      # ENV: HEATTRAX_TAPO_IP_ADDRESS
-#   username: "your_tapo_username"   # ENV: HEATTRAX_TAPO_USERNAME
-#   password: "your_tapo_password"   # ENV: HEATTRAX_TAPO_PASSWORD
-
-# MULTI-DEVICE MODE (supports groups and multiple outlets)
-# Comment out the 'device:' section above and use 'devices:' section below
+# Global credentials for all Kasa/Tapo devices
+# These credentials apply to all devices configured in the groups below
 devices:
   # Global credentials for all Kasa/Tapo devices
   credentials:
