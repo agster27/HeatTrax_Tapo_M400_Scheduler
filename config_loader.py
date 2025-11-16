@@ -66,6 +66,9 @@ ENV_VAR_MAPPING = {
     # Notification settings - Webhook
     'HEATTRAX_NOTIFICATION_WEBHOOK_ENABLED': ('notifications', 'webhook', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
     'HEATTRAX_NOTIFICATION_WEBHOOK_URL': ('notifications', 'webhook', 'url', str),
+    
+    # Reboot settings
+    'REBOOT_PAUSE_SECONDS': ('reboot', 'pause_seconds', int),
 }
 
 
@@ -179,7 +182,8 @@ class Config:
                 'morning_mode': {},
                 'logging': {},
                 'health_check': {},
-                'notifications': {'email': {}, 'webhook': {}}
+                'notifications': {'email': {}, 'webhook': {}},
+                'reboot': {}
             }
             return config
         
@@ -199,7 +203,8 @@ class Config:
                     'morning_mode': {},
                     'logging': {},
                     'health_check': {},
-                    'notifications': {'email': {}, 'webhook': {}}
+                    'notifications': {'email': {}, 'webhook': {}},
+                    'reboot': {}
                 }
             
             if not isinstance(config, dict):
@@ -386,4 +391,11 @@ class Config:
         return self._config.get('notifications', {
             'email': {'enabled': False},
             'webhook': {'enabled': False}
+        })
+    
+    @property
+    def reboot(self) -> Dict[str, Any]:
+        """Get reboot configuration."""
+        return self._config.get('reboot', {
+            'pause_seconds': 60
         })

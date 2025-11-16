@@ -5,6 +5,7 @@ import logging
 import signal
 import sys
 import os
+import time
 from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -21,6 +22,48 @@ from notification_service import create_notification_service_from_config
 
 # Global flag for graceful shutdown
 shutdown_event = asyncio.Event()
+
+
+def pause_before_restart(pause_seconds: int, reason: str):
+    """
+    Pause before container restart to allow console troubleshooting.
+    
+    Args:
+        pause_seconds: Number of seconds to pause
+        reason: Reason for the restart (for logging)
+    """
+    if pause_seconds <= 0:
+        return
+    
+    logger = logging.getLogger(__name__)
+    logger.critical("=" * 80)
+    logger.critical("CONTAINER RESTART SEQUENCE INITIATED")
+    logger.critical("=" * 80)
+    logger.critical(f"Reason: {reason}")
+    logger.critical(f"Pausing for {pause_seconds} seconds to allow console troubleshooting...")
+    logger.critical(f"The container will restart automatically after the pause.")
+    logger.critical("=" * 80)
+    
+    # Also print to console to ensure visibility
+    print("\n" + "=" * 80, file=sys.stderr)
+    print("CONTAINER RESTART SEQUENCE INITIATED", file=sys.stderr)
+    print("=" * 80, file=sys.stderr)
+    print(f"Reason: {reason}", file=sys.stderr)
+    print(f"Pausing for {pause_seconds} seconds to allow console troubleshooting...", file=sys.stderr)
+    print(f"The container will restart automatically after the pause.", file=sys.stderr)
+    print("=" * 80 + "\n", file=sys.stderr)
+    
+    # Countdown every 10 seconds for visibility
+    remaining = pause_seconds
+    while remaining > 0:
+        if remaining % 10 == 0 or remaining <= 5:
+            logger.warning(f"Container restart in {remaining} seconds...")
+            print(f"Container restart in {remaining} seconds...", file=sys.stderr)
+        time.sleep(1)
+        remaining -= 1
+    
+    logger.critical("Pause complete. Exiting to trigger container restart.")
+    print("Pause complete. Exiting to trigger container restart.\n", file=sys.stderr)
 
 
 def setup_logging(config: Config):
@@ -360,9 +403,17 @@ async def main():
     # Run checks - get device IP from environment for connectivity test if available
     device_ip = os.environ.get('HEATTRAX_TAPO_IP_ADDRESS')
     
+    # Get pause seconds from environment variable (for use before config is loaded)
+    pause_seconds_env = os.environ.get('REBOOT_PAUSE_SECONDS', '60')
+    try:
+        pause_seconds = int(pause_seconds_env)
+    except ValueError:
+        pause_seconds = 60  # Default to 60 if invalid
+    
     startup_ok = run_startup_checks(config_path=config_path, device_ip=device_ip)
     if not startup_ok:
         print("\nERROR: Critical startup checks failed. Exiting.", file=sys.stderr)
+        pause_before_restart(pause_seconds, "Critical startup checks failed")
         sys.exit(1)
     
     # Set up signal handlers
@@ -373,6 +424,9 @@ async def main():
         # Load configuration
         config = Config()
         
+        # Get pause_seconds from config (may override environment variable)
+        pause_seconds = config.reboot.get('pause_seconds', pause_seconds)
+        
         # Set up logging
         setup_logging(config)
         
@@ -380,6 +434,7 @@ async def main():
         logger.info("=" * 60)
         logger.info("HeatTrax Tapo M400 Scheduler Starting")
         logger.info("=" * 60)
+        logger.info(f"Reboot pause configured: {pause_seconds} seconds")
         
         # Step 1: Attempt to connect to configured device (if IP is specified)
         configured_ip = config.device.get('ip_address')
@@ -431,9 +486,11 @@ async def main():
         
     except ConfigError as e:
         print(f"Configuration error: {e}", file=sys.stderr)
+        pause_before_restart(pause_seconds, f"Configuration error: {e}")
         sys.exit(1)
     except Exception as e:
         logging.error(f"Fatal error: {e}", exc_info=True)
+        pause_before_restart(pause_seconds, f"Fatal error: {e}")
         sys.exit(1)
 
 

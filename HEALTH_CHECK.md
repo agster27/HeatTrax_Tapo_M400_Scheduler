@@ -106,6 +106,30 @@ HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS=24
 HEATTRAX_HEALTH_CHECK_MAX_FAILURES=3
 ```
 
+### Container Restart Pause
+
+When critical failures occur that would cause the container to exit and restart, the application pauses for a configurable duration to allow console troubleshooting:
+
+```yaml
+reboot:
+  pause_seconds: 60  # Pause before container restart (default: 60)
+```
+
+Or via environment variable:
+
+```bash
+REBOOT_PAUSE_SECONDS=60
+```
+
+The pause:
+- Defaults to 60 seconds
+- Displays clear countdown messages in logs and console output
+- Allows time to inspect logs and diagnose issues before the container restarts
+- Can be set to 0 to disable the pause
+- Is triggered on critical startup failures or unrecoverable errors
+
+This is particularly useful in Docker deployments with `restart: unless-stopped` where immediate restarts can make troubleshooting difficult.
+
 ### Behavior
 
 1. **First check** runs after the configured interval (e.g., 24 hours after startup)
