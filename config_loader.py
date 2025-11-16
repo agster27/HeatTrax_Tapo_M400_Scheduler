@@ -27,10 +27,9 @@ ENV_VAR_MAPPING = {
     'HEATTRAX_WEATHER_PROVIDER': ('weather_api', 'provider', str),
     'HEATTRAX_OPENWEATHERMAP_API_KEY': ('weather_api', 'openweathermap', 'api_key', str),
     
-    # Device settings (legacy single device)
-    'HEATTRAX_TAPO_IP_ADDRESS': ('device', 'ip_address', str),
-    'HEATTRAX_TAPO_USERNAME': ('device', 'username', str),
-    'HEATTRAX_TAPO_PASSWORD': ('device', 'password', str),
+    # Device settings (multi-device mode)
+    'HEATTRAX_TAPO_USERNAME': ('devices', 'credentials', 'username', str),
+    'HEATTRAX_TAPO_PASSWORD': ('devices', 'credentials', 'password', str),
     
     # Threshold settings
     'HEATTRAX_THRESHOLD_TEMP_F': ('thresholds', 'temperature_f', float),
@@ -179,8 +178,7 @@ class Config:
             # Create minimal config structure that will be populated by env vars
             config = {
                 'location': {},
-                'device': {},
-                'devices': {},
+                'devices': {'credentials': {}, 'groups': {}},
                 'weather_api': {},
                 'thresholds': {},
                 'scheduler': {},
@@ -202,8 +200,7 @@ class Config:
                 logger.warning("Configuration file is empty, using empty config structure")
                 config = {
                     'location': {},
-                    'device': {},
-                    'devices': {},
+                    'devices': {'credentials': {}, 'groups': {}},
                     'weather_api': {},
                     'thresholds': {},
                     'scheduler': {},
@@ -236,14 +233,8 @@ class Config:
         """Validate required configuration fields."""
         logger.info("Validating configuration...")
         
-        # Check for either legacy 'device' or new 'devices' section
-        has_legacy_device = 'device' in self._config and self._config['device']
-        has_multi_device = 'devices' in self._config and self._config['devices']
-        
-        if has_multi_device:
-            required_sections = ['location', 'devices', 'thresholds', 'safety', 'scheduler']
-        else:
-            required_sections = ['location', 'device', 'thresholds', 'safety', 'scheduler']
+        # Multi-device mode only
+        required_sections = ['location', 'devices', 'thresholds', 'safety', 'scheduler']
         
         logger.debug(f"Checking for required sections: {required_sections}")
         for section in required_sections:
@@ -279,67 +270,55 @@ class Config:
             logger.error(f"Invalid latitude/longitude values: {e}")
             raise ConfigError(f"Latitude and longitude must be valid numbers: {e}")
         
-        # Validate device or devices section
-        if has_multi_device:
-            logger.debug("Validating multi-device configuration")
-            devices = self._config['devices']
-            
-            if not isinstance(devices, dict):
-                logger.error(f"Devices must be a dictionary, got: {type(devices)}")
-                raise ConfigError(f"Devices configuration must be a dictionary")
-            
-            # Validate credentials
-            if 'credentials' not in devices:
-                logger.error("Devices configuration missing 'credentials' section")
-                raise ConfigError("Devices configuration must include 'credentials' section")
-            
-            credentials = devices['credentials']
-            for field in ['username', 'password']:
-                if field not in credentials or not credentials[field]:
-                    logger.error(f"Devices credentials missing or empty: {field}")
-                    raise ConfigError(f"Devices credentials must include non-empty '{field}'")
-            
-            logger.debug(f"Devices credentials validated: Username={credentials['username']}")
-            
-            # Validate groups
-            if 'groups' in devices and devices['groups']:
-                groups = devices['groups']
-                logger.debug(f"Validating {len(groups)} device groups")
-                for group_name, group_config in groups.items():
-                    if not isinstance(group_config, dict):
-                        logger.error(f"Group '{group_name}' must be a dictionary")
-                        raise ConfigError(f"Group '{group_name}' configuration must be a dictionary")
-                    
-                    if 'items' in group_config:
-                        items = group_config['items']
-                        if not isinstance(items, list):
-                            logger.error(f"Group '{group_name}' items must be a list")
-                            raise ConfigError(f"Group '{group_name}' items must be a list")
-                        
-                        for item in items:
-                            if 'ip_address' not in item:
-                                logger.error(f"Device in group '{group_name}' missing ip_address")
-                                raise ConfigError(f"All devices must have 'ip_address'")
+        # Validate devices section (multi-device mode)
+        logger.debug("Validating multi-device configuration")
+        devices = self._config['devices']
         
-        elif has_legacy_device:
-            logger.debug("Validating legacy single-device configuration")
-            device = self._config['device']
+        if not isinstance(devices, dict):
+            logger.error(f"Devices must be a dictionary, got: {type(devices)}")
+            raise ConfigError(f"Devices configuration must be a dictionary")
+        
+        # Validate credentials
+        if 'credentials' not in devices:
+            logger.error("Devices configuration missing 'credentials' section")
+            raise ConfigError("Devices configuration must include 'credentials' section")
+        
+        credentials = devices['credentials']
+        for field in ['username', 'password']:
+            if field not in credentials or not credentials[field]:
+                logger.error(f"Devices credentials missing or empty: {field}")
+                raise ConfigError(f"Devices credentials must include non-empty '{field}'")
+        
+        logger.debug(f"Devices credentials validated: Username={credentials['username']}")
+        
+        # Validate groups
+        if 'groups' not in devices or not devices['groups']:
+            logger.warning("No device groups configured - this is unusual but allowed")
+        else:
+            groups = devices['groups']
+            if not isinstance(groups, dict):
+                logger.error(f"Device groups must be a dictionary, got: {type(groups)}")
+                raise ConfigError(f"Device groups must be a dictionary")
             
-            if not isinstance(device, dict):
-                logger.error(f"Device must be a dictionary, got: {type(device)}")
-                raise ConfigError(f"Device configuration must be a dictionary")
-            
-            device_fields = ['ip_address', 'username', 'password']
-            for field in device_fields:
-                if field not in device:
-                    logger.error(f"Device configuration missing required field: {field}")
-                    logger.error(f"Available device fields: {list(device.keys())}")
-                    raise ConfigError(f"Device configuration missing required field: {field}")
-                if not device[field]:
-                    logger.error(f"Device field '{field}' is empty")
-                    raise ConfigError(f"Device field '{field}' cannot be empty")
-            
-            logger.debug(f"Device validated: IP={device['ip_address']}, Username={device['username']}")
+            logger.debug(f"Validating {len(groups)} device groups")
+            for group_name, group_config in groups.items():
+                if not isinstance(group_config, dict):
+                    logger.error(f"Group '{group_name}' must be a dictionary")
+                    raise ConfigError(f"Group '{group_name}' configuration must be a dictionary")
+                
+                if 'items' in group_config:
+                    items = group_config['items']
+                    if not isinstance(items, list):
+                        logger.error(f"Group '{group_name}' items must be a list")
+                        raise ConfigError(f"Group '{group_name}' items must be a list")
+                    
+                    for i, item in enumerate(items):
+                        if not isinstance(item, dict):
+                            logger.error(f"Group '{group_name}' item {i} must be a dictionary")
+                            raise ConfigError(f"Group '{group_name}' item {i} must be a dictionary")
+                        if 'ip_address' not in item or not item['ip_address']:
+                            logger.error(f"Device in group '{group_name}' item {i} missing or empty ip_address")
+                            raise ConfigError(f"All devices must have non-empty 'ip_address'")
         
         # Validate thresholds
         logger.debug("Validating thresholds configuration")
@@ -401,19 +380,9 @@ class Config:
         return self._config['location']
     
     @property
-    def device(self) -> Dict[str, Any]:
-        """Get device configuration (legacy single-device mode)."""
-        return self._config.get('device', {})
-    
-    @property
     def devices(self) -> Dict[str, Any]:
         """Get devices configuration (multi-device mode)."""
         return self._config.get('devices', {})
-    
-    @property
-    def has_multi_device_config(self) -> bool:
-        """Check if using multi-device configuration."""
-        return 'devices' in self._config and bool(self._config['devices'])
     
     @property
     def weather_api(self) -> Dict[str, Any]:

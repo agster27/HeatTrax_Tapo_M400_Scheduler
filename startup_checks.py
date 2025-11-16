@@ -215,7 +215,7 @@ def check_config_file(config_path: str = "config.yaml") -> Tuple[bool, Optional[
         print(f"  Configuration sections: {', '.join(config.keys())}")
         
         # Check for required sections
-        required = ['location', 'device', 'thresholds', 'safety', 'scheduler']
+        required = ['location', 'devices', 'thresholds', 'safety', 'scheduler']
         missing = [s for s in required if s not in config]
         if missing:
             print(f"  ⚠ Missing sections (may be provided via env vars): {', '.join(missing)}")

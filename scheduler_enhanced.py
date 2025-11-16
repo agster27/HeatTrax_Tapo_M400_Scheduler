@@ -1,14 +1,14 @@
-"""Enhanced scheduler supporting both single device and multi-device group configurations."""
+"""Enhanced scheduler supporting multi-device group configurations."""
 
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Dict, Any
+from pathlib import Path
 
 from config_loader import Config
 from weather_factory import WeatherServiceFactory
 from weather_service import WeatherServiceError
-from device_controller import TapoController, DeviceControllerError
 from device_group_manager import DeviceGroupManager
 from state_manager import StateManager
 from health_check import HealthCheckService
@@ -37,59 +37,53 @@ class EnhancedScheduler:
         # Create weather service using factory
         self.weather = WeatherServiceFactory.create_weather_service(config._config)
         
-        # Initialize device management
-        if config.has_multi_device_config:
-            self.logger.info("Using multi-device group configuration")
-            self.mode = "multi-device"
-            self.device_manager = DeviceGroupManager(config.devices)
-            self.legacy_controller = None
-        else:
-            self.logger.info("Using legacy single-device configuration")
-            self.mode = "legacy"
-            self.legacy_controller = TapoController(
-                ip_address=config.device['ip_address'],
-                username=config.device['username'],
-                password=config.device['password']
-            )
-            self.device_manager = None
+        # Initialize device management (multi-device mode only)
+        self.logger.info("Using multi-device group configuration")
+        self.device_manager = DeviceGroupManager(config.devices)
         
-        # State management per group (or single state for legacy)
+        # State management per group
         self.states = {}  # group_name -> StateManager
         
         # Initialize notification service
         self.notification_service = create_notification_service_from_config(config.notifications)
         
-        # Health check service (legacy mode only)
-        if self.mode == "legacy":
-            health_check_config = config.health_check
-            self.health_check = HealthCheckService(
-                check_interval_hours=health_check_config.get('interval_hours', 24),
-                configured_ip=config.device['ip_address'],
-                notification_service=self.notification_service,
-                max_consecutive_failures=health_check_config.get('max_consecutive_failures', 3)
-            )
-        else:
-            self.health_check = None
+        # Collect all configured device IPs for health check
+        configured_ips = []
+        groups = config.devices.get('groups', {})
+        for group_name, group_config in groups.items():
+            items = group_config.get('items', [])
+            for item in items:
+                ip = item.get('ip_address')
+                if ip:
+                    configured_ips.append(ip)
+        
+        # Health check service (multi-device aware)
+        health_check_config = config.health_check
+        self.health_check = HealthCheckService(
+            check_interval_hours=health_check_config.get('interval_hours', 24),
+            configured_ips=configured_ips,
+            notification_service=self.notification_service,
+            max_consecutive_failures=health_check_config.get('max_consecutive_failures', 3)
+        )
     
     async def initialize(self):
         """Initialize the scheduler and device connections."""
         self.logger.info("Initializing Enhanced Scheduler...")
         
         try:
-            if self.mode == "multi-device":
-                await self.device_manager.initialize()
-                
-                # Initialize state managers for each group
-                for group_name in self.device_manager.get_all_groups():
-                    self.states[group_name] = StateManager()
-                    self.logger.info(f"Initialized state manager for group: {group_name}")
-            else:
-                await self.legacy_controller.initialize()
-                self.states['default'] = StateManager()
-                self.logger.info("Initialized state manager for legacy device")
+            await self.device_manager.initialize()
+            
+            # Initialize state managers for each group with per-group state files
+            state_dir = Path('state')
+            state_dir.mkdir(exist_ok=True)
+            
+            for group_name in self.device_manager.get_all_groups():
+                state_file = state_dir / f"{group_name}.json"
+                self.states[group_name] = StateManager(state_file=str(state_file))
+                self.logger.info(f"Initialized state manager for group: {group_name} (file: {state_file})")
             
             self.logger.info("Scheduler initialized successfully")
-        except (DeviceControllerError, Exception) as e:
+        except Exception as e:
             self.logger.error(f"Failed to initialize scheduler: {e}")
             raise
     
@@ -342,26 +336,13 @@ class EnhancedScheduler:
         
         self.logger.info("Multi-device scheduler cycle completed")
     
-    async def run_cycle_legacy(self):
-        """Run one scheduler cycle for legacy single-device configuration."""
-        # Use the same logic as the original HeatTraxScheduler
-        from main import HeatTraxScheduler
-        
-        # Create temporary scheduler for legacy mode
-        legacy_scheduler = HeatTraxScheduler(self.config)
-        legacy_scheduler.controller = self.legacy_controller
-        legacy_scheduler.state = self.states['default']
-        legacy_scheduler.weather = self.weather
-        
-        await legacy_scheduler.run_cycle()
     
     async def run(self):
         """Run the main scheduler loop."""
         await self.initialize()
         
-        # Start health check service (legacy mode only)
-        if self.health_check:
-            await self.health_check.start()
+        # Start health check service
+        await self.health_check.start()
         
         check_interval = self.config.scheduler['check_interval_minutes'] * 60
         self.logger.info(f"Starting scheduler with {check_interval}s check interval")
@@ -371,22 +352,43 @@ class EnhancedScheduler:
         
         try:
             while not shutdown_event.is_set():
-                # Health check for legacy mode
-                if self.health_check and self.health_check.needs_reinitialization():
+                # Health check - reinitialize if needed
+                if self.health_check.needs_reinitialization():
                     self.logger.warning("Health check recommends re-initialization")
                     try:
-                        await self.legacy_controller.close()
-                        await self.legacy_controller.initialize()
-                        self.logger.info("✓ Device re-initialized successfully")
+                        self.logger.info("Attempting to reinitialize device connections...")
+                        
+                        # Reinitialize device manager
+                        await self.device_manager.close()
+                        await self.device_manager.initialize()
+                        
+                        # Reinitialize state managers for each group
+                        state_dir = Path('state')
+                        for group_name in self.device_manager.get_all_groups():
+                            state_file = state_dir / f"{group_name}.json"
+                            self.states[group_name] = StateManager(state_file=str(state_file))
+                        
+                        self.logger.info("✓ Devices re-initialized successfully")
                         self.health_check.state.consecutive_failures = 0
+                        
+                        if self.notification_service:
+                            await self.notification_service.notify(
+                                event_type="connectivity_restored",
+                                message="Device connections re-initialized successfully after health check failures",
+                                details=self.health_check.get_status()
+                            )
                     except Exception as e:
-                        self.logger.error(f"Failed to reinitialize device: {e}")
+                        self.logger.error(f"Failed to reinitialize devices: {e}")
+                        
+                        if self.notification_service:
+                            await self.notification_service.notify(
+                                event_type="connectivity_lost",
+                                message=f"Failed to reinitialize devices after health check failures: {e}",
+                                details=self.health_check.get_status()
+                            )
                 
-                # Run appropriate cycle
-                if self.mode == "multi-device":
-                    await self.run_cycle_multi_device()
-                else:
-                    await self.run_cycle_legacy()
+                # Run scheduler cycle
+                await self.run_cycle_multi_device()
                 
                 # Wait for next cycle or shutdown
                 try:
@@ -401,13 +403,9 @@ class EnhancedScheduler:
             self.logger.info("Shutting down scheduler...")
             
             # Stop health check service
-            if self.health_check:
-                await self.health_check.stop()
+            await self.health_check.stop()
             
             # Close connections
-            if self.mode == "multi-device":
-                await self.device_manager.close()
-            else:
-                await self.legacy_controller.close()
+            await self.device_manager.close()
             
             self.logger.info("Scheduler shutdown complete")
