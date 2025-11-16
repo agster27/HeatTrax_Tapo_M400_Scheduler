@@ -12,6 +12,8 @@ For troubleshooting and logging information, see [LOGGING.md](LOGGING.md).
 
 For startup diagnostic checks and debugging containerized deployments, see [STARTUP_CHECKS.md](STARTUP_CHECKS.md).
 
+For device discovery, health checks, and notification system, see [HEALTH_CHECK.md](HEALTH_CHECK.md).
+
 ## Features
 
 - **Weather-Based Automation**: Uses Open-Meteo API for accurate weather forecasting
