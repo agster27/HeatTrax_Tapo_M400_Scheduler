@@ -1,0 +1,72 @@
+# HeatTrax Tapo M400 Scheduler Configuration - Legacy Single Device Mode
+#
+# This is the legacy single-device configuration format for backward compatibility.
+# For new multi-device features, see config.example.yaml
+#
+# All settings can be overridden using environment variables with the HEATTRAX_ prefix.
+
+# Location settings for weather data
+location:
+  latitude: 40.7128
+  longitude: -74.0060
+  timezone: "America/New_York"
+
+# Single device settings (legacy mode)
+device:
+  ip_address: "192.168.1.100"
+  username: "your_tapo_username"
+  password: "your_tapo_password"
+
+# Weather thresholds
+thresholds:
+  temperature_f: 34
+  lead_time_minutes: 60
+  trailing_time_minutes: 60
+
+# Optional morning frost-clearing mode
+morning_mode:
+  enabled: true
+  start_hour: 6
+  end_hour: 8
+
+# Safety settings
+safety:
+  max_runtime_hours: 6
+  cooldown_minutes: 30
+
+# Scheduler settings
+scheduler:
+  check_interval_minutes: 10
+  forecast_hours: 12
+
+# Logging settings
+logging:
+  level: "INFO"
+  max_file_size_mb: 10
+  backup_count: 5
+
+# Health check settings
+health_check:
+  interval_hours: 24
+  max_consecutive_failures: 3
+
+# Reboot settings
+reboot:
+  pause_seconds: 60
+
+# Notification settings (default: disabled)
+notifications:
+  email:
+    enabled: false
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    smtp_username: "your_email@gmail.com"
+    smtp_password: "your_app_password"
+    from_email: "your_email@gmail.com"
+    to_emails:
+      - "recipient@example.com"
+    use_tls: true
+  
+  webhook:
+    enabled: false
+    url: "https://your-webhook-url.com/notifications"
