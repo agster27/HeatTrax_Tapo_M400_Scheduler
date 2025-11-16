@@ -42,10 +42,11 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
     
     def test_config_loads_from_example_yaml(self):
         """Test that config loads from example YAML without env vars."""
-        # Use legacy config for this test
-        config = Config('config.example.legacy.yaml')
+        # Use multi-device config (config.example.yaml now uses multi-device format)
+        config = Config('config.example.yaml')
         self.assertEqual(config.location['latitude'], 40.7128)
-        self.assertEqual(config.device['ip_address'], '192.168.1.100')
+        # Multi-device config uses devices.credentials instead of device
+        self.assertIn('credentials', config.devices)
         self.assertEqual(config.thresholds['temperature_f'], 34)
     
     def test_env_var_overrides_location(self):
@@ -61,14 +62,13 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
     
     def test_env_var_overrides_device(self):
         """Test device settings can be overridden with env vars."""
-        os.environ['HEATTRAX_TAPO_IP_ADDRESS'] = '10.0.0.50'
         os.environ['HEATTRAX_TAPO_USERNAME'] = 'test@example.com'
         os.environ['HEATTRAX_TAPO_PASSWORD'] = 'secret123'
         
         config = Config('config.example.yaml')
-        self.assertEqual(config.device['ip_address'], '10.0.0.50')
-        self.assertEqual(config.device['username'], 'test@example.com')
-        self.assertEqual(config.device['password'], 'secret123')
+        # Multi-device mode uses devices.credentials
+        self.assertEqual(config.devices['credentials']['username'], 'test@example.com')
+        self.assertEqual(config.devices['credentials']['password'], 'secret123')
     
     def test_env_var_overrides_thresholds(self):
         """Test threshold settings can be overridden with env vars."""
