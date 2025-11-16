@@ -152,6 +152,11 @@ class HealthCheckService:
             if self.state.consecutive_failures >= self.max_consecutive_failures:
                 logger.error(f"✗ CRITICAL: {self.state.consecutive_failures} consecutive health check failures!")
                 logger.error("  Consider restarting the scheduler or checking device connectivity")
+                logger.error("\n  RECOVERY SUGGESTIONS:")
+                logger.error("    1. Verify device is powered on and connected to network")
+                logger.error("    2. Check firewall settings (UDP port 9999 for discovery)")
+                logger.error("    3. Try running device discovery manually")
+                logger.error("    4. Verify device IP hasn't changed (check DHCP assignments)")
                 return False
             
             return False
@@ -247,19 +252,24 @@ class HealthCheckService:
                         logger.info(f"  Note: Device is outside local subnet ({subnet_cidr}) - this is expected")
                         logger.info("  Discovery cannot detect cross-subnet devices. Relying on static configuration.")
                 
+                # Provide recovery suggestions based on discovery
+                logger.warning("\n  RECOVERY SUGGESTIONS:")
+                
                 # Check if device moved to a different IP
                 configured_mac = None
                 if self.configured_ip in self.state.last_known_devices:
                     configured_mac = self.state.last_known_devices[self.configured_ip].mac
                 
+                found_at_different_ip = False
                 if configured_mac:
                     for ip, device in current_devices.items():
                         if device.mac == configured_mac:
                             logger.warning(
-                                f"⚠ CRITICAL: Configured device moved from {self.configured_ip} to {ip}!"
+                                f"    ✓ FOUND: Your device moved from {self.configured_ip} to {ip}!"
                             )
-                            logger.warning(f"  Device: {device.alias} (MAC: {device.mac})")
-                            logger.warning(f"  Please update configuration: HEATTRAX_TAPO_IP_ADDRESS={ip}")
+                            logger.warning(f"      Device: {device.alias} (MAC: {device.mac})")
+                            logger.warning(f"      Update configuration: HEATTRAX_TAPO_IP_ADDRESS={ip}")
+                            found_at_different_ip = True
                             
                             if self.notification_service:
                                 await self.notification_service.notify(
@@ -273,6 +283,26 @@ class HealthCheckService:
                                     }
                                 )
                             break
+                
+                if not found_at_different_ip:
+                    # Suggest alternatives from discovered devices
+                    if len(current_devices) == 1:
+                        single_device = list(current_devices.values())[0]
+                        logger.warning(f"    ✓ ALTERNATIVE: Only one device found on network:")
+                        logger.warning(f"      IP: {single_device.ip}")
+                        logger.warning(f"      Alias: {single_device.alias} ({single_device.model})")
+                        logger.warning(f"      MAC: {single_device.mac}")
+                        logger.warning(f"      Update configuration: HEATTRAX_TAPO_IP_ADDRESS={single_device.ip}")
+                    elif len(current_devices) > 1:
+                        logger.warning(f"    ✓ ALTERNATIVES: {len(current_devices)} devices available:")
+                        for i, (ip, device) in enumerate(current_devices.items(), 1):
+                            logger.warning(
+                                f"      {i}. {ip} - {device.alias} ({device.model}) [MAC: {device.mac}]"
+                            )
+                        logger.warning(f"      Update HEATTRAX_TAPO_IP_ADDRESS to use one of these")
+                    else:
+                        logger.warning(f"    ✗ No alternative devices discovered on network")
+                        logger.warning(f"      Device may be powered off or on different network")
         
         # Update last known devices
         self.state.last_known_devices = current_devices
