@@ -47,21 +47,23 @@ class EnhancedScheduler:
         # Initialize notification service
         self.notification_service = create_notification_service_from_config(config.notifications)
         
-        # Collect all configured device IPs for health check
-        configured_ips = []
+        # Collect all configured device IPs with labels for health check
+        configured_devices = {}  # IP -> label mapping
         groups = config.devices.get('groups', {})
         for group_name, group_config in groups.items():
             items = group_config.get('items', [])
             for item in items:
                 ip = item.get('ip_address')
                 if ip:
-                    configured_ips.append(ip)
+                    name = item.get('name', 'Unknown')
+                    label = f"{group_name}: {name}"
+                    configured_devices[ip] = label
         
-        # Health check service (multi-device aware)
+        # Health check service
         health_check_config = config.health_check
         self.health_check = HealthCheckService(
             check_interval_hours=health_check_config.get('interval_hours', 24),
-            configured_ips=configured_ips,
+            configured_devices=configured_devices,
             notification_service=self.notification_service,
             max_consecutive_failures=health_check_config.get('max_consecutive_failures', 3)
         )

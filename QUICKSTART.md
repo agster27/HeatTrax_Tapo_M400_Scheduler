@@ -51,10 +51,20 @@ Get your HeatTrax scheduler running in 5 minutes!
      longitude: YOUR_LONGITUDE
      timezone: "America/New_York"  # Your timezone
    
-   device:
-     ip_address: "YOUR_DEVICE_IP"  # Find in Tapo app
-     username: "YOUR_TAPO_EMAIL"
-     password: "YOUR_TAPO_PASSWORD"
+   devices:
+     credentials:
+       username: "YOUR_TAPO_EMAIL"
+       password: "YOUR_TAPO_PASSWORD"
+     groups:
+       heated_mats:
+         enabled: true
+         automation:
+           weather_control: true
+           precipitation_control: true
+           morning_mode: true
+         items:
+           - name: "My Heated Mat"
+             ip_address: "YOUR_DEVICE_IP"  # Find in Tapo app
    ```
 
 3. **Start the scheduler:**

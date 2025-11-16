@@ -1,11 +1,18 @@
-# DEPRECATED: Legacy Single Device Mode Configuration
+# ==================================================================================
+# DEPRECATED: Legacy Single Device Mode Configuration - NO LONGER SUPPORTED
+# ==================================================================================
 #
-# This configuration format is no longer supported as of the latest version.
-# The application now only supports multi-device mode with device groups.
-# Please migrate to the multi-device configuration format shown in config.example.yaml
+# This configuration format has been REMOVED and will NOT work.
+# The application now ONLY supports multi-device mode with device groups.
 #
-# For single-device deployments, use the multi-device format with one group containing one device.
-# Example:
+# WHY THIS CHANGE?
+# - Multi-device mode provides better organization and flexibility
+# - Allows managing multiple devices with different automation rules
+# - Supports both weather-based and schedule-based automation
+# - Simplifies the codebase and reduces maintenance burden
+#
+# HOW TO MIGRATE:
+# Even for a single device, use the multi-device format with one group:
 #
 # devices:
 #   credentials:
@@ -22,7 +29,10 @@
 #         - name: "My Device"
 #           ip_address: "192.168.1.100"
 #
-# See config.example.yaml for the full multi-device configuration format.
+# See config.example.yaml for the complete multi-device configuration format.
+# ==================================================================================
+
+# The configuration below is provided for reference only and WILL NOT WORK
 
 # Location settings for weather data
 location:

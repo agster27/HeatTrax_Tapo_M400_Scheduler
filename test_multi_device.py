@@ -30,10 +30,7 @@ class TestMultiDeviceConfig(unittest.TestCase):
         """Test that multi-device config loads correctly."""
         config = Config('config.example.yaml')
         
-        # Should use multi-device mode
-        self.assertTrue(config.has_multi_device_config)
-        
-        # Check devices section
+        # Check devices section exists
         self.assertIn('devices', config._config)
         devices = config.devices
         
@@ -73,19 +70,13 @@ class TestMultiDeviceConfig(unittest.TestCase):
         self.assertEqual(schedule['on_time'], '17:00')
         self.assertEqual(schedule['off_time'], '23:00')
     
-    def test_legacy_config_still_works(self):
-        """Test that legacy single-device config still works."""
-        config = Config('config.example.legacy.yaml')
+    def test_legacy_config_rejected(self):
+        """Test that legacy single-device config is rejected."""
+        with self.assertRaises(ConfigError) as context:
+            Config('config.example.legacy.yaml')
         
-        # Should use legacy mode
-        self.assertFalse(config.has_multi_device_config)
-        
-        # Check device section
-        self.assertIn('device', config._config)
-        device = config.device
-        self.assertEqual(device['ip_address'], '192.168.1.100')
-        self.assertEqual(device['username'], 'your_tapo_username')
-        self.assertEqual(device['password'], 'your_tapo_password')
+        # Should fail due to missing 'devices' section
+        self.assertIn('devices', str(context.exception))
     
     def test_weather_api_config(self):
         """Test weather API configuration."""

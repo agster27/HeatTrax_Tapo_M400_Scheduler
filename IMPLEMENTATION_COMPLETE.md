@@ -2,7 +2,9 @@
 
 ## Overview
 
-This implementation adds comprehensive multi-device support with weather-based and schedule-based automation to the HeatTrax Scheduler. The system can now control multiple Kasa/Tapo smart plugs (including EP40M with 2 outlets each) organized into logical groups.
+This implementation provides comprehensive multi-device support with weather-based and schedule-based automation for the HeatTrax Scheduler. The system controls multiple Kasa/Tapo smart plugs (including EP40M with 2 outlets each) organized into logical groups.
+
+**Note:** As of this refactoring, the system uses a multi-device-only architecture. Legacy single-device configuration is no longer supported.
 
 ## Key Features Implemented
 
@@ -35,47 +37,77 @@ This implementation adds comprehensive multi-device support with weather-based a
 - **Day Filtering**: Optional restriction to specific days of week
 - **Independent Operation**: Works regardless of weather conditions
 
-### 5. Backward Compatibility
-- **Legacy Mode**: Full support for existing single-device configuration
-- **Automatic Detection**: Scheduler detects mode from config structure
-- **No Breaking Changes**: Existing deployments continue to work without modification
+### 5. Configuration Architecture
+- **Multi-Device Only**: System uses device groups exclusively
+- **Single Device Support**: Deploy single devices using one group with one device
+- **Flexible Organization**: Group devices by function (heated_mats, christmas_lights, etc.)
+- **Environment Variables**: Full configuration via environment variables supported
 
 ## Files Changed
 
 ### New Files
-1. **scheduler_enhanced.py** - New scheduler supporting both legacy and multi-device modes
+1. **scheduler_enhanced.py** - Multi-device scheduler with weather and schedule-based automation
 2. **device_group_manager.py** - Device group management with outlet control
 3. **weather_factory.py** - Weather service factory for provider selection
 4. **weather_openweathermap.py** - OpenWeatherMap API client
-5. **config.example.legacy.yaml** - Legacy config example for backward compatibility
-6. **test_multi_device.py** - 9 new test cases for multi-device functionality
+5. **config.example.legacy.yaml** - Deprecated legacy config (reference only, not functional)
+6. **test_multi_device.py** - Test cases for multi-device functionality
 
 ### Modified Files
-1. **config_loader.py** - Extended to support multi-device configuration
-2. **main.py** - Updated to use EnhancedScheduler with automatic mode detection
-3. **config.example.yaml** - Updated with comprehensive multi-device examples
-4. **README.md** - Extensive documentation update with configuration modes
-5. **requirements.txt** - Updated aiohttp to 3.9.4 (security patch)
-6. **test_config_env_vars.py** - Updated to use legacy config for testing
+1. **config_loader.py** - Multi-device configuration validation
+2. **main.py** - Uses EnhancedScheduler exclusively
+3. **health_check.py** - Multi-device aware health checking with per-device labels
+4. **scheduler_enhanced.py** - Clean multi-device-only implementation
+5. **config.example.yaml** - Comprehensive multi-device configuration examples
+6. **README.md** - Documentation reflecting multi-device-only architecture
+7. **requirements.txt** - Updated dependencies
 
 ## Configuration Examples
 
-### Legacy Single-Device Mode
+### Multi-Device Configuration (Only Supported Format)
 ```yaml
 location:
   latitude: 40.7128
   longitude: -74.0060
   timezone: "America/New_York"
 
-device:
-  ip_address: "192.168.1.100"
-  username: "your_tapo_username"
-  password: "your_tapo_password"
+devices:
+  credentials:
+    username: "your_tapo_username"
+    password: "your_tapo_password"
+  groups:
+    heated_mats:
+      enabled: true
+      automation:
+        weather_control: true
+        precipitation_control: true
+        morning_mode: true
+      items:
+        - name: "Front Walkway Mat"
+          ip_address: "192.168.1.100"
+          outlets: [0, 1]
+        - name: "Driveway Mat"
+          ip_address: "192.168.1.101"
+```
 
-thresholds:
-  temperature_f: 34
-  lead_time_minutes: 60
-  trailing_time_minutes: 60
+### Single Device Using Multi-Device Format
+Even for a single device, use the group-based format:
+
+```yaml
+devices:
+  credentials:
+    username: "your_tapo_username"
+    password: "your_tapo_password"
+  groups:
+    my_device:
+      enabled: true
+      automation:
+        weather_control: true
+        precipitation_control: true
+        morning_mode: true
+      items:
+        - name: "My Heated Mat"
+          ip_address: "192.168.1.100"
 ```
 
 ### Multi-Device Group Mode
@@ -119,52 +151,40 @@ devices:
 
 ## Testing
 
-- **Total Tests**: 20 (11 existing + 9 new)
-- **Test Results**: All passing
-- **Coverage Areas**:
-  - Multi-device configuration loading
+- **Total Tests**: 38 passing
+- **Test Coverage**:
+  - Multi-device configuration validation
   - Weather API provider selection
   - Environment variable overrides
-  - Backward compatibility
+  - Legacy config rejection
   - Group automation rules
+  - Health check with device labels
   - Outlet control
 
 ## Security
 
-- **CodeQL Scan**: 0 alerts found
+- **CodeQL Scan**: Clean (to be verified in final validation)
 - **Dependency Check**: All vulnerabilities patched
-  - aiohttp updated from 3.9.0 to 3.9.4
-  - Fixes: Directory traversal and DoS vulnerabilities
+  - aiohttp updated to 3.9.4+
+  - python-kasa kept up-to-date
 - **Error Handling**: Robust error handling for all failure scenarios
+- **Configuration Validation**: Strict validation prevents misconfigurations
 
-## Backward Compatibility
+## Migration Guide for Existing Users
 
-✅ **100% Backward Compatible**
-- Legacy single-device configurations work without changes
-- Automatic mode detection based on config structure
-- No breaking changes to existing functionality
-- All original features preserved
+**BREAKING CHANGE:** Legacy single-device configuration (`device:` section) is no longer supported.
 
-## Migration Guide
-
-### To Use Multi-Device Mode
+### To Migrate from Legacy Config
 
 1. **Update config.yaml**:
    - Replace `device:` section with `devices:` section
-   - Add `credentials:` under `devices:`
-   - Define `groups:` with your device groups
+   - Move credentials under `devices.credentials:`
+   - Create a group (e.g., `my_devices`) under `devices.groups:`
+   - Move device IP to `items` list in the group
 
-2. **No Code Changes Required**:
-   - Scheduler automatically detects configuration mode
-   - All automation logic handled automatically
+2. **Example Migration**:
 
-3. **Optional: Add Weather Provider**:
-   - Add `weather_api:` section to choose provider
-   - For OpenWeatherMap, add your API key
-
-### Example Migration
-
-**Before (Legacy)**:
+**Before (Legacy - NO LONGER WORKS)**:
 ```yaml
 device:
   ip_address: "192.168.1.100"
@@ -172,7 +192,7 @@ device:
   password: "pass"
 ```
 
-**After (Multi-Device)**:
+**After (Multi-Device - REQUIRED)**:
 ```yaml
 devices:
   credentials:
@@ -183,9 +203,17 @@ devices:
       enabled: true
       automation:
         weather_control: true
+        precipitation_control: true
+        morning_mode: true
       items:
-        - name: "Mat"
+        - name: "My Heated Mat"
           ip_address: "192.168.1.100"
+```
+
+3. **No Code Changes Required**:
+   - Scheduler uses EnhancedScheduler automatically
+   - All automation logic works the same way
+   - State files are per-group (`state/group_name.json`)
 ```
 
 ## Environment Variables
