@@ -42,7 +42,8 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
     
     def test_config_loads_from_example_yaml(self):
         """Test that config loads from example YAML without env vars."""
-        config = Config('config.example.yaml')
+        # Use legacy config for this test
+        config = Config('config.example.legacy.yaml')
         self.assertEqual(config.location['latitude'], 40.7128)
         self.assertEqual(config.device['ip_address'], '192.168.1.100')
         self.assertEqual(config.thresholds['temperature_f'], 34)

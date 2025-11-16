@@ -23,7 +23,11 @@ ENV_VAR_MAPPING = {
     'HEATTRAX_LONGITUDE': ('location', 'longitude', float),
     'HEATTRAX_TIMEZONE': ('location', 'timezone', str),
     
-    # Device settings
+    # Weather API settings
+    'HEATTRAX_WEATHER_PROVIDER': ('weather_api', 'provider', str),
+    'HEATTRAX_OPENWEATHERMAP_API_KEY': ('weather_api', 'openweathermap', 'api_key', str),
+    
+    # Device settings (legacy single device)
     'HEATTRAX_TAPO_IP_ADDRESS': ('device', 'ip_address', str),
     'HEATTRAX_TAPO_USERNAME': ('device', 'username', str),
     'HEATTRAX_TAPO_PASSWORD': ('device', 'password', str),
@@ -176,6 +180,8 @@ class Config:
             config = {
                 'location': {},
                 'device': {},
+                'devices': {},
+                'weather_api': {},
                 'thresholds': {},
                 'scheduler': {},
                 'safety': {},
@@ -197,6 +203,8 @@ class Config:
                 config = {
                     'location': {},
                     'device': {},
+                    'devices': {},
+                    'weather_api': {},
                     'thresholds': {},
                     'scheduler': {},
                     'safety': {},
@@ -228,7 +236,14 @@ class Config:
         """Validate required configuration fields."""
         logger.info("Validating configuration...")
         
-        required_sections = ['location', 'device', 'thresholds', 'safety', 'scheduler']
+        # Check for either legacy 'device' or new 'devices' section
+        has_legacy_device = 'device' in self._config and self._config['device']
+        has_multi_device = 'devices' in self._config and self._config['devices']
+        
+        if has_multi_device:
+            required_sections = ['location', 'devices', 'thresholds', 'safety', 'scheduler']
+        else:
+            required_sections = ['location', 'device', 'thresholds', 'safety', 'scheduler']
         
         logger.debug(f"Checking for required sections: {required_sections}")
         for section in required_sections:
@@ -264,25 +279,67 @@ class Config:
             logger.error(f"Invalid latitude/longitude values: {e}")
             raise ConfigError(f"Latitude and longitude must be valid numbers: {e}")
         
-        # Validate device
-        logger.debug("Validating device configuration")
-        device = self._config['device']
+        # Validate device or devices section
+        if has_multi_device:
+            logger.debug("Validating multi-device configuration")
+            devices = self._config['devices']
+            
+            if not isinstance(devices, dict):
+                logger.error(f"Devices must be a dictionary, got: {type(devices)}")
+                raise ConfigError(f"Devices configuration must be a dictionary")
+            
+            # Validate credentials
+            if 'credentials' not in devices:
+                logger.error("Devices configuration missing 'credentials' section")
+                raise ConfigError("Devices configuration must include 'credentials' section")
+            
+            credentials = devices['credentials']
+            for field in ['username', 'password']:
+                if field not in credentials or not credentials[field]:
+                    logger.error(f"Devices credentials missing or empty: {field}")
+                    raise ConfigError(f"Devices credentials must include non-empty '{field}'")
+            
+            logger.debug(f"Devices credentials validated: Username={credentials['username']}")
+            
+            # Validate groups
+            if 'groups' in devices and devices['groups']:
+                groups = devices['groups']
+                logger.debug(f"Validating {len(groups)} device groups")
+                for group_name, group_config in groups.items():
+                    if not isinstance(group_config, dict):
+                        logger.error(f"Group '{group_name}' must be a dictionary")
+                        raise ConfigError(f"Group '{group_name}' configuration must be a dictionary")
+                    
+                    if 'items' in group_config:
+                        items = group_config['items']
+                        if not isinstance(items, list):
+                            logger.error(f"Group '{group_name}' items must be a list")
+                            raise ConfigError(f"Group '{group_name}' items must be a list")
+                        
+                        for item in items:
+                            if 'ip_address' not in item:
+                                logger.error(f"Device in group '{group_name}' missing ip_address")
+                                raise ConfigError(f"All devices must have 'ip_address'")
         
-        if not isinstance(device, dict):
-            logger.error(f"Device must be a dictionary, got: {type(device)}")
-            raise ConfigError(f"Device configuration must be a dictionary")
-        
-        device_fields = ['ip_address', 'username', 'password']
-        for field in device_fields:
-            if field not in device:
-                logger.error(f"Device configuration missing required field: {field}")
-                logger.error(f"Available device fields: {list(device.keys())}")
-                raise ConfigError(f"Device configuration missing required field: {field}")
-            if not device[field]:
-                logger.error(f"Device field '{field}' is empty")
-                raise ConfigError(f"Device field '{field}' cannot be empty")
-        
-        logger.debug(f"Device validated: IP={device['ip_address']}, Username={device['username']}")
+        elif has_legacy_device:
+            logger.debug("Validating legacy single-device configuration")
+            device = self._config['device']
+            
+            if not isinstance(device, dict):
+                logger.error(f"Device must be a dictionary, got: {type(device)}")
+                raise ConfigError(f"Device configuration must be a dictionary")
+            
+            device_fields = ['ip_address', 'username', 'password']
+            for field in device_fields:
+                if field not in device:
+                    logger.error(f"Device configuration missing required field: {field}")
+                    logger.error(f"Available device fields: {list(device.keys())}")
+                    raise ConfigError(f"Device configuration missing required field: {field}")
+                if not device[field]:
+                    logger.error(f"Device field '{field}' is empty")
+                    raise ConfigError(f"Device field '{field}' cannot be empty")
+            
+            logger.debug(f"Device validated: IP={device['ip_address']}, Username={device['username']}")
         
         # Validate thresholds
         logger.debug("Validating thresholds configuration")
@@ -345,8 +402,25 @@ class Config:
     
     @property
     def device(self) -> Dict[str, Any]:
-        """Get device configuration."""
-        return self._config['device']
+        """Get device configuration (legacy single-device mode)."""
+        return self._config.get('device', {})
+    
+    @property
+    def devices(self) -> Dict[str, Any]:
+        """Get devices configuration (multi-device mode)."""
+        return self._config.get('devices', {})
+    
+    @property
+    def has_multi_device_config(self) -> bool:
+        """Check if using multi-device configuration."""
+        return 'devices' in self._config and bool(self._config['devices'])
+    
+    @property
+    def weather_api(self) -> Dict[str, Any]:
+        """Get weather API configuration."""
+        return self._config.get('weather_api', {
+            'provider': 'open-meteo'
+        })
     
     @property
     def thresholds(self) -> Dict[str, Any]:
