@@ -5,9 +5,163 @@ This document describes the health check and notification features added to the 
 ## Overview
 
 The scheduler now includes:
-1. **Automatic Device Discovery** at startup
-2. **Periodic Health Checks** to monitor device connectivity
-3. **Notification System** for alerts about device issues
+1. **HTTP Health Check Endpoints** for monitoring application and weather health
+2. **Automatic Device Discovery** at startup
+3. **Periodic Health Checks** to monitor device connectivity
+4. **Notification System** for alerts about device issues
+
+## HTTP Health Check Endpoints
+
+The scheduler provides HTTP endpoints for monitoring application health. These are useful for:
+- Container orchestration systems (Docker, Kubernetes)
+- Load balancers and reverse proxies
+- Monitoring tools (Prometheus, Nagios, etc.)
+- Manual health verification during deployment
+
+### Configuration
+
+Health server settings can be configured via environment variables or YAML:
+
+```yaml
+# config.yaml
+health_server:
+  enabled: true           # Enable/disable HTTP server (default: true)
+  host: "0.0.0.0"        # Host to bind to (default: 0.0.0.0)
+  port: 8080             # Port to listen on (default: 8080)
+```
+
+Environment variables:
+```bash
+HEATTRAX_HEALTH_SERVER_ENABLED=true
+HEATTRAX_HEALTH_SERVER_HOST=0.0.0.0
+HEATTRAX_HEALTH_SERVER_PORT=8080
+```
+
+### Endpoints
+
+#### `GET /health` - Basic Application Health
+
+Returns basic health status indicating the application is running.
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "timestamp": "2024-01-15T10:30:00.123456",
+  "service": "heattrax_scheduler"
+}
+```
+
+This endpoint always returns 200 if the application is running, regardless of weather or device status.
+
+#### `GET /health/weather` - Weather-Specific Health Check
+
+Returns detailed weather system health status.
+
+**When weather is disabled** (`HEATTRAX_WEATHER_ENABLED=false`):
+```json
+{
+  "status": "disabled",
+  "weather_enabled": false,
+  "timestamp": "2024-01-15T10:30:00.123456"
+}
+```
+
+**When weather is enabled and working** (200 OK):
+```json
+{
+  "status": "ok",
+  "weather_enabled": true,
+  "timestamp": "2024-01-15T10:30:00.123456",
+  "provider": "open-meteo",
+  "current_conditions": {
+    "temperature_f": 35.5,
+    "description": "Clear"
+  },
+  "precipitation_forecast": {
+    "expected": true,
+    "time": "2024-01-15T14:00:00",
+    "temperature_f": 33.0
+  }
+}
+```
+
+**When weather API times out** (503 Service Unavailable):
+```json
+{
+  "status": "timeout",
+  "weather_enabled": true,
+  "timestamp": "2024-01-15T10:30:00.123456",
+  "provider": "open-meteo",
+  "message": "Weather API request timed out"
+}
+```
+
+**When weather API has an error** (503 Service Unavailable):
+```json
+{
+  "status": "error",
+  "weather_enabled": true,
+  "timestamp": "2024-01-15T10:30:00.123456",
+  "provider": "open-meteo",
+  "message": "Connection refused"
+}
+```
+
+### Usage Examples
+
+**Using curl:**
+```bash
+# Basic health check
+curl http://localhost:8080/health
+
+# Weather health check
+curl http://localhost:8080/health/weather
+```
+
+**Using wget:**
+```bash
+wget -qO- http://localhost:8080/health
+```
+
+**Docker health check:**
+```yaml
+# docker-compose.yml
+services:
+  heattrax:
+    # ... other config ...
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+```
+
+**Kubernetes readiness probe:**
+```yaml
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+```
+
+### Disabling the Health Server
+
+To disable the HTTP health server entirely:
+
+```bash
+HEATTRAX_HEALTH_SERVER_ENABLED=false
+```
+
+Or in `config.yaml`:
+```yaml
+health_server:
+  enabled: false
+```
+
 
 ## Device Discovery
 
@@ -176,6 +330,8 @@ The notification system sends alerts for important events:
 - `device_ip_changed` - Device MAC/IP mapping changed (CRITICAL - may indicate IP reassignment)
 - `connectivity_lost` - Failed to reinitialize device connection after health check failures
 - `connectivity_restored` - Device connection restored successfully after failures
+- `weather_mode_enabled` - Weather-based scheduling enabled on startup (includes current conditions and forecast)
+- `weather_mode_disabled` - Weather-based scheduling disabled on startup (using fixed schedule behavior)
 
 **Notification Providers:**
 - **Email** - Send notifications via SMTP

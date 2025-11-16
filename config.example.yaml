@@ -14,6 +14,10 @@ location:
 # Weather API Configuration
 # Supports both OpenWeatherMap and Open-Meteo APIs
 weather_api:
+  # Enable/disable weather-based scheduling (default: true)
+  # When disabled, uses fixed schedule behavior instead of weather forecasts
+  enabled: true  # ENV: HEATTRAX_WEATHER_ENABLED
+  
   # Provider: 'openweathermap' or 'open-meteo' (default: open-meteo)
   provider: "open-meteo"  # ENV: HEATTRAX_WEATHER_PROVIDER
   
@@ -154,6 +158,19 @@ reboot:
   pause_seconds: 60  # Pause duration (in seconds) before container restart on critical failures (ENV: HEATTRAX_REBOOT_PAUSE_SECONDS)
                      # This allows time for console troubleshooting before automatic restart
                      # Set to 0 to disable the pause
+
+# Health check HTTP server settings
+# Environment variables: HEATTRAX_HEALTH_SERVER_*
+health_server:
+  enabled: true  # ENV: HEATTRAX_HEALTH_SERVER_ENABLED (true/false)
+                 # Enable HTTP server for health check endpoints
+  host: "0.0.0.0"  # ENV: HEATTRAX_HEALTH_SERVER_HOST
+                   # Host to bind to (0.0.0.0 for all interfaces)
+  port: 8080  # ENV: HEATTRAX_HEALTH_SERVER_PORT
+              # Port for health check endpoints
+              # Endpoints:
+              #   - GET /health - Basic application health
+              #   - GET /health/weather - Weather-specific health check
 
 # Notification settings - alerts for device issues (default: all disabled)
 # Email notifications - Environment variables: HEATTRAX_NOTIFICATION_EMAIL_*

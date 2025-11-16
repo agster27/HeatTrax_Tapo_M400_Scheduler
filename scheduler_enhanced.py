@@ -12,6 +12,7 @@ from weather_service import WeatherServiceError
 from device_group_manager import DeviceGroupManager
 from state_manager import StateManager
 from health_check import HealthCheckService
+from health_server import HealthCheckServer
 from notification_service import (
     create_notification_service_from_config,
     validate_and_test_notifications,
@@ -38,8 +39,17 @@ class EnhancedScheduler:
         self.config = config
         self.logger = logging.getLogger(__name__)
         
-        # Create weather service using factory
-        self.weather = WeatherServiceFactory.create_weather_service(config._config)
+        # Check if weather is enabled
+        weather_config = config.weather_api
+        self.weather_enabled = weather_config.get('enabled', True)
+        
+        if self.weather_enabled:
+            # Create weather service using factory
+            self.weather = WeatherServiceFactory.create_weather_service(config._config)
+            self.logger.info("Weather-based scheduling ENABLED")
+        else:
+            self.weather = None
+            self.logger.info("Weather-based scheduling DISABLED - using fixed schedule behavior")
         
         # Initialize device management (multi-device mode only)
         self.logger.info("Using multi-device group configuration")
@@ -71,6 +81,18 @@ class EnhancedScheduler:
             notification_service=None,  # Set after validation
             max_consecutive_failures=health_check_config.get('max_consecutive_failures', 3)
         )
+        
+        # Health check HTTP server (optional)
+        health_server_config = config.health_server
+        if health_server_config.get('enabled', True):
+            self.health_server = HealthCheckServer(
+                scheduler=self,
+                host=health_server_config.get('host', '0.0.0.0'),
+                port=health_server_config.get('port', 8080)
+            )
+        else:
+            self.health_server = None
+            self.logger.info("Health check HTTP server disabled")
     
     async def initialize(self):
         """Initialize the scheduler and device connections."""
@@ -139,10 +161,62 @@ class EnhancedScheduler:
                 self.states[group_name] = StateManager(state_file=str(state_file))
                 self.logger.info(f"Initialized state manager for group: {group_name} (file: {state_file})")
             
+            # Send weather mode notification after initialization
+            await self._send_weather_mode_notification()
+            
             self.logger.info("Scheduler initialized successfully")
         except Exception as e:
             self.logger.error(f"Failed to initialize scheduler: {e}")
             raise
+    
+    async def _send_weather_mode_notification(self):
+        """Send notification about weather mode status on startup."""
+        if not self.notification_service or not self.notification_service.is_enabled():
+            self.logger.debug("Notifications not enabled, skipping weather mode notification")
+            return
+        
+        try:
+            if self.weather_enabled:
+                # Get current weather snapshot
+                weather_details = {}
+                try:
+                    temp, conditions = await self.weather.get_current_conditions()
+                    weather_details['current_temperature_f'] = round(temp, 1)
+                    weather_details['current_conditions'] = conditions
+                    
+                    # Get forecast info
+                    has_precip, precip_time, precip_temp = await self.weather.check_precipitation_forecast(
+                        hours_ahead=self.config.scheduler['forecast_hours'],
+                        temperature_threshold_f=self.config.thresholds['temperature_f']
+                    )
+                    
+                    if has_precip and precip_time:
+                        weather_details['precipitation_expected'] = True
+                        weather_details['precipitation_time'] = precip_time.isoformat()
+                        weather_details['precipitation_temp_f'] = round(precip_temp, 1)
+                    else:
+                        weather_details['precipitation_expected'] = False
+                    
+                    weather_details['provider'] = self.config.weather_api.get('provider', 'open-meteo')
+                except WeatherServiceError as e:
+                    self.logger.warning(f"Failed to get weather snapshot for notification: {e}")
+                    weather_details['error'] = str(e)
+                
+                await self.notification_service.notify(
+                    event_type="weather_mode_enabled",
+                    message="Weather-based scheduling ENABLED",
+                    details=weather_details
+                )
+                self.logger.info("Sent weather mode enabled notification")
+            else:
+                await self.notification_service.notify(
+                    event_type="weather_mode_disabled",
+                    message="Weather-based scheduling DISABLED - using fixed schedule behavior",
+                    details={'weather_enabled': False}
+                )
+                self.logger.info("Sent weather mode disabled notification")
+        except Exception as e:
+            self.logger.warning(f"Failed to send weather mode notification: {e}")
     
     async def should_turn_on_group(self, group_name: str) -> bool:
         """
@@ -173,6 +247,11 @@ class EnhancedScheduler:
         
         # Weather-based control
         if automation.get('weather_control', False):
+            # Skip weather checks if weather is disabled
+            if not self.weather_enabled:
+                self.logger.debug(f"Group '{group_name}': Weather control requested but weather is disabled")
+                return False
+            
             # Morning mode (black ice protection)
             if automation.get('morning_mode', False):
                 current_hour = datetime.now().hour
@@ -278,6 +357,11 @@ class EnhancedScheduler:
         
         # Weather-based control
         if automation.get('weather_control', False):
+            # Skip weather checks if weather is disabled
+            if not self.weather_enabled:
+                self.logger.debug(f"Group '{group_name}': Weather control requested but weather is disabled")
+                return True  # Turn off if weather control requested but weather disabled
+            
             # Check if still in morning mode hours
             if automation.get('morning_mode', False):
                 current_hour = datetime.now().hour
@@ -401,6 +485,10 @@ class EnhancedScheduler:
         # Start health check service
         await self.health_check.start()
         
+        # Start health check HTTP server
+        if self.health_server:
+            await self.health_server.start()
+        
         check_interval = self.config.scheduler['check_interval_minutes'] * 60
         self.logger.info(f"Starting scheduler with {check_interval}s check interval")
         
@@ -461,6 +549,10 @@ class EnhancedScheduler:
             
             # Stop health check service
             await self.health_check.stop()
+            
+            # Stop health check HTTP server
+            if self.health_server:
+                await self.health_server.stop()
             
             # Close connections
             await self.device_manager.close()

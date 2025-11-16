@@ -24,6 +24,7 @@ ENV_VAR_MAPPING = {
     'HEATTRAX_TIMEZONE': ('location', 'timezone', str),
     
     # Weather API settings
+    'HEATTRAX_WEATHER_ENABLED': ('weather_api', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
     'HEATTRAX_WEATHER_PROVIDER': ('weather_api', 'provider', str),
     'HEATTRAX_OPENWEATHERMAP_API_KEY': ('weather_api', 'openweathermap', 'api_key', str),
     
@@ -76,6 +77,11 @@ ENV_VAR_MAPPING = {
     
     # Reboot settings
     'HEATTRAX_REBOOT_PAUSE_SECONDS': ('reboot', 'pause_seconds', int),
+    
+    # Health server settings
+    'HEATTRAX_HEALTH_SERVER_ENABLED': ('health_server', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
+    'HEATTRAX_HEALTH_SERVER_HOST': ('health_server', 'host', str),
+    'HEATTRAX_HEALTH_SERVER_PORT': ('health_server', 'port', int),
 }
 
 
@@ -191,7 +197,8 @@ class Config:
                 'logging': {},
                 'health_check': {},
                 'notifications': {'email': {}, 'webhook': {}},
-                'reboot': {}
+                'reboot': {},
+                'health_server': {}
             }
             return config
         
@@ -213,7 +220,8 @@ class Config:
                     'logging': {},
                     'health_check': {},
                     'notifications': {'email': {}, 'webhook': {}},
-                    'reboot': {}
+                    'reboot': {},
+                    'health_server': {}
                 }
             
             if not isinstance(config, dict):
@@ -445,4 +453,13 @@ class Config:
         """Get reboot configuration."""
         return self._config.get('reboot', {
             'pause_seconds': 60
+        })
+    
+    @property
+    def health_server(self) -> Dict[str, Any]:
+        """Get health server configuration."""
+        return self._config.get('health_server', {
+            'enabled': True,
+            'host': '0.0.0.0',
+            'port': 8080
         })
