@@ -58,6 +58,41 @@ logging:
   max_file_size_mb: 10
   backup_count: 5
 
+# Health check settings - periodic device monitoring
+# Environment variables: HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS, HEATTRAX_HEALTH_CHECK_MAX_FAILURES
+health_check:
+  interval_hours: 24  # How often to run health checks (ENV: HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS)
+  max_consecutive_failures: 3  # Max failures before triggering re-init (ENV: HEATTRAX_HEALTH_CHECK_MAX_FAILURES)
+
+# Notification settings - alerts for device issues (default: all disabled)
+# Email notifications - Environment variables: HEATTRAX_NOTIFICATION_EMAIL_*
+notifications:
+  email:
+    enabled: false  # ENV: HEATTRAX_NOTIFICATION_EMAIL_ENABLED (true/false)
+    smtp_host: "smtp.gmail.com"  # ENV: HEATTRAX_NOTIFICATION_EMAIL_SMTP_HOST
+    smtp_port: 587  # ENV: HEATTRAX_NOTIFICATION_EMAIL_SMTP_PORT
+    smtp_username: "your_email@gmail.com"  # ENV: HEATTRAX_NOTIFICATION_EMAIL_SMTP_USERNAME
+    smtp_password: "your_app_password"  # ENV: HEATTRAX_NOTIFICATION_EMAIL_SMTP_PASSWORD
+    from_email: "your_email@gmail.com"  # ENV: HEATTRAX_NOTIFICATION_EMAIL_FROM
+    to_emails:  # ENV: HEATTRAX_NOTIFICATION_EMAIL_TO (comma-separated)
+      - "recipient1@example.com"
+      - "recipient2@example.com"
+    use_tls: true  # ENV: HEATTRAX_NOTIFICATION_EMAIL_USE_TLS (true/false)
+  
+  # Webhook notifications - Environment variables: HEATTRAX_NOTIFICATION_WEBHOOK_*
+  webhook:
+    enabled: false  # ENV: HEATTRAX_NOTIFICATION_WEBHOOK_ENABLED (true/false)
+    url: "https://your-webhook-url.com/notifications"  # ENV: HEATTRAX_NOTIFICATION_WEBHOOK_URL
+    # Optional custom headers can be added here
+
 # Additional environment variables:
 # - HEATTRAX_CONFIG_PATH: Path to this configuration file (default: config.yaml)
 # - TZ: System timezone (e.g., America/New_York)
+
+# Notification Events:
+# - device_lost: Configured device not found during health check
+# - device_found: New device discovered
+# - device_changed: Device alias or properties changed
+# - device_ip_changed: Device MAC/IP mapping changed (critical)
+# - connectivity_lost: Failed to reinitialize device connection
+# - connectivity_restored: Device connection restored after failures

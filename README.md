@@ -12,11 +12,28 @@ For troubleshooting and logging information, see [LOGGING.md](LOGGING.md).
 
 For startup diagnostic checks and debugging containerized deployments, see [STARTUP_CHECKS.md](STARTUP_CHECKS.md).
 
+For device discovery, health checks, and notification system, see [HEALTH_CHECK.md](HEALTH_CHECK.md).
+
 ## Features
 
 - **Weather-Based Automation**: Uses Open-Meteo API for accurate weather forecasting
 - **Smart Scheduling**: Turns mats on 60 minutes before precipitation if temperature is below 34°F
 - **Morning Frost Mode**: Optional mode to clear frost between 6-8 AM
+- **Device Auto-Discovery**: Automatic network discovery and diagnostics at startup
+  - Discovers all Kasa/Tapo devices on the network
+  - Logs detailed device information (IP, MAC, alias, model, state, RSSI, features)
+  - Auto-selects device if only one found
+  - Provides configuration suggestions when multiple devices detected
+- **Periodic Health Checks**: Background monitoring of device connectivity
+  - Configurable check interval (default: every 24 hours)
+  - Detects lost/found devices and configuration mismatches
+  - Monitors device IP changes and alias changes
+  - Automatic re-initialization on critical failures
+- **Notification System**: Extensible alerting for device issues (optional, disabled by default)
+  - Email notifications via SMTP
+  - Webhook notifications via HTTP POST
+  - Configurable via environment variables
+  - Events: device lost, device found, IP changed, connectivity issues
 - **Safety Features**:
   - Maximum 6-hour continuous runtime limit
   - 30-minute cooldown period after max runtime
@@ -140,6 +157,18 @@ Configuration values are resolved in the following order (highest to lowest prio
 | `HEATTRAX_MORNING_MODE_START_HOUR` | morning_mode | Morning mode start (0-23) | Integer | `6` |
 | `HEATTRAX_MORNING_MODE_END_HOUR` | morning_mode | Morning mode end (0-23) | Integer | `8` |
 | `HEATTRAX_LOG_LEVEL` | logging | Logging level | String | `INFO`, `DEBUG` |
+| `HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS` | health_check | Hours between health checks | Float | `24` |
+| `HEATTRAX_HEALTH_CHECK_MAX_FAILURES` | health_check | Max consecutive failures before re-init | Integer | `3` |
+| `HEATTRAX_NOTIFICATION_EMAIL_ENABLED` | notifications.email | Enable email notifications | Boolean | `true` or `false` |
+| `HEATTRAX_NOTIFICATION_EMAIL_SMTP_HOST` | notifications.email | SMTP server hostname | String | `smtp.gmail.com` |
+| `HEATTRAX_NOTIFICATION_EMAIL_SMTP_PORT` | notifications.email | SMTP server port | Integer | `587` |
+| `HEATTRAX_NOTIFICATION_EMAIL_SMTP_USERNAME` | notifications.email | SMTP username | String | `user@example.com` |
+| `HEATTRAX_NOTIFICATION_EMAIL_SMTP_PASSWORD` | notifications.email | SMTP password | String | `password` |
+| `HEATTRAX_NOTIFICATION_EMAIL_FROM` | notifications.email | From email address | String | `sender@example.com` |
+| `HEATTRAX_NOTIFICATION_EMAIL_TO` | notifications.email | To email addresses (comma-separated) | String | `user1@example.com,user2@example.com` |
+| `HEATTRAX_NOTIFICATION_EMAIL_USE_TLS` | notifications.email | Use TLS for SMTP | Boolean | `true` or `false` |
+| `HEATTRAX_NOTIFICATION_WEBHOOK_ENABLED` | notifications.webhook | Enable webhook notifications | Boolean | `true` or `false` |
+| `HEATTRAX_NOTIFICATION_WEBHOOK_URL` | notifications.webhook | Webhook URL | String | `https://hooks.example.com/notify` |
 
 ### Boolean Values
 
@@ -318,6 +347,69 @@ scheduler:
   forecast_hours: 12           # How far ahead to look for precipitation
 ```
 
+### Health Check Settings (Optional)
+
+```yaml
+health_check:
+  interval_hours: 24           # How often to run device health checks
+  max_consecutive_failures: 3  # Max failures before triggering re-initialization
+```
+
+The health check system periodically verifies device connectivity and monitors for changes:
+- Runs every N hours (configurable, default: 24)
+- Detects lost/found devices
+- Monitors for device IP changes (MAC address tracking)
+- Detects alias/configuration changes
+- Automatically triggers re-initialization after consecutive failures
+
+### Notification Settings (Optional, Disabled by Default)
+
+```yaml
+notifications:
+  email:
+    enabled: false  # Set to true to enable
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    smtp_username: "your_email@gmail.com"
+    smtp_password: "your_app_password"
+    from_email: "your_email@gmail.com"
+    to_emails:
+      - "recipient@example.com"
+    use_tls: true
+  
+  webhook:
+    enabled: false  # Set to true to enable
+    url: "https://your-webhook-url.com/notifications"
+```
+
+**Notification Events:**
+- `device_lost` - Configured device not found during health check
+- `device_found` - New device discovered on network
+- `device_changed` - Device alias or properties changed
+- `device_ip_changed` - Device MAC/IP mapping changed (CRITICAL - may indicate IP reassignment)
+- `connectivity_lost` - Failed to reinitialize device connection
+- `connectivity_restored` - Device connection restored after failures
+
+**Email Setup Tips:**
+- For Gmail: Use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password
+- For other SMTP servers: Ensure the account has permission to send emails
+- Test with `use_tls: true` first (most common); try `false` if connection fails
+
+**Webhook Format:**
+Webhook notifications send JSON POST requests with the following structure:
+```json
+{
+  "event_type": "device_lost",
+  "message": "Configured device at 192.168.1.100 not found",
+  "timestamp": "2025-11-15T23:58:53.044Z",
+  "details": {
+    "configured_ip": "192.168.1.100",
+    "consecutive_failures": 2
+  },
+  "source": "heattrax_scheduler"
+}
+```
+
 ## Device Control Library (python-kasa)
 
 This scheduler uses the [python-kasa](https://github.com/python-kasa/python-kasa) library to control TP-Link Tapo smart plugs. The implementation is designed for compatibility with multiple versions of python-kasa.
@@ -341,17 +433,29 @@ The scheduler still validates that Tapo credentials are present in the configura
 
 ## How It Works
 
-1. **Weather Monitoring**: The scheduler checks weather forecasts every 10 minutes (configurable)
+1. **Startup Device Discovery**: At startup, the scheduler automatically:
+   - Discovers all Kasa/Tapo devices on the network
+   - Logs detailed information about each device found
+   - Validates the configured device IP
+   - Provides configuration suggestions if multiple devices detected
 
-2. **Precipitation Detection**: When precipitation is forecasted within the next 12 hours and temperature is below 34°F:
+2. **Weather Monitoring**: The scheduler checks weather forecasts every 10 minutes (configurable)
+
+3. **Precipitation Detection**: When precipitation is forecasted within the next 12 hours and temperature is below 34°F:
    - Mats turn ON 60 minutes before expected precipitation
    - Mats turn OFF 60 minutes after precipitation ends
 
-3. **Morning Frost Mode**: Between 6-8 AM (configurable):
+4. **Morning Frost Mode**: Between 6-8 AM (configurable):
    - Mats turn ON if temperature is below threshold
    - Helps clear morning frost for safe walking
 
-4. **Safety Features**:
+5. **Periodic Health Checks**: Background monitoring (every 24 hours by default):
+   - Verifies device connectivity
+   - Detects device changes or network issues
+   - Sends notifications if enabled
+   - Automatically re-initializes connection on repeated failures
+
+6. **Safety Features**:
    - Automatic shutoff after 6 hours of continuous runtime
    - 30-minute cooldown before mats can turn on again
    - State is saved to disk for recovery after restarts

@@ -1,0 +1,234 @@
+"""Device discovery and diagnostics using python-kasa library."""
+
+import asyncio
+import logging
+from typing import List, Dict, Any, Optional
+from kasa import Discover
+
+logger = logging.getLogger(__name__)
+
+
+class DeviceInfo:
+    """Container for discovered device information."""
+    
+    def __init__(self, device):
+        """Initialize device info from discovered device.
+        
+        Args:
+            device: Discovered device from python-kasa
+        """
+        self.device = device
+        self.ip = device.host
+        self.alias = getattr(device, 'alias', 'Unknown')
+        self.model = getattr(device, 'model', 'Unknown')
+        self.mac = getattr(device, 'mac', 'Unknown')
+        self.is_on = getattr(device, 'is_on', None)
+        
+        # RSSI (signal strength) - may not be available on all devices
+        self.rssi = None
+        if hasattr(device, 'rssi'):
+            self.rssi = device.rssi
+        
+        # Features
+        self.features = []
+        if hasattr(device, 'features'):
+            self.features = list(device.features)
+        
+        # Hardware info
+        self.hw_version = getattr(device, 'hw_version', 'Unknown')
+        self.sw_version = getattr(device, 'sw_version', 'Unknown')
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert device info to dictionary.
+        
+        Returns:
+            Dictionary with device information
+        """
+        return {
+            'ip': self.ip,
+            'mac': self.mac,
+            'alias': self.alias,
+            'model': self.model,
+            'state': 'ON' if self.is_on else 'OFF' if self.is_on is not None else 'Unknown',
+            'rssi': self.rssi,
+            'features': self.features,
+            'hw_version': self.hw_version,
+            'sw_version': self.sw_version,
+        }
+    
+    def __str__(self) -> str:
+        """String representation of device info."""
+        parts = [
+            f"Device: {self.alias}",
+            f"  IP: {self.ip}",
+            f"  MAC: {self.mac}",
+            f"  Model: {self.model}",
+            f"  State: {'ON' if self.is_on else 'OFF' if self.is_on is not None else 'Unknown'}",
+        ]
+        
+        if self.rssi is not None:
+            parts.append(f"  RSSI: {self.rssi} dBm")
+        
+        if self.features:
+            parts.append(f"  Features: {', '.join(self.features)}")
+        
+        parts.append(f"  HW Version: {self.hw_version}")
+        parts.append(f"  SW Version: {self.sw_version}")
+        
+        return '\n'.join(parts)
+
+
+async def discover_devices(timeout: int = 10, target: Optional[str] = None) -> List[DeviceInfo]:
+    """
+    Discover Kasa/Tapo devices on the network.
+    
+    Args:
+        timeout: Discovery timeout in seconds
+        target: Optional target IP address or subnet (e.g., "192.168.1.255")
+        
+    Returns:
+        List of DeviceInfo objects for discovered devices
+    """
+    logger.info("=" * 60)
+    logger.info("Starting device discovery...")
+    logger.info("=" * 60)
+    
+    if target:
+        logger.info(f"Target: {target} (timeout: {timeout}s)")
+    else:
+        logger.info(f"Scanning local network (timeout: {timeout}s)")
+    
+    try:
+        # Discover devices on the network
+        logger.debug(f"Calling Discover.discover() with timeout={timeout}")
+        
+        if target:
+            devices = await Discover.discover(target=target, timeout=timeout)
+        else:
+            devices = await Discover.discover(timeout=timeout)
+        
+        logger.info(f"Discovery completed - found {len(devices)} device(s)")
+        
+        # Process discovered devices
+        device_infos = []
+        for ip, device in devices.items():
+            try:
+                logger.debug(f"Processing device at {ip}...")
+                
+                # Update device to get latest information
+                await device.update()
+                
+                device_info = DeviceInfo(device)
+                device_infos.append(device_info)
+                
+                logger.info(f"\n{device_info}")
+                logger.info("-" * 60)
+                
+            except Exception as e:
+                logger.warning(f"Failed to get info for device at {ip}: {e}")
+                continue
+        
+        return device_infos
+        
+    except Exception as e:
+        logger.error(f"Device discovery failed: {type(e).__name__}: {e}")
+        logger.exception("Full traceback:")
+        return []
+
+
+def print_config_suggestions(devices: List[DeviceInfo]):
+    """
+    Print configuration suggestions when multiple devices are found.
+    
+    Args:
+        devices: List of discovered devices
+    """
+    logger.info("\n" + "=" * 60)
+    logger.info(f"CONFIGURATION SUGGESTION: {len(devices)} devices found")
+    logger.info("=" * 60)
+    logger.info("\nPlease specify which device to control using one of these configurations:")
+    logger.info("\nOption 1: Set environment variable:")
+    
+    for i, device in enumerate(devices, 1):
+        logger.info(f"  Device {i}: HEATTRAX_TAPO_IP_ADDRESS={device.ip}  # {device.alias} ({device.model})")
+    
+    logger.info("\nOption 2: Update config.yaml:")
+    logger.info("  device:")
+    for i, device in enumerate(devices, 1):
+        logger.info(f"    # Device {i}: {device.alias} ({device.model})")
+        logger.info(f"    ip_address: \"{device.ip}\"")
+        if i < len(devices):
+            logger.info("")
+    
+    logger.info("\n" + "=" * 60)
+
+
+async def run_device_discovery_and_diagnostics(configured_ip: Optional[str] = None) -> Optional[DeviceInfo]:
+    """
+    Run device discovery at startup and provide diagnostics.
+    
+    This function:
+    1. Discovers all Kasa/Tapo devices on the network
+    2. Logs details for each device
+    3. If only one device is found, auto-selects it
+    4. If multiple devices are found, prints configuration suggestions
+    5. If a configured IP is provided, validates it exists
+    
+    Args:
+        configured_ip: The IP address configured for use (if any)
+        
+    Returns:
+        DeviceInfo for the selected device, or None if no device selected
+    """
+    logger.info("\n" + "=" * 80)
+    logger.info("DEVICE DISCOVERY AND DIAGNOSTICS")
+    logger.info("=" * 80)
+    
+    # Discover all devices
+    devices = await discover_devices(timeout=10)
+    
+    if not devices:
+        logger.warning("\n⚠ WARNING: No Kasa/Tapo devices found on the network!")
+        logger.warning("Please check:")
+        logger.warning("  - Devices are powered on and connected to the network")
+        logger.warning("  - This application is on the same network as the devices")
+        logger.warning("  - Firewall is not blocking discovery (UDP port 9999)")
+        logger.warning("\nProceeding with configured IP address (if provided)...")
+        return None
+    
+    # Check if configured IP matches any discovered device
+    selected_device = None
+    
+    if configured_ip:
+        logger.info(f"\nConfigured device IP: {configured_ip}")
+        
+        # Find matching device
+        for device in devices:
+            if device.ip == configured_ip:
+                selected_device = device
+                logger.info(f"✓ Configured device found and validated!")
+                logger.info(f"  Using: {device.alias} at {device.ip}")
+                break
+        
+        if not selected_device:
+            logger.warning(f"\n⚠ WARNING: Configured IP {configured_ip} not found in discovery!")
+            logger.warning("  The device may be offline or on a different network")
+            logger.warning("  Will attempt to use configured IP anyway...")
+    
+    elif len(devices) == 1:
+        # Auto-select the only device found
+        selected_device = devices[0]
+        logger.info(f"\n✓ Auto-selected single device found:")
+        logger.info(f"  {selected_device.alias} at {selected_device.ip}")
+        logger.info("\nTo use this device, set the following:")
+        logger.info(f"  HEATTRAX_TAPO_IP_ADDRESS={selected_device.ip}")
+    
+    else:
+        # Multiple devices found - provide configuration suggestions
+        print_config_suggestions(devices)
+    
+    logger.info("\n" + "=" * 80)
+    logger.info("DEVICE DISCOVERY COMPLETE")
+    logger.info("=" * 80 + "\n")
+    
+    return selected_device

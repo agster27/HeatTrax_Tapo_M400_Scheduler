@@ -14,6 +14,9 @@ from weather_service import WeatherService, WeatherServiceError
 from device_controller import TapoController, DeviceControllerError
 from state_manager import StateManager
 from startup_checks import run_startup_checks
+from device_discovery import run_device_discovery_and_diagnostics
+from health_check import HealthCheckService
+from notification_service import create_notification_service_from_config
 
 
 # Global flag for graceful shutdown
@@ -90,6 +93,18 @@ class HeatTraxScheduler:
         )
         self.state = StateManager()
         self.logger = logging.getLogger(__name__)
+        
+        # Initialize notification service
+        self.notification_service = create_notification_service_from_config(config.notifications)
+        
+        # Initialize health check service
+        health_check_config = config.health_check
+        self.health_check = HealthCheckService(
+            check_interval_hours=health_check_config.get('interval_hours', 24),
+            configured_ip=config.device['ip_address'],
+            notification_service=self.notification_service,
+            max_consecutive_failures=health_check_config.get('max_consecutive_failures', 3)
+        )
     
     async def initialize(self):
         """Initialize the scheduler and device connection."""
@@ -275,11 +290,44 @@ class HeatTraxScheduler:
         """Run the main scheduler loop."""
         await self.initialize()
         
+        # Start health check service
+        await self.health_check.start()
+        
         check_interval = self.config.scheduler['check_interval_minutes'] * 60
         self.logger.info(f"Starting scheduler with {check_interval}s check interval")
         
         try:
             while not shutdown_event.is_set():
+                # Check if health check recommends re-initialization
+                if self.health_check.needs_reinitialization():
+                    self.logger.warning("Health check recommends re-initialization")
+                    
+                    # Attempt to reinitialize device connection
+                    try:
+                        self.logger.info("Attempting to reinitialize device connection...")
+                        await self.controller.close()
+                        await self.controller.initialize()
+                        self.logger.info("✓ Device re-initialized successfully")
+                        
+                        # Reset health check state
+                        self.health_check.state.consecutive_failures = 0
+                        
+                        if self.notification_service:
+                            await self.notification_service.notify(
+                                event_type="connectivity_restored",
+                                message="Device connection re-initialized successfully after health check failures",
+                                details=self.health_check.get_status()
+                            )
+                    except Exception as e:
+                        self.logger.error(f"Failed to reinitialize device: {e}")
+                        
+                        if self.notification_service:
+                            await self.notification_service.notify(
+                                event_type="connectivity_lost",
+                                message=f"Failed to reinitialize device after health check failures: {e}",
+                                details=self.health_check.get_status()
+                            )
+                
                 await self.run_cycle()
                 
                 # Wait for next cycle or shutdown
@@ -293,6 +341,10 @@ class HeatTraxScheduler:
         
         finally:
             self.logger.info("Shutting down scheduler...")
+            
+            # Stop health check service
+            await self.health_check.stop()
+            
             # Ensure device is off on shutdown (optional, can be removed if you want device to stay in current state)
             # await self.controller.turn_off()
             await self.controller.close()
@@ -328,6 +380,14 @@ async def main():
         logger.info("=" * 60)
         logger.info("HeatTrax Tapo M400 Scheduler Starting")
         logger.info("=" * 60)
+        
+        # Run device discovery and diagnostics
+        logger.info("\n" + "=" * 80)
+        logger.info("DEVICE AUTO-DISCOVERY AND DIAGNOSTICS")
+        logger.info("=" * 80)
+        configured_ip = config.device.get('ip_address')
+        discovered_device = await run_device_discovery_and_diagnostics(configured_ip)
+        logger.info("")  # Blank line for readability
         
         # Create and run scheduler
         scheduler = HeatTraxScheduler(config)
