@@ -772,9 +772,9 @@ services:
       - HEATTRAX_TIMEZONE=America/New_York
       
       # Tapo Device Settings (Required)
-      - HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
       - HEATTRAX_TAPO_USERNAME=your_tapo_username
       - HEATTRAX_TAPO_PASSWORD=your_tapo_password
+      # Note: Device IPs are configured in config.yaml - mount it as a volume
       
       # Weather Thresholds
       - HEATTRAX_THRESHOLD_TEMP_F=34
@@ -797,6 +797,7 @@ services:
       # Logging
       - HEATTRAX_LOG_LEVEL=INFO
     volumes:
+      - ./config.yaml:/app/config.yaml:ro  # Required: device IPs and groups
       - heattrax-logs:/app/logs
       - heattrax-state:/app/state
     restart: unless-stopped
@@ -811,9 +812,9 @@ volumes:
    - Update the environment variables directly in the Stack editor
    - Pay special attention to:
      - `HEATTRAX_LATITUDE` and `HEATTRAX_LONGITUDE` - Your location coordinates
-     - `HEATTRAX_TAPO_IP_ADDRESS` - Your Tapo device's IP address
      - `HEATTRAX_TAPO_USERNAME` - Your Tapo account email
      - `HEATTRAX_TAPO_PASSWORD` - Your Tapo account password
+   - **Important**: You also need to mount a `config.yaml` file with device IPs and groups (see volume mapping above)
 
 3. **Deploy the Stack:**
    - Click "Deploy the stack"
@@ -857,7 +858,6 @@ services:
       - HEATTRAX_LATITUDE=40.7128
       - HEATTRAX_LONGITUDE=-74.0060
       - HEATTRAX_TIMEZONE=America/New_York
-      - HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
       - HEATTRAX_THRESHOLD_TEMP_F=34
       - HEATTRAX_LEAD_TIME_MINUTES=60
       - HEATTRAX_TRAILING_TIME_MINUTES=60
@@ -969,7 +969,7 @@ volumes:
 **A:** Device discovery uses UDP broadcast packets which are **limited to the local subnet**. If your device is on a different subnet or VLAN than the container, it will not be discovered. This is a fundamental limitation of the discovery protocol used by python-kasa and most smart home devices.
 
 **Solutions:**
-1. **Use Static IP Configuration (Recommended)**: Configure the device IP address manually using the `HEATTRAX_TAPO_IP_ADDRESS` environment variable. The scheduler will connect directly to the device even if discovery fails.
+1. **Use Static IP Configuration (Recommended)**: Configure the device IP addresses in `config.yaml` under `devices.groups.*.items[].ip_address`. The scheduler will connect directly to devices using these configured IPs.
 2. **Network Design**: Move the container to the same subnet/VLAN as your smart plugs.
 3. **Docker Host Network Mode**: Use `network_mode: host` in your docker-compose.yml to give the container direct access to the host's network.
 

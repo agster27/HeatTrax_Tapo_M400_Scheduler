@@ -78,10 +78,20 @@ location:
   longitude: -74.0060    # Replace with your longitude
   timezone: "America/New_York"  # Your timezone
 
-device:
-  ip_address: "192.168.1.100"  # Your Tapo device IP
-  username: "your_email@example.com"  # Your Tapo account email
-  password: "your_tapo_password"      # Your Tapo account password
+devices:
+  credentials:
+    username: "your_email@example.com"  # Your Tapo account email
+    password: "your_tapo_password"      # Your Tapo account password
+  groups:
+    heated_mats:
+      enabled: true
+      automation:
+        weather_control: true
+        precipitation_control: true
+        morning_mode: true
+      items:
+        - name: "Heated Mat"
+          ip_address: "192.168.1.100"  # Your Tapo device IP
 ```
 
 > **Tip**: You can also use a hybrid approach - put non-sensitive settings in `config.yaml` and override sensitive values (like username and password) with environment variables.
@@ -126,9 +136,9 @@ HEATTRAX_LONGITUDE=-74.0060
 HEATTRAX_TIMEZONE=America/New_York
 
 # Tapo Device Settings
-HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
 HEATTRAX_TAPO_USERNAME=your_tapo_email@example.com
 HEATTRAX_TAPO_PASSWORD=your_tapo_password
+# Note: Device IPs are configured in config.yaml under devices.groups
 
 # Optional: Override defaults
 HEATTRAX_THRESHOLD_TEMP_F=34

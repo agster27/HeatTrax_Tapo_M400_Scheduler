@@ -67,7 +67,7 @@ Checks for `config.yaml` presence and validates YAML parsing:
 Configuration file check:
   ✓ Config file found: config.yaml
   ✓ Config file parsed successfully
-  Configuration sections: location, device, thresholds, morning_mode, safety, scheduler, logging
+  Configuration sections: location, devices, thresholds, morning_mode, safety, scheduler, logging
   ✓ All required sections present in config file
 ```
 
@@ -86,7 +86,6 @@ Environment variables:
 
   HEATTRAX Configuration Variables (13):
     HEATTRAX_LATITUDE=40.7128
-    HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100
     HEATTRAX_TAPO_PASSWORD=***REDACTED***
     HEATTRAX_TAPO_USERNAME=user@example.com
     ...
@@ -106,18 +105,7 @@ Sensitive patterns that trigger redaction (case-insensitive):
 - `credential`
 
 ### 7. Device Connectivity Check (Optional)
-If `HEATTRAX_TAPO_IP_ADDRESS` is set, attempts a socket connection to the device:
-```
-Device connectivity check:
-  Testing connection to 192.168.1.100:9999 (timeout: 5.0s)...
-  ✓ Successfully connected to 192.168.1.100:9999
-```
-
-Or if unreachable:
-```
-  ✗ Failed to connect to 192.168.1.100:9999 (error code: 11)
-    This may be normal if the device uses a different protocol/port
-```
+If device IP addresses are configured, the system can attempt socket connections to validate connectivity (implementation detail varies).
 
 ### 8. Outbound IP Check (Optional)
 Attempts to determine the container's outbound IP address:
@@ -170,7 +158,6 @@ Example Docker run with full diagnostics:
 docker run -d \
   -e HEATTRAX_LATITUDE=40.7128 \
   -e HEATTRAX_LONGITUDE=-74.0060 \
-  -e HEATTRAX_TAPO_IP_ADDRESS=192.168.1.100 \
   -e HEATTRAX_TAPO_USERNAME=user@example.com \
   -e HEATTRAX_TAPO_PASSWORD=secret \
   -e HEATTRAX_THRESHOLD_TEMP_F=34 \

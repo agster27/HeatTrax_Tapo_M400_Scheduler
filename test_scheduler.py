@@ -31,7 +31,11 @@ def test_config_loader():
         config = Config('config.example.yaml')
         assert config.location['latitude'] == 40.7128
         assert config.location['longitude'] == -74.006
-        assert config.device['ip_address'] == '192.168.1.100'
+        # Multi-device config
+        assert config.devices['credentials']['username'] == 'your_tapo_username'
+        assert config.devices['credentials']['password'] == 'your_tapo_password'
+        assert 'groups' in config.devices
+        assert 'heated_mats' in config.devices['groups']
         assert config.thresholds['temperature_f'] == 34
         assert config.safety['max_runtime_hours'] == 6
         assert config.safety['cooldown_minutes'] == 30
