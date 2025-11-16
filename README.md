@@ -33,6 +33,14 @@ For device discovery, health checks, and notification system, see [HEALTH_CHECK.
 - **Multi-Provider Support**: Choose between weather APIs
   - **OpenWeatherMap**: Industry-standard API with detailed forecasts (requires API key)
   - **Open-Meteo**: Free API with no key required (default)
+- **Weather Resilience & Outage Handling**: NEW! Reliable operation during internet/API outages
+  - **Automatic Caching**: Stores last successful forecast locally
+  - **Smart Fallback**: Uses cached data during temporary outages
+  - **Fail-Safe Mode**: Reverts to static schedule when cache expires
+  - **Adaptive Retry**: Exponential backoff when API is unavailable
+  - **Outage Alerts**: Notifications when service is offline too long
+  - **State Tracking**: ONLINE → DEGRADED (using cache) → OFFLINE (fail-safe)
+  - Fully configurable cache duration, retry intervals, and alert thresholds
 - **Weather-Based Automation**: Intelligent control based on weather conditions
   - Turns mats on 60 minutes before precipitation when temperature is below 34°F
   - Keeps mats on during precipitation
@@ -281,6 +289,13 @@ Configuration values are resolved in the following order (highest to lowest prio
 | `HEATTRAX_TIMEZONE` | location | Location timezone | String | `America/New_York` |
 | `HEATTRAX_WEATHER_PROVIDER` | weather_api | Weather provider (open-meteo or openweathermap) | String | `open-meteo` |
 | `HEATTRAX_OPENWEATHERMAP_API_KEY` | weather_api.openweathermap | OpenWeatherMap API key | String | `your_api_key` |
+| `HEATTRAX_WEATHER_CACHE_FILE` | weather_api.resilience | Path to weather cache file | String | `state/weather_cache.json` |
+| `HEATTRAX_WEATHER_CACHE_VALID_HOURS` | weather_api.resilience | Cache validity duration (hours) | Float | `6.0` |
+| `HEATTRAX_WEATHER_FORECAST_HORIZON_HOURS` | weather_api.resilience | Forecast storage duration (hours) | Integer | `12` |
+| `HEATTRAX_WEATHER_REFRESH_INTERVAL_MINUTES` | weather_api.resilience | Normal polling interval (minutes) | Integer | `10` |
+| `HEATTRAX_WEATHER_RETRY_INTERVAL_MINUTES` | weather_api.resilience | Initial retry delay (minutes) | Integer | `5` |
+| `HEATTRAX_WEATHER_MAX_RETRY_INTERVAL_MINUTES` | weather_api.resilience | Maximum backoff interval (minutes) | Integer | `60` |
+| `HEATTRAX_WEATHER_OUTAGE_ALERT_AFTER_MINUTES` | weather_api.resilience | Alert threshold (minutes offline) | Integer | `30` |
 | `HEATTRAX_TAPO_USERNAME` | devices.credentials | Tapo account username | String | `user@example.com` |
 | `HEATTRAX_TAPO_PASSWORD` | devices.credentials | Tapo account password | String | `your_password` |
 | `HEATTRAX_THRESHOLD_TEMP_F` | thresholds | Temperature threshold (°F) | Float | `34` |
@@ -670,6 +685,14 @@ The scheduler still validates that Tapo credentials are present in the configura
 
 2. **Weather-Based Groups** (e.g., heated mats):
    - **Weather Monitoring**: Checks weather forecasts every 10 minutes (configurable)
+   - **Weather Resilience**: NEW! Reliable operation during internet/API outages
+     - Caches last successful forecast (default: 12 hours)
+     - **ONLINE State**: Normal operation with fresh API data
+     - **DEGRADED State**: API unavailable but using valid cached data (within 6 hours by default)
+     - **OFFLINE State**: No valid data available - reverts to static schedule (weather features disabled)
+     - Automatic retry with exponential backoff (5min → 10min → 20min → 40min → 60min max)
+     - Alerts when offline longer than threshold (default: 30 minutes)
+     - Automatic recovery notification when API becomes available again
    - **Precipitation Control**: 
      - Group turns ON 60 minutes before precipitation when temp < 34°F
      - Group stays ON during precipitation

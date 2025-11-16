@@ -28,6 +28,15 @@ ENV_VAR_MAPPING = {
     'HEATTRAX_WEATHER_PROVIDER': ('weather_api', 'provider', str),
     'HEATTRAX_OPENWEATHERMAP_API_KEY': ('weather_api', 'openweathermap', 'api_key', str),
     
+    # Weather resilience settings
+    'HEATTRAX_WEATHER_CACHE_FILE': ('weather_api', 'resilience', 'cache_file', str),
+    'HEATTRAX_WEATHER_CACHE_VALID_HOURS': ('weather_api', 'resilience', 'cache_valid_hours', float),
+    'HEATTRAX_WEATHER_FORECAST_HORIZON_HOURS': ('weather_api', 'resilience', 'forecast_horizon_hours', int),
+    'HEATTRAX_WEATHER_REFRESH_INTERVAL_MINUTES': ('weather_api', 'resilience', 'refresh_interval_minutes', int),
+    'HEATTRAX_WEATHER_RETRY_INTERVAL_MINUTES': ('weather_api', 'resilience', 'retry_interval_minutes', int),
+    'HEATTRAX_WEATHER_MAX_RETRY_INTERVAL_MINUTES': ('weather_api', 'resilience', 'max_retry_interval_minutes', int),
+    'HEATTRAX_WEATHER_OUTAGE_ALERT_AFTER_MINUTES': ('weather_api', 'resilience', 'outage_alert_after_minutes', int),
+    
     # Device settings (multi-device mode)
     'HEATTRAX_TAPO_USERNAME': ('devices', 'credentials', 'username', str),
     'HEATTRAX_TAPO_PASSWORD': ('devices', 'credentials', 'password', str),
