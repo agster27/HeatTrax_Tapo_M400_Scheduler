@@ -3,7 +3,6 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any
 from pathlib import Path
 
 from config_loader import Config
@@ -14,7 +13,6 @@ from state_manager import StateManager
 from health_check import HealthCheckService
 from health_server import HealthCheckServer
 from notification_service import (
-    create_notification_service_from_config,
     validate_and_test_notifications,
     NotificationValidationError
 )

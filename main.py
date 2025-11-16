@@ -6,7 +6,6 @@ import signal
 import sys
 import os
 import time
-from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 

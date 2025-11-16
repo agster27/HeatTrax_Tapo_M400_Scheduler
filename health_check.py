@@ -2,8 +2,9 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from datetime import datetime
+from typing import Dict, Optional, Any
+
 from device_discovery import discover_devices, DeviceInfo, get_local_ip_and_subnet, is_ip_in_same_subnet
 from notification_service import NotificationService
 

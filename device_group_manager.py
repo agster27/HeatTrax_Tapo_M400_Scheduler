@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from typing import Dict, List, Optional, Any
-from kasa import SmartPlug, SmartStrip
+from kasa import SmartPlug
 from device_controller import DeviceControllerError
 
 
