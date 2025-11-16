@@ -361,6 +361,88 @@ def _get_ip_from_external_service() -> Optional[str]:
     return None
 
 
+def check_notification_config(config_data: Optional[Dict]) -> bool:
+    """
+    Check notification configuration if enabled.
+    
+    Args:
+        config_data: Parsed configuration dictionary
+        
+    Returns:
+        True if notification configuration is valid or disabled, False if critical error
+    """
+    if not config_data:
+        print(f"\nNotification configuration check: SKIPPED (no config data)")
+        return True
+    
+    print(f"\nNotification configuration check:")
+    
+    notifications_config = config_data.get('notifications', {})
+    
+    # Check if notifications are required
+    required = notifications_config.get('required', False)
+    test_on_startup = notifications_config.get('test_on_startup', False)
+    
+    print(f"  notifications.required: {required}")
+    print(f"  notifications.test_on_startup: {test_on_startup}")
+    
+    # Check email config
+    email_config = notifications_config.get('email', {})
+    email_enabled = email_config.get('enabled', False)
+    
+    print(f"\n  Email notifications:")
+    if email_enabled:
+        print(f"    Status: ENABLED")
+        
+        # Check required fields
+        required_fields = ['smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'from_email', 'to_emails']
+        missing_fields = [field for field in required_fields if not email_config.get(field)]
+        
+        if missing_fields:
+            print(f"    ✗ Missing required fields: {', '.join(missing_fields)}")
+            print(f"      Disable email notifications or fix the configuration.")
+            print(f"      See HEALTH_CHECK.md for configuration details.")
+            if required:
+                return False  # Critical failure if notifications are required
+        else:
+            print(f"    ✓ Configuration fields present")
+    else:
+        print(f"    Status: DISABLED")
+    
+    # Check webhook config
+    webhook_config = notifications_config.get('webhook', {})
+    webhook_enabled = webhook_config.get('enabled', False)
+    
+    print(f"\n  Webhook notifications:")
+    if webhook_enabled:
+        print(f"    Status: ENABLED")
+        
+        # Check required fields
+        if not webhook_config.get('url'):
+            print(f"    ✗ Missing required field: url")
+            print(f"      Disable webhook notifications or fix the configuration.")
+            print(f"      See HEALTH_CHECK.md for configuration details.")
+            if required:
+                return False  # Critical failure if notifications are required
+        else:
+            print(f"    ✓ Configuration fields present")
+            print(f"    URL: {webhook_config['url']}")
+    else:
+        print(f"    Status: DISABLED")
+    
+    # Check routing config if present
+    routing_config = notifications_config.get('routing', {})
+    if routing_config:
+        print(f"\n  Per-event routing configured for {len(routing_config)} event types")
+    
+    if not email_enabled and not webhook_enabled:
+        print(f"\n  ✓ All notification providers disabled (this is acceptable)")
+    elif required and (email_enabled or webhook_enabled):
+        print(f"\n  ⚠ Notifications are required - will perform full validation at startup")
+    
+    return True
+
+
 def run_startup_checks(config_path: str = "config.yaml", device_ip: Optional[str] = None) -> bool:
     """
     Run all startup sanity checks.
@@ -410,13 +492,18 @@ def run_startup_checks(config_path: str = "config.yaml", device_ip: Optional[str
     # 6. Environment variables
     dump_environment_variables()
     
-    # 7. Device connectivity (optional, non-critical)
+    # 7. Notification configuration check (basic validation only)
+    if not check_notification_config(config_data):
+        print(f"⚠ WARNING: Notification configuration issues detected")
+        print(f"  Full validation will be performed during application startup")
+    
+    # 8. Device connectivity (optional, non-critical)
     if device_ip:
         check_device_connectivity(device_ip)
     else:
         print(f"\nDevice connectivity check: SKIPPED (no device IP provided)")
     
-    # 8. Outbound IP (optional, non-critical)
+    # 9. Outbound IP (optional, non-critical)
     check_outbound_ip()
     
     # Summary

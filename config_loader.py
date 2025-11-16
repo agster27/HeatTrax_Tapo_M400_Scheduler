@@ -56,6 +56,10 @@ ENV_VAR_MAPPING = {
     'HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS': ('health_check', 'interval_hours', float),
     'HEATTRAX_HEALTH_CHECK_MAX_FAILURES': ('health_check', 'max_consecutive_failures', int),
     
+    # Notification settings - Global
+    'HEATTRAX_NOTIFICATIONS_REQUIRED': ('notifications', 'required', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
+    'HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP': ('notifications', 'test_on_startup', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
+    
     # Notification settings - Email
     'HEATTRAX_NOTIFICATION_EMAIL_ENABLED': ('notifications', 'email', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
     'HEATTRAX_NOTIFICATION_EMAIL_SMTP_HOST': ('notifications', 'email', 'smtp_host', str),

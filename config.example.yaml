@@ -158,6 +158,15 @@ reboot:
 # Notification settings - alerts for device issues (default: all disabled)
 # Email notifications - Environment variables: HEATTRAX_NOTIFICATION_EMAIL_*
 notifications:
+  # Global notification settings
+  required: false  # ENV: HEATTRAX_NOTIFICATIONS_REQUIRED (true/false)
+                   # If true, misconfigured enabled providers cause startup failure
+                   # If false (default), log errors but allow startup to continue
+  
+  test_on_startup: false  # ENV: HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP (true/false)
+                          # If true, send test notification on successful startup
+  
+  # Email provider configuration
   email:
     enabled: false  # ENV: HEATTRAX_NOTIFICATION_EMAIL_ENABLED (true/false)
     smtp_host: "smtp.gmail.com"  # ENV: HEATTRAX_NOTIFICATION_EMAIL_SMTP_HOST
@@ -175,6 +184,26 @@ notifications:
     enabled: false  # ENV: HEATTRAX_NOTIFICATION_WEBHOOK_ENABLED (true/false)
     url: "https://your-webhook-url.com/notifications"  # ENV: HEATTRAX_NOTIFICATION_WEBHOOK_URL
     # Optional custom headers can be added here
+  
+  # Per-event routing configuration (optional)
+  # If not specified, all events go to all enabled providers (default behavior)
+  # Use this to control which events go to which providers
+  # routing:
+  #   device_lost:           # Device not found during health check
+  #     email: true
+  #     webhook: true
+  #   device_found:          # New device discovered
+  #     email: false
+  #     webhook: true
+  #   device_ip_changed:     # Device IP address changed (critical)
+  #     email: true
+  #     webhook: true
+  #   connectivity_lost:     # Failed to connect/reinitialize device
+  #     email: true
+  #     webhook: true
+  #   connectivity_restored: # Device connection restored
+  #     email: false
+  #     webhook: true
 
 # Additional environment variables:
 # - HEATTRAX_CONFIG_PATH: Path to this configuration file (default: config.yaml)
