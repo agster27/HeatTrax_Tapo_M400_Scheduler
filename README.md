@@ -159,6 +159,7 @@ Configuration values are resolved in the following order (highest to lowest prio
 | `HEATTRAX_LOG_LEVEL` | logging | Logging level | String | `INFO`, `DEBUG` |
 | `HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS` | health_check | Hours between health checks | Float | `24` |
 | `HEATTRAX_HEALTH_CHECK_MAX_FAILURES` | health_check | Max consecutive failures before re-init | Integer | `3` |
+| `REBOOT_PAUSE_SECONDS` | reboot | Pause (seconds) before container restart | Integer | `60` |
 | `HEATTRAX_NOTIFICATION_EMAIL_ENABLED` | notifications.email | Enable email notifications | Boolean | `true` or `false` |
 | `HEATTRAX_NOTIFICATION_EMAIL_SMTP_HOST` | notifications.email | SMTP server hostname | String | `smtp.gmail.com` |
 | `HEATTRAX_NOTIFICATION_EMAIL_SMTP_PORT` | notifications.email | SMTP server port | Integer | `587` |
@@ -361,6 +362,22 @@ The health check system periodically verifies device connectivity and monitors f
 - Monitors for device IP changes (MAC address tracking)
 - Detects alias/configuration changes
 - Automatically triggers re-initialization after consecutive failures
+
+### Reboot Pause Settings (Optional)
+
+```yaml
+reboot:
+  pause_seconds: 60  # Pause duration before container restart
+```
+
+When a critical error occurs that would cause the container to restart (e.g., failed startup checks, configuration errors), the application pauses for a configurable duration before exiting. This pause:
+- Allows time for console troubleshooting and log inspection
+- Defaults to 60 seconds
+- Displays clear countdown messages in logs and console
+- Can be set to 0 to disable the pause
+- Configurable via `REBOOT_PAUSE_SECONDS` environment variable
+
+This is particularly useful in containerized deployments where Docker's restart policy would immediately restart the container, making it difficult to troubleshoot the root cause of failures.
 
 ### Notification Settings (Optional, Disabled by Default)
 
