@@ -84,6 +84,10 @@ ENV_VAR_MAPPING = {
     'HEATTRAX_NOTIFICATION_WEBHOOK_ENABLED': ('notifications', 'webhook', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
     'HEATTRAX_NOTIFICATION_WEBHOOK_URL': ('notifications', 'webhook', 'url', str),
     
+    # Notification settings - Forecast Summaries
+    'HEATTRAX_NOTIFICATION_FORECAST_ENABLED': ('notifications', 'forecast', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
+    'HEATTRAX_NOTIFICATION_FORECAST_NOTIFY_MODE': ('notifications', 'forecast', 'notify_mode', str),
+    
     # Reboot settings
     'HEATTRAX_REBOOT_PAUSE_SECONDS': ('reboot', 'pause_seconds', int),
     

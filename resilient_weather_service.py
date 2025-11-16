@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Optional, Tuple, Any, Dict
+from typing import Optional, Tuple, Any, Dict, List
 from pathlib import Path
 
 from weather_cache import WeatherCache, WeatherSnapshot
@@ -43,7 +43,8 @@ class ResilientWeatherService:
         retry_interval_minutes: int = 5,
         max_retry_interval_minutes: int = 60,
         outage_alert_after_minutes: int = 30,
-        notification_service: Optional[Any] = None
+        notification_service: Optional[Any] = None,
+        forecast_notifier: Optional[Any] = None
     ):
         """
         Initialize resilient weather service.
@@ -58,6 +59,7 @@ class ResilientWeatherService:
             max_retry_interval_minutes: Maximum backoff interval
             outage_alert_after_minutes: Alert if offline longer than this
             notification_service: Service for sending alerts (optional)
+            forecast_notifier: ForecastNotifier instance for forecast summaries (optional)
         """
         self.weather_service = weather_service
         self.cache = WeatherCache(cache_file)
@@ -68,6 +70,7 @@ class ResilientWeatherService:
         self.max_retry_interval_minutes = max_retry_interval_minutes
         self.outage_alert_after_minutes = outage_alert_after_minutes
         self.notification_service = notification_service
+        self.forecast_notifier = forecast_notifier
         
         # State tracking
         self.state = WeatherServiceState.OFFLINE_NO_WEATHER_DATA
@@ -75,6 +78,13 @@ class ResilientWeatherService:
         self.offline_since: Optional[datetime] = None
         self.alert_sent_for_outage = False
         self.current_retry_interval = retry_interval_minutes
+        
+        # Rate limiting for state change notifications (prevent spam on flapping)
+        self.last_state_change_notification_at: Optional[datetime] = None
+        self.state_change_min_interval_minutes = 15  # Configurable: minimum 15 minutes between notifications
+        
+        # Track previous state to avoid notifications on initial startup
+        self.previous_state: Optional[WeatherServiceState] = None
         
         # Check if we have valid cached data on startup
         if self.cache.is_valid(cache_valid_hours):
@@ -108,7 +118,32 @@ class ResilientWeatherService:
         # Log state changes
         if old_state != self.state:
             logger.warning(f"Weather service state changed: {old_state.value} -> {self.state.value}")
-            self._send_state_change_notification(old_state, self.state)
+            
+            # Only send notification if:
+            # 1. We have a previous state (not initial startup)
+            # 2. Rate limiting allows it (prevent spam on flapping)
+            if self.previous_state is not None:
+                should_notify = True
+                
+                # Check rate limiting
+                if self.last_state_change_notification_at is not None:
+                    time_since_last_notification = (datetime.now() - self.last_state_change_notification_at).total_seconds() / 60
+                    if time_since_last_notification < self.state_change_min_interval_minutes:
+                        logger.info(
+                            f"Suppressing state change notification due to rate limiting "
+                            f"(last notification {time_since_last_notification:.1f} minutes ago, "
+                            f"minimum interval: {self.state_change_min_interval_minutes} minutes)"
+                        )
+                        should_notify = False
+                
+                if should_notify:
+                    self._send_state_change_notification(old_state, self.state)
+                    self.last_state_change_notification_at = datetime.now()
+            else:
+                logger.info("Skipping state change notification on initial startup")
+            
+            # Update previous state for next transition
+            self.previous_state = old_state
         
         # Check for outage alert
         if self.offline_since and not self.alert_sent_for_outage:
@@ -184,6 +219,31 @@ class ResilientWeatherService:
         except Exception as e:
             logger.warning(f"Failed to send outage alert: {e}")
     
+    async def _send_forecast_notification(self, forecast_data: List[Dict[str, Any]]) -> None:
+        """
+        Send forecast summary notification.
+        
+        Args:
+            forecast_data: List of forecast entries
+        """
+        if not self.forecast_notifier:
+            return
+        
+        try:
+            # TODO: Get temperature threshold and planned actions from scheduler
+            # For now, use a default threshold
+            temperature_threshold_f = 34.0  # This should come from config
+            planned_actions = None  # This should come from scheduler
+            
+            await self.forecast_notifier.notify_new_forecast(
+                forecast_data=forecast_data,
+                temperature_threshold_f=temperature_threshold_f,
+                planned_actions=planned_actions,
+                hours_to_show=self.forecast_horizon_hours
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send forecast notification: {e}")
+    
     async def fetch_and_cache_forecast(self) -> bool:
         """
         Attempt to fetch fresh weather data and cache it.
@@ -219,6 +279,18 @@ class ResilientWeatherService:
                 self._update_state()
                 
                 logger.info(f"Successfully fetched and cached weather forecast")
+                
+                # Send forecast summary notification if configured
+                if self.forecast_notifier:
+                    try:
+                        # Get forecast data for notification (it's already in forecast_data)
+                        # We'll pass it to the notifier
+                        asyncio.create_task(
+                            self._send_forecast_notification(forecast_data)
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to send forecast notification: {e}")
+                
                 return True
             else:
                 logger.error("Failed to save forecast to cache")
