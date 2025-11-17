@@ -332,6 +332,13 @@ class WebServer:
             margin-top: 0;
             color: #2c3e50;
         }
+        .card h3 {
+            margin-top: 20px;
+            margin-bottom: 15px;
+            color: #34495e;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
         .status-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -352,6 +359,50 @@ class WebServer:
         }
         .status-item value {
             color: #2c3e50;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+        }
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .form-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+        }
+        .form-group input:disabled,
+        .form-group select:disabled {
+            background: #f5f5f5;
+            color: #888;
+            cursor: not-allowed;
+        }
+        .form-group .helper-text {
+            font-size: 12px;
+            color: #17a2b8;
+            margin-top: 4px;
+        }
+        .form-group .helper-text code {
+            background: #e8f4f8;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
         }
         button {
             background: #3498db;
@@ -378,15 +429,6 @@ class WebServer:
             background: #d5f4e6;
             border-radius: 4px;
             margin-top: 10px;
-        }
-        textarea {
-            width: 100%;
-            min-height: 400px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
         }
         .button-group {
             margin-top: 15px;
@@ -451,11 +493,13 @@ class WebServer:
     </div>
 
     <div id="config-tab" class="tab-content">
-        <div id="env-overrides"></div>
+        <div id="env-overrides-info"></div>
         <div class="card">
             <h2>Configuration Editor</h2>
-            <p>Edit the configuration below. Environment variable overrides (shown above) cannot be changed here. Changes are validated before saving.</p>
-            <textarea id="config-editor">Loading configuration...</textarea>
+            <p>Configure your HeatTrax Scheduler settings below. Fields marked as read-only are controlled by environment variables.</p>
+            <form id="config-form">
+                <!-- Form sections will be populated here -->
+            </form>
             <div class="button-group">
                 <button onclick="loadConfig()">🔄 Reload</button>
                 <button onclick="saveConfig()">💾 Save Configuration</button>
@@ -484,10 +528,12 @@ class WebServer:
         async function checkSecurity() {
             try {
                 const response = await fetch('/api/config');
-                const config = await response.json();
+                const annotatedConfig = await response.json();
+                const config = extractConfigValues(annotatedConfig);
                 
-                if (config.web && config.web.bind_host && config.web.bind_host !== '127.0.0.1' && config.web.bind_host !== 'localhost') {
-                    if (config.web.auth && !config.web.auth.enabled) {
+                if (config.web && config.web.bind_host && config.web.bind_host.value !== '127.0.0.1' && config.web.bind_host.value !== 'localhost') {
+                    const bindHost = config.web.bind_host.value || config.web.bind_host;
+                    if (bindHost !== '127.0.0.1' && bindHost !== 'localhost') {
                         document.getElementById('security-warning').style.display = 'block';
                     }
                 }
@@ -591,6 +637,259 @@ class WebServer:
             return result;
         }
         
+        // Get field metadata from annotated config
+        function getFieldMetadata(annotated, path) {
+            const parts = path.split('.');
+            let current = annotated;
+            
+            for (const part of parts) {
+                if (!current || typeof current !== 'object') {
+                    return null;
+                }
+                current = current[part];
+            }
+            
+            if (current && current.hasOwnProperty('value') && current.hasOwnProperty('source')) {
+                return current;
+            }
+            return null;
+        }
+
+        // Form field definitions with labels and types
+        const FORM_FIELDS = {
+            'Location': [
+                { path: 'location.latitude', label: 'Latitude', type: 'number', step: 'any' },
+                { path: 'location.longitude', label: 'Longitude', type: 'number', step: 'any' },
+                { path: 'location.timezone', label: 'Timezone', type: 'text' }
+            ],
+            'Weather': [
+                { path: 'weather_api.enabled', label: 'Weather Enabled', type: 'checkbox' },
+                { path: 'weather_api.provider', label: 'Weather Provider', type: 'select', options: ['open-meteo', 'openweathermap'] },
+                { path: 'weather_api.openweathermap.api_key', label: 'OpenWeatherMap API Key', type: 'password' }
+            ],
+            'Device Credentials': [
+                { path: 'devices.credentials.username', label: 'Tapo Username', type: 'text' },
+                { path: 'devices.credentials.password', label: 'Tapo Password', type: 'password' }
+            ],
+            'Thresholds & Scheduler': [
+                { path: 'thresholds.temperature_f', label: 'Threshold Temperature (°F)', type: 'number', step: '0.1' },
+                { path: 'thresholds.lead_time_minutes', label: 'Lead Time (minutes)', type: 'number' },
+                { path: 'thresholds.trailing_time_minutes', label: 'Trailing Time (minutes)', type: 'number' },
+                { path: 'scheduler.check_interval_minutes', label: 'Check Interval (minutes)', type: 'number' },
+                { path: 'scheduler.forecast_hours', label: 'Forecast Hours', type: 'number' }
+            ],
+            'Safety & Morning Mode': [
+                { path: 'safety.max_runtime_hours', label: 'Max Runtime (hours)', type: 'number', step: '0.1' },
+                { path: 'safety.cooldown_minutes', label: 'Cooldown (minutes)', type: 'number' },
+                { path: 'morning_mode.enabled', label: 'Morning Mode Enabled', type: 'checkbox' },
+                { path: 'morning_mode.start_hour', label: 'Morning Mode Start Hour', type: 'number', min: '0', max: '23' },
+                { path: 'morning_mode.end_hour', label: 'Morning Mode End Hour', type: 'number', min: '0', max: '23' }
+            ],
+            'Logging': [
+                { path: 'logging.level', label: 'Log Level', type: 'select', options: ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] }
+            ],
+            'Health & Reboot': [
+                { path: 'health_check.interval_hours', label: 'Health Check Interval (hours)', type: 'number', step: '0.1' },
+                { path: 'health_check.max_consecutive_failures', label: 'Max Consecutive Failures', type: 'number' },
+                { path: 'reboot.pause_seconds', label: 'Reboot Pause (seconds)', type: 'number' },
+                { path: 'health_server.enabled', label: 'Health Server Enabled', type: 'checkbox' },
+                { path: 'health_server.host', label: 'Health Server Host', type: 'text' },
+                { path: 'health_server.port', label: 'Health Server Port', type: 'number' }
+            ],
+            'Notifications - Global': [
+                { path: 'notifications.required', label: 'Notifications Required', type: 'checkbox' },
+                { path: 'notifications.test_on_startup', label: 'Test Notifications on Startup', type: 'checkbox' }
+            ],
+            'Notifications - Email': [
+                { path: 'notifications.email.enabled', label: 'Email Enabled', type: 'checkbox' },
+                { path: 'notifications.email.smtp_host', label: 'SMTP Host', type: 'text' },
+                { path: 'notifications.email.smtp_port', label: 'SMTP Port', type: 'number' },
+                { path: 'notifications.email.smtp_username', label: 'SMTP Username', type: 'text' },
+                { path: 'notifications.email.smtp_password', label: 'SMTP Password', type: 'password' },
+                { path: 'notifications.email.from_email', label: 'From Email', type: 'email' },
+                { path: 'notifications.email.to_emails', label: 'To Emails (comma-separated)', type: 'text' },
+                { path: 'notifications.email.use_tls', label: 'Use TLS', type: 'checkbox' }
+            ],
+            'Notifications - Webhook': [
+                { path: 'notifications.webhook.enabled', label: 'Webhook Enabled', type: 'checkbox' },
+                { path: 'notifications.webhook.url', label: 'Webhook URL', type: 'url' }
+            ],
+            'Web UI': [
+                { path: 'web.bind_host', label: 'Bind Host', type: 'text' },
+                { path: 'web.port', label: 'Port', type: 'number' }
+            ]
+        };
+
+        // Create a form field
+        function createFormField(fieldDef, metadata, value) {
+            const isReadonly = metadata && metadata.readonly;
+            const envVar = metadata && metadata.env_var;
+            
+            let inputHtml = '';
+            const fieldId = 'field-' + fieldDef.path.replace(/\./g, '-');
+            
+            if (fieldDef.type === 'checkbox') {
+                const checked = value ? 'checked' : '';
+                const disabled = isReadonly ? 'disabled' : '';
+                inputHtml = `<input type="checkbox" id="${fieldId}" ${checked} ${disabled}>`;
+            } else if (fieldDef.type === 'select') {
+                const disabled = isReadonly ? 'disabled' : '';
+                inputHtml = `<select id="${fieldId}" ${disabled}>`;
+                for (const option of fieldDef.options) {
+                    const selected = value === option ? 'selected' : '';
+                    inputHtml += `<option value="${option}" ${selected}>${option}</option>`;
+                }
+                inputHtml += '</select>';
+            } else {
+                const type = fieldDef.type;
+                const disabled = isReadonly ? 'disabled' : '';
+                const step = fieldDef.step ? `step="${fieldDef.step}"` : '';
+                const min = fieldDef.min ? `min="${fieldDef.min}"` : '';
+                const max = fieldDef.max ? `max="${fieldDef.max}"` : '';
+                const displayValue = (type === 'password' && value) ? '********' : (value || '');
+                inputHtml = `<input type="${type}" id="${fieldId}" value="${displayValue}" ${disabled} ${step} ${min} ${max}>`;
+            }
+            
+            let helperHtml = '';
+            if (isReadonly && envVar) {
+                helperHtml = `<div class="helper-text">Set via env: <code>${envVar}</code></div>`;
+            }
+            
+            return `
+                <div class="form-group">
+                    <label for="${fieldId}">${fieldDef.label}</label>
+                    ${inputHtml}
+                    ${helperHtml}
+                </div>
+            `;
+        }
+
+        // Build the form from annotated config
+        function buildConfigForm(annotatedConfig) {
+            const config = extractConfigValues(annotatedConfig);
+            const form = document.getElementById('config-form');
+            let html = '';
+            
+            for (const [sectionName, fields] of Object.entries(FORM_FIELDS)) {
+                html += `<h3>${sectionName}</h3>`;
+                
+                for (const fieldDef of fields) {
+                    const metadata = getFieldMetadata(annotatedConfig, fieldDef.path);
+                    const value = getValueByPath(config, fieldDef.path);
+                    
+                    // Special handling for to_emails (array to comma-separated string)
+                    let displayValue = value;
+                    if (fieldDef.path === 'notifications.email.to_emails' && Array.isArray(value)) {
+                        displayValue = value.join(', ');
+                    }
+                    
+                    html += createFormField(fieldDef, metadata, displayValue);
+                }
+            }
+            
+            form.innerHTML = html;
+            
+            // Show environment overrides info if any
+            showEnvOverridesInfo(annotatedConfig);
+        }
+
+        // Get value by dot-separated path
+        function getValueByPath(obj, path) {
+            const parts = path.split('.');
+            let current = obj;
+            
+            for (const part of parts) {
+                if (current && typeof current === 'object' && part in current) {
+                    current = current[part];
+                } else {
+                    return undefined;
+                }
+            }
+            
+            return current;
+        }
+
+        // Set value by dot-separated path
+        function setValueByPath(obj, path, value) {
+            const parts = path.split('.');
+            let current = obj;
+            
+            for (let i = 0; i < parts.length - 1; i++) {
+                const part = parts[i];
+                if (!(part in current)) {
+                    current[part] = {};
+                }
+                current = current[part];
+            }
+            
+            current[parts[parts.length - 1]] = value;
+        }
+
+        // Collect form values into config object
+        function collectFormValues() {
+            const config = {};
+            
+            for (const [sectionName, fields] of Object.entries(FORM_FIELDS)) {
+                for (const fieldDef of fields) {
+                    const fieldId = 'field-' + fieldDef.path.replace(/\./g, '-');
+                    const element = document.getElementById(fieldId);
+                    
+                    if (!element) continue;
+                    
+                    let value;
+                    if (fieldDef.type === 'checkbox') {
+                        value = element.checked;
+                    } else if (fieldDef.type === 'number') {
+                        value = element.value ? parseFloat(element.value) : 0;
+                    } else {
+                        value = element.value;
+                    }
+                    
+                    // Special handling for to_emails (comma-separated string to array)
+                    if (fieldDef.path === 'notifications.email.to_emails' && typeof value === 'string') {
+                        value = value.split(',').map(e => e.trim()).filter(e => e.length > 0);
+                    }
+                    
+                    setValueByPath(config, fieldDef.path, value);
+                }
+            }
+            
+            return config;
+        }
+
+        // Show environment overrides info
+        function showEnvOverridesInfo(annotatedConfig) {
+            const container = document.getElementById('env-overrides-info');
+            const overrides = collectEnvOverrides(annotatedConfig);
+            
+            if (overrides.length > 0) {
+                let html = '<div class="card" style="background: #e8f4f8; border-left: 4px solid #17a2b8;">';
+                html += '<h3 style="margin-top: 0;">🔒 Environment Variable Overrides</h3>';
+                html += '<p style="margin-bottom: 15px;">The following settings are overridden by environment variables and are read-only in this form:</p>';
+                html += '<div class="status-grid">';
+                
+                for (const override of overrides) {
+                    let displayValue = override.value;
+                    // Mask sensitive values
+                    if (override.path.includes('password') || override.path.includes('api_key')) {
+                        displayValue = '********';
+                    }
+                    
+                    html += `
+                        <div class="status-item" style="border-left-color: #17a2b8;">
+                            <label>${override.path}</label>
+                            <value><code>${override.env_var}</code> = ${displayValue}</value>
+                        </div>
+                    `;
+                }
+                
+                html += '</div></div>';
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = '';
+            }
+        }
+
         // Collect environment overrides from annotated config
         function collectEnvOverrides(annotated, path = '') {
             const overrides = [];
@@ -620,49 +919,15 @@ class WebServer:
 
         // Load configuration
         async function loadConfig() {
-            const editor = document.getElementById('config-editor');
             const message = document.getElementById('config-message');
-            const envOverridesContainer = document.getElementById('env-overrides');
             message.innerHTML = '';
             
             try {
                 const response = await fetch('/api/config');
                 const annotatedConfig = await response.json();
                 
-                // Extract plain config values for editing
-                const plainConfig = extractConfigValues(annotatedConfig);
-                
-                // Pretty print JSON
-                editor.value = JSON.stringify(plainConfig, null, 2);
-                
-                // Show environment overrides
-                const envOverrides = collectEnvOverrides(annotatedConfig);
-                if (envOverrides.length > 0) {
-                    let html = '<div class="card" style="background: #e8f4f8; border-left: 4px solid #17a2b8;">';
-                    html += '<h3 style="margin-top: 0;">🔒 Environment Variable Overrides</h3>';
-                    html += '<p style="margin-bottom: 15px;">The following settings are overridden by environment variables and cannot be changed via the Web UI:</p>';
-                    html += '<div class="status-grid">';
-                    
-                    for (const override of envOverrides) {
-                        let displayValue = override.value;
-                        // Mask sensitive values
-                        if (override.path.includes('password') || override.path.includes('api_key')) {
-                            displayValue = '********';
-                        }
-                        
-                        html += `
-                            <div class="status-item" style="border-left-color: #17a2b8;">
-                                <label>${override.path}</label>
-                                <value><code>${override.env_var}</code> = ${displayValue}</value>
-                            </div>
-                        `;
-                    }
-                    
-                    html += '</div></div>';
-                    envOverridesContainer.innerHTML = html;
-                } else {
-                    envOverridesContainer.innerHTML = '';
-                }
+                // Build the form
+                buildConfigForm(annotatedConfig);
                 
             } catch (e) {
                 message.innerHTML = `<div class="error">Failed to load configuration: ${e.message}</div>`;
@@ -671,13 +936,12 @@ class WebServer:
 
         // Save configuration
         async function saveConfig() {
-            const editor = document.getElementById('config-editor');
             const message = document.getElementById('config-message');
             message.innerHTML = '';
             
             try {
-                // Parse JSON
-                const config = JSON.parse(editor.value);
+                // Collect form values
+                const config = collectFormValues();
                 
                 // Send to API
                 const response = await fetch('/api/config', {
