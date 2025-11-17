@@ -412,7 +412,8 @@ class ConfigManager:
                 current = current[key]
             else:
                 final_key = secret_path[-1]
-                if final_key in current and current[final_key]:
+                if final_key in current:
+                    # Mask secrets, even if empty (to be consistent)
                     current[final_key] = '********'
         
         return config
