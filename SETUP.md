@@ -205,6 +205,48 @@ Look for messages like:
 - "Scheduler initialized successfully"
 - "Running scheduler cycle..."
 
+### 6. Access the Web UI (Optional)
+
+The scheduler includes a web-based monitoring and configuration interface.
+
+**Local Access (Default):**
+```
+http://localhost:4328
+```
+
+**Network Access (Docker/Portainer):**
+
+To access the web UI from other machines on your network:
+
+1. **Using Environment Variables** (Recommended):
+   ```bash
+   # Add to your stack.env or docker-compose.yml:
+   HEATTRAX_WEB_HOST=0.0.0.0
+   HEATTRAX_WEB_PORT=4328
+   ```
+
+2. **Using config.yaml**:
+   ```yaml
+   web:
+     enabled: true
+     bind_host: "0.0.0.0"  # Listen on all network interfaces
+     port: 4328
+   ```
+
+3. **Access from any device**:
+   ```
+   http://YOUR_HOST_IP:4328
+   # Example: http://192.168.1.50:4328
+   ```
+
+**Security Note**: When binding to `0.0.0.0`, the web UI is accessible from other machines on your network. Ensure your network is secure.
+
+**Web UI Features**:
+- Real-time system status and device information
+- Configuration editor with validation
+- View weather data and forecast
+- Monitor device groups and runtime statistics
+
 ## Testing Your Setup
 
 Before relying on the scheduler, test it manually:

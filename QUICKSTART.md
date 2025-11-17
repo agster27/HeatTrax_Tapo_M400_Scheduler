@@ -78,6 +78,19 @@ Get your HeatTrax scheduler running in 5 minutes!
    docker-compose logs -f
    ```
 
+5. **Access the Web UI (Optional):**
+   
+   Open your browser to `http://localhost:4328` to access the monitoring interface.
+   
+   **For network access** (to view from other machines):
+   ```bash
+   # Add to your stack.env or docker-compose.yml environment:
+   HEATTRAX_WEB_HOST=0.0.0.0
+   HEATTRAX_WEB_PORT=4328
+   ```
+   
+   Then access from any machine: `http://YOUR_HOST_IP:4328`
+
 That's it! Your mats will now automatically turn on before precipitation when the temperature is below 34°F.
 
 ## Quick Setup (Python)

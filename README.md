@@ -42,7 +42,12 @@ After starting the container:
 3. Edit configuration directly in the browser with validation
 4. Changes are written to `config.yaml` and applied without restart (where possible)
 
-**Security Note**: By default, the web UI binds to `127.0.0.1` (localhost only). To access from other machines, change `web.bind_host` in `config.yaml` to `0.0.0.0` or your machine's IP address. Authentication is planned for future releases.
+**Network Access**: By default, the web UI binds to `127.0.0.1` (localhost only) for security. To access from other machines:
+- Set environment variable: `HEATTRAX_WEB_HOST=0.0.0.0` (recommended for Docker)
+- Or configure in `config.yaml`: `web.bind_host: 0.0.0.0`
+- Change port with: `HEATTRAX_WEB_PORT=8080` (environment) or `web.port: 8080` (YAML)
+
+**Security Note**: When binding to `0.0.0.0`, the web UI is accessible from other machines on your network. Ensure your network is secure. Authentication is planned for future releases.
 
 ## Features
 
