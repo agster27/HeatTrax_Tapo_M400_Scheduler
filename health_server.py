@@ -12,14 +12,14 @@ logger = logging.getLogger(__name__)
 class HealthCheckServer:
     """HTTP server providing health check endpoints."""
     
-    def __init__(self, scheduler, host: str = '0.0.0.0', port: int = 8080):
+    def __init__(self, scheduler, host: str = '0.0.0.0', port: int = 4329):
         """
         Initialize health check server.
         
         Args:
             scheduler: Reference to EnhancedScheduler instance
             host: Host to bind to (default: 0.0.0.0)
-            port: Port to bind to (default: 8080)
+            port: Port to bind to (default: 4329)
         """
         self.scheduler = scheduler
         self.host = host

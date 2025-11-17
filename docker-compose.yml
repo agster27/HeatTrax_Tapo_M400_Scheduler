@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     ports:
       - "4328:4328"  # Web UI port
-      - "8080:8080"  # Health check port
+      # - "4329:4329"  # Health check API port (optional - enable if health_server.enabled=true)
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - ./logs:/app/logs
@@ -17,6 +17,9 @@ services:
       # Web UI configuration (optional overrides)
       # - HEATTRAX_WEB_ENABLED=true
       # - HEATTRAX_WEB_PASSWORD=your_secure_password
+      # Health Check API (optional - for container orchestration)
+      # - HEATTRAX_HEALTH_SERVER_ENABLED=true
+      # - HEATTRAX_HEALTH_SERVER_PORT=4329
       # Uncomment to override config values with environment variables:
       # - HEATTRAX_TAPO_USERNAME=${HEATTRAX_TAPO_USERNAME}
       # - HEATTRAX_TAPO_PASSWORD=${HEATTRAX_TAPO_PASSWORD}

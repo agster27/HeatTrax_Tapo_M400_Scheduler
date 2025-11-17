@@ -82,11 +82,11 @@ class EnhancedScheduler:
         
         # Health check HTTP server (optional)
         health_server_config = config.health_server
-        if health_server_config.get('enabled', True):
+        if health_server_config.get('enabled', False):
             self.health_server = HealthCheckServer(
                 scheduler=self,
                 host=health_server_config.get('host', '0.0.0.0'),
-                port=health_server_config.get('port', 8080)
+                port=health_server_config.get('port', 4329)
             )
         else:
             self.health_server = None
