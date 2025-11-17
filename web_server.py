@@ -692,9 +692,9 @@ class WebServer:
                 { path: 'health_check.interval_hours', label: 'Health Check Interval (hours)', type: 'number', step: '0.1' },
                 { path: 'health_check.max_consecutive_failures', label: 'Max Consecutive Failures', type: 'number' },
                 { path: 'reboot.pause_seconds', label: 'Reboot Pause (seconds)', type: 'number' },
-                { path: 'health_server.enabled', label: 'Health Server Enabled', type: 'checkbox' },
-                { path: 'health_server.host', label: 'Health Server Host', type: 'text' },
-                { path: 'health_server.port', label: 'Health Server Port', type: 'number' }
+                { path: 'health_server.enabled', label: 'Enable Health Check API', type: 'checkbox' },
+                { path: 'health_server.host', label: 'Health Check API Host', type: 'text' },
+                { path: 'health_server.port', label: 'Health Check API Port (default: 4329)', type: 'number' }
             ],
             'Notifications - Global': [
                 { path: 'notifications.required', label: 'Notifications Required', type: 'checkbox' },

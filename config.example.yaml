@@ -189,15 +189,16 @@ reboot:
 # Health check HTTP server settings
 # Environment variables: HEATTRAX_HEALTH_SERVER_*
 health_server:
-  enabled: true  # ENV: HEATTRAX_HEALTH_SERVER_ENABLED (true/false)
-                 # Enable HTTP server for health check endpoints
+  enabled: false  # ENV: HEATTRAX_HEALTH_SERVER_ENABLED (true/false)
+                  # Enable HTTP server for health check endpoints
+                  # Default: false (disabled) - enable only if needed for monitoring
   host: "0.0.0.0"  # ENV: HEATTRAX_HEALTH_SERVER_HOST
                    # Host to bind to (0.0.0.0 for all interfaces)
-  port: 8080  # ENV: HEATTRAX_HEALTH_SERVER_PORT
-              # Port for health check endpoints
-              # Endpoints:
-              #   - GET /health - Basic application health
-              #   - GET /health/weather - Weather-specific health check
+  port: 4329  # ENV: HEATTRAX_HEALTH_SERVER_PORT
+              # Port for health check endpoints (default: 4329)
+              # Endpoints when enabled:
+              #   - GET http://localhost:4329/health - Basic application health
+              #   - GET http://localhost:4329/health/weather - Weather-specific health check
 
 # Notification settings - alerts for device issues (default: all disabled)
 # Email notifications - Environment variables: HEATTRAX_NOTIFICATION_EMAIL_*
