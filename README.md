@@ -124,14 +124,19 @@ After starting the container:
   - 30-minute cooldown period after max runtime (configurable)
   - State persistence for recovery after restarts
   - Per-group runtime tracking
-- **HTTP Health Check Endpoints**: Monitor application health via HTTP (default port 8080)
-  - `GET /health` - Basic application health check (always returns 200 if app is running)
-  - `GET /health/weather` - Weather-specific health check
-    - Returns status='disabled' when weather is disabled
-    - Returns status='ok' with current conditions and forecast when weather is enabled
-    - Returns status='timeout' or 'error' if weather API is unreachable
-  - Configurable host and port via `HEATTRAX_HEALTH_SERVER_*` environment variables
-  - Can be disabled entirely with `HEATTRAX_HEALTH_SERVER_ENABLED=false`
+- **HTTP Health Check API**: Monitor application health via HTTP (disabled by default)
+  - **Endpoints** (when enabled):
+    - `GET http://localhost:4329/health` - Basic application health check (always returns 200 if app is running)
+    - `GET http://localhost:4329/health/weather` - Weather-specific health check
+      - Returns status='disabled' when weather is disabled
+      - Returns status='ok' with current conditions and forecast when weather is enabled
+      - Returns status='timeout' or 'error' if weather API is unreachable
+  - **Configuration**:
+    - Disabled by default to avoid port conflicts
+    - Enable with `HEATTRAX_HEALTH_SERVER_ENABLED=true` (environment) or `health_server.enabled: true` (YAML)
+    - Default port: 4329 (configurable via `HEATTRAX_HEALTH_SERVER_PORT`)
+    - Default host: 0.0.0.0 (configurable via `HEATTRAX_HEALTH_SERVER_HOST`)
+  - **Use Cases**: Container orchestration (Kubernetes liveness probes, Docker health checks), external monitoring systems
 - **Periodic Health Checks**: Background monitoring of device connectivity
   - Configurable check interval (default: every 24 hours)
   - Multi-device aware: tracks all configured devices

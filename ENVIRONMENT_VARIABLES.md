@@ -122,13 +122,19 @@ Black ice protection with early morning activation.
 
 ### Health Server Settings
 
-HTTP endpoints for container orchestration.
+HTTP endpoints for container orchestration and external monitoring.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `HEATTRAX_HEALTH_SERVER_ENABLED` | Boolean | `true` | Enable HTTP health check server |
+| `HEATTRAX_HEALTH_SERVER_ENABLED` | Boolean | `false` | Enable HTTP health check server |
 | `HEATTRAX_HEALTH_SERVER_HOST` | String | `0.0.0.0` | Host to bind to |
-| `HEATTRAX_HEALTH_SERVER_PORT` | Integer | `8080` | Port for health endpoints |
+| `HEATTRAX_HEALTH_SERVER_PORT` | Integer | `4329` | Port for health endpoints |
+
+**Endpoints** (when enabled):
+- `GET http://localhost:4329/health` - Basic application health check (returns 200 if app is running)
+- `GET http://localhost:4329/health/weather` - Weather-specific health check with current conditions and forecast
+
+**Note**: The health server is **disabled by default**. Enable it only if needed for container orchestration (e.g., Kubernetes liveness probes, Docker health checks) or external monitoring systems.
 
 ### Web UI Settings
 
@@ -236,6 +242,10 @@ services:
       - HEATTRAX_WEB_HOST=0.0.0.0
       - HEATTRAX_WEB_PORT=4328
       
+      # Health Check API (Optional - for container orchestration)
+      # - HEATTRAX_HEALTH_SERVER_ENABLED=true
+      # - HEATTRAX_HEALTH_SERVER_PORT=4329
+      
       # Notifications (Optional)
       - HEATTRAX_NOTIFICATIONS_REQUIRED=false
       - HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP=false
@@ -287,6 +297,10 @@ HEATTRAX_MORNING_MODE_ENABLED=true
 # Web UI (for network access - set to 0.0.0.0 for Docker/Portainer)
 HEATTRAX_WEB_HOST=0.0.0.0
 HEATTRAX_WEB_PORT=4328
+
+# Health Check API (Optional - for container orchestration)
+# HEATTRAX_HEALTH_SERVER_ENABLED=true
+# HEATTRAX_HEALTH_SERVER_PORT=4329
 
 # Logging
 HEATTRAX_LOG_LEVEL=INFO
