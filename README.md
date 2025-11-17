@@ -51,21 +51,24 @@ After starting the container:
 
 ## Features
 
-### Web UI & API (NEW!)
+### Web UI & API
 - **Browser-based Interface**: Monitor and configure your system from any device
   - Real-time status dashboard showing device states and weather info
   - Configuration editor with syntax validation
+  - **Environment override visibility**: See which settings are controlled by env vars
+  - Clear separation between editable (YAML) and read-only (env) configuration
   - Clear error messages and success notifications
   - Security warnings when binding to non-local addresses
 - **JSON REST API**: Programmatic access to system status and configuration
   - `GET /api/status` - System status, device states, weather info
-  - `GET /api/config` - Current configuration (secrets masked)
-  - `PUT /api/config` - Update configuration with validation
+  - `GET /api/config` - Current configuration with source metadata (env/yaml)
+  - `POST /api/config` - Update configuration with validation
   - `GET /api/health` - Health check endpoint
   - `GET /api/ping` - Simple liveness check
-- **Configuration as Code**: Primary configuration stored in `config.yaml`
+- **Configuration as Code**: `config.yaml` is the single source of truth
   - Auto-generated on first run if missing
-  - Environment variables for overrides (Docker-friendly)
+  - Environment variables override YAML values at runtime
+  - Env overrides clearly visible in Web UI (read-only)
   - Atomic writes to prevent corruption
   - Hot-reload support for most settings
 - **Thread-Safe Operations**: Web UI and scheduler run concurrently

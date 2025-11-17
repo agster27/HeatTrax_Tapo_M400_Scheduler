@@ -15,10 +15,14 @@ HeatTrax Scheduler includes a browser-based web UI for monitoring system status 
 
 ### Configuration Editor
 - Edit configuration directly in your browser
+- **Environment Override Display**: Clearly shows which settings are controlled by environment variables
+  - Settings overridden by env vars are displayed as read-only with the env var name
+  - Only YAML-backed settings can be edited via the UI
+  - Secrets (passwords, API keys) are masked in the display
 - Syntax validation before saving
 - Changes written to `config.yaml` atomically
 - Hot-reload for most settings (some require restart)
-- Secrets are masked and preserved on update
+- Secrets are preserved during updates
 
 ## Quick Start
 
@@ -37,7 +41,8 @@ HeatTrax Scheduler includes a browser-based web UI for monitoring system status 
 
 4. **Edit configuration**:
    - Switch to Configuration tab
-   - Edit JSON directly in the text area
+   - **View environment overrides**: The top section shows settings controlled by environment variables (read-only)
+   - **Edit YAML settings**: Use the JSON editor below to modify settings not overridden by env vars
    - Click "Save Configuration" to apply changes
    - System validates before saving
 
@@ -124,28 +129,55 @@ System status information.
 ```
 
 ### GET /api/config
-Current configuration (secrets masked).
+Current configuration with source metadata. Fields include information about whether they're controlled by environment variables or YAML.
 
 **Response**:
 ```json
 {
   "location": {
-    "latitude": 40.7128,
-    "longitude": -74.0060,
-    "timezone": "America/New_York"
+    "latitude": {
+      "value": 40.7128,
+      "source": "env",
+      "env_var": "HEATTRAX_LATITUDE",
+      "readonly": true
+    },
+    "longitude": {
+      "value": -74.0060,
+      "source": "yaml",
+      "readonly": false
+    },
+    "timezone": {
+      "value": "America/New_York",
+      "source": "yaml",
+      "readonly": false
+    }
   },
   "devices": {
     "credentials": {
-      "username": "user@example.com",
-      "password": "********"
+      "username": {
+        "value": "user@example.com",
+        "source": "yaml",
+        "readonly": false
+      },
+      "password": {
+        "value": "********",
+        "source": "yaml",
+        "readonly": false
+      }
     }
   },
   ...
 }
 ```
 
-### PUT /api/config
-Update configuration.
+**Field Metadata**:
+- `value`: The actual configuration value
+- `source`: Either `"env"` (from environment variable) or `"yaml"` (from config.yaml)
+- `env_var`: Name of the environment variable (only present when `source` is `"env"`)
+- `readonly`: Boolean indicating if the field can be modified via the UI
+
+### PUT or POST /api/config
+Update configuration. Note: Fields overridden by environment variables cannot be changed via this API.
 
 **Request**:
 ```json
@@ -157,6 +189,8 @@ Update configuration.
   ...
 }
 ```
+
+**Important**: Send the plain configuration values (without the metadata structure). The API will merge your changes with existing secrets and apply them to `config.yaml`.
 
 **Response** (success):
 ```json
@@ -194,19 +228,23 @@ Secrets (passwords, API keys, etc.) are handled securely:
 1. **Masked in API responses**: Secret fields always show `********` when retrieved via API
 2. **Write-only behavior**: When updating config with masked values, the existing secret is preserved
 3. **Only update when provided**: To change a secret, provide the new value; leaving it masked keeps the current value
+4. **Environment variable priority**: If a secret is set via environment variable, it takes precedence over YAML and cannot be changed via the Web UI
 
 ### Example: Updating Config Without Changing Password
 
 ```javascript
-// Get current config (password will be masked)
-const config = await fetch('/api/config').then(r => r.json());
+// Get current config (password will be masked, metadata will be present)
+const response = await fetch('/api/config').then(r => r.json());
+
+// Extract plain values for editing
+const config = extractConfigValues(response);
 
 // Modify non-secret fields
 config.location.latitude = 42.0;
 
 // Save config - password stays unchanged because it's masked
 await fetch('/api/config', {
-  method: 'PUT',
+  method: 'POST',
   headers: {'Content-Type': 'application/json'},
   body: JSON.stringify(config)
 });
