@@ -12,10 +12,14 @@ Automated control system for TP-Link Kasa/Tapo smart plugs to manage heated outd
 - **[Health Checks & Notifications](HEALTH_CHECK.md)** - Device monitoring and notification system
 - **[Changelog](CHANGELOG.md)** - Version history and release notes
 
-## 🎉 Version 1.0 Release
+## 🎉 Version 1.1 - New Web UI!
 
-HeatTrax Scheduler v1.0 is the first production-ready release with comprehensive features:
+HeatTrax Scheduler now includes a **browser-based web UI** for easy monitoring and configuration:
 
+- ✅ **Web UI & JSON API** for monitoring and configuration
+- ✅ **Real-time status** of devices, weather, and scheduler
+- ✅ **Configuration editor** with validation and hot-reload
+- ✅ **Secure by default** - binds to localhost only
 - ✅ **Multi-device group support** with independent automation rules
 - ✅ **Weather resilience** with caching and automatic recovery
 - ✅ **Comprehensive notifications** via email and webhook
@@ -29,7 +33,41 @@ See [CHANGELOG.md](CHANGELOG.md) for complete release details.
 
 Want to get started quickly? See the [Quick Start Guide](QUICKSTART.md) for a 5-minute setup.
 
+### Accessing the Web UI
+
+After starting the container:
+
+1. Open your browser to `http://localhost:4328` (or the host/port you configured)
+2. View real-time system status and device information
+3. Edit configuration directly in the browser with validation
+4. Changes are written to `config.yaml` and applied without restart (where possible)
+
+**Security Note**: By default, the web UI binds to `127.0.0.1` (localhost only). To access from other machines, change `web.bind_host` in `config.yaml` to `0.0.0.0` or your machine's IP address. Authentication is planned for future releases.
+
 ## Features
+
+### Web UI & API (NEW!)
+- **Browser-based Interface**: Monitor and configure your system from any device
+  - Real-time status dashboard showing device states and weather info
+  - Configuration editor with syntax validation
+  - Clear error messages and success notifications
+  - Security warnings when binding to non-local addresses
+- **JSON REST API**: Programmatic access to system status and configuration
+  - `GET /api/status` - System status, device states, weather info
+  - `GET /api/config` - Current configuration (secrets masked)
+  - `PUT /api/config` - Update configuration with validation
+  - `GET /api/health` - Health check endpoint
+  - `GET /api/ping` - Simple liveness check
+- **Configuration as Code**: Primary configuration stored in `config.yaml`
+  - Auto-generated on first run if missing
+  - Environment variables for overrides (Docker-friendly)
+  - Atomic writes to prevent corruption
+  - Hot-reload support for most settings
+- **Thread-Safe Operations**: Web UI and scheduler run concurrently
+  - Scheduler runs in dedicated thread
+  - Flask web server in main thread
+  - Shared configuration with proper locking
+  - Graceful shutdown handling
 
 ### Device Management
 - **Multi-Device Support**: Control multiple Kasa/Tapo devices organized into logical groups
@@ -111,10 +149,11 @@ Want to get started quickly? See the [Quick Start Guide](QUICKSTART.md) for a 5-
   - Full exception tracebacks for debugging
   - See [LOGGING.md](LOGGING.md) for complete logging guide
 - **Flexible Configuration**: YAML-based configuration with environment variable overrides
-  - All settings can be overridden via environment variables
-  - Perfect for containerized deployments and secret management
+  - **Primary method**: Edit `config.yaml` directly or via web UI
+  - Environment variables for overrides (perfect for Docker/secrets)
+  - Auto-generated on first run if missing
   - Multi-device configuration with logical grouping
-  - See [Environment Variable Configuration](#environment-variable-configuration) below
+  - See [Configuration](#configuration) section below
 - **Startup Diagnostic Checks**: Comprehensive pre-flight checks for containerized deployments
   - Python version and package verification
   - Directory access validation
@@ -141,28 +180,32 @@ Want to get started quickly? See the [Quick Start Guide](QUICKSTART.md) for a 5-
    cd HeatTrax_Tapo_M400_Scheduler
    ```
 
-2. Create your configuration file:
+2. Create your configuration file (or let it auto-generate):
    ```bash
    cp config.example.yaml config.yaml
+   # Edit config.yaml with your settings, or use the web UI after starting
    ```
 
-3. Edit `config.yaml` with your settings:
+3. Edit `config.yaml` with your Tapo credentials and device IPs:
    ```yaml
-   location:
-     latitude: 40.7128
-     longitude: -74.0060
-     timezone: "America/New_York"
-   
-   device:
-     ip_address: "192.168.1.100"
-     username: "your_tapo_username"
-     password: "your_tapo_password"
+   devices:
+     credentials:
+       username: "your_tapo_username"
+       password: "your_tapo_password"
+     groups:
+       heated_mats:
+         enabled: true
+         items:
+           - name: "Front Walkway Mat"
+             ip_address: "192.168.1.100"
    ```
 
 4. Start the scheduler:
    ```bash
    docker-compose up -d
    ```
+
+5. Access the web UI at `http://localhost:4328`
 
 ### Manual Installation
 
@@ -188,7 +231,20 @@ Want to get started quickly? See the [Quick Start Guide](QUICKSTART.md) for a 5-
    python main.py
    ```
 
+5. Access the web UI at `http://localhost:4328`
+
 ## Configuration
+
+The scheduler can be configured in two ways:
+
+1. **Via Web UI** (Recommended): Edit configuration in your browser at `http://localhost:4328`
+   - Real-time validation
+   - Clear error messages
+   - No need to restart for most changes
+   
+2. **Via `config.yaml`**: Edit the YAML file directly
+   - See `config.example.yaml` for all available options
+   - Changes require restart unless using web UI
 
 The scheduler uses a multi-device group configuration that can handle both single and multiple devices.
 
@@ -297,8 +353,10 @@ Configuration values are resolved in the following order (highest to lowest prio
 
 | Environment Variable | Config Section | Description | Type | Example |
 |---------------------|----------------|-------------|------|---------|
-| `HEATTRAX_CONFIG_PATH` | - | Path to configuration file | String | `/config/config.yaml` |
+| `HEATTRAX_CONFIG_PATH` | - | Path to configuration file | String | `/app/config.yaml` |
 | `TZ` | - | System timezone | String | `America/New_York` |
+| `HEATTRAX_WEB_ENABLED` | web | Enable/disable web UI | Boolean | `true` |
+| `HEATTRAX_WEB_PASSWORD` | web.auth | Set web UI password (hashed) | String | `my_secure_password` |
 | `HEATTRAX_LATITUDE` | location | Location latitude | Float | `40.7128` |
 | `HEATTRAX_LONGITUDE` | location | Location longitude | Float | `-74.0060` |
 | `HEATTRAX_TIMEZONE` | location | Location timezone | String | `America/New_York` |

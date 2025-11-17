@@ -272,8 +272,35 @@ notifications:
   #     email: true
   #     webhook: false
 
+# Web UI Configuration
+# Provides a browser-based interface for monitoring and configuration
+web:
+  enabled: true  # ENV: HEATTRAX_WEB_ENABLED (true/false)
+                 # Enable or disable the web UI
+  
+  bind_host: "127.0.0.1"  # Host to bind to (default: localhost only)
+                          # Use "0.0.0.0" to allow network access (see security warning)
+                          # SECURITY WARNING: Do not bind to 0.0.0.0 without enabling authentication
+  
+  port: 4328  # Port for web UI (default: 4328)
+              # Access the UI at http://<bind_host>:<port>
+  
+  # Authentication settings (for future use)
+  auth:
+    enabled: false  # Enable authentication (default: false)
+                    # When false, UI is accessible without password
+                    # SECURITY: Only disable auth if web UI is bound to 127.0.0.1
+    
+    username: "admin"  # Username for web UI login (default: admin)
+    
+    password_hash: ""  # Hashed password for web UI
+                       # Set via HEATTRAX_WEB_PASSWORD environment variable
+                       # Leave empty to disable authentication
+
 # Additional environment variables:
-# - HEATTRAX_CONFIG_PATH: Path to this configuration file (default: config.yaml)
+# - HEATTRAX_CONFIG_PATH: Path to this configuration file (default: /app/config.yaml)
+# - HEATTRAX_WEB_ENABLED: Enable/disable web UI (default: true)
+# - HEATTRAX_WEB_PASSWORD: Set web UI password (hashed and stored in config)
 # - TZ: System timezone (e.g., America/New_York)
 
 # Notification Events:
