@@ -451,9 +451,10 @@ class WebServer:
     </div>
 
     <div id="config-tab" class="tab-content">
+        <div id="env-overrides"></div>
         <div class="card">
             <h2>Configuration Editor</h2>
-            <p>Edit the configuration below. Changes are validated before saving.</p>
+            <p>Edit the configuration below. Environment variable overrides (shown above) cannot be changed here. Changes are validated before saving.</p>
             <textarea id="config-editor">Loading configuration...</textarea>
             <div class="button-group">
                 <button onclick="loadConfig()">🔄 Reload</button>
@@ -571,18 +572,98 @@ class WebServer:
             }
         }
 
+        // Extract plain config values from annotated config (recursively)
+        function extractConfigValues(annotated) {
+            if (!annotated || typeof annotated !== 'object') {
+                return annotated;
+            }
+            
+            // Check if this is a field with metadata
+            if (annotated.hasOwnProperty('value') && annotated.hasOwnProperty('source')) {
+                return annotated.value;
+            }
+            
+            // Recursively process nested objects
+            const result = {};
+            for (const [key, value] of Object.entries(annotated)) {
+                result[key] = extractConfigValues(value);
+            }
+            return result;
+        }
+        
+        // Collect environment overrides from annotated config
+        function collectEnvOverrides(annotated, path = '') {
+            const overrides = [];
+            
+            if (!annotated || typeof annotated !== 'object') {
+                return overrides;
+            }
+            
+            // Check if this is a field with env override
+            if (annotated.source === 'env' && annotated.env_var) {
+                overrides.push({
+                    path: path,
+                    env_var: annotated.env_var,
+                    value: annotated.value
+                });
+                return overrides;
+            }
+            
+            // Recursively process nested objects
+            for (const [key, value] of Object.entries(annotated)) {
+                const newPath = path ? `${path}.${key}` : key;
+                overrides.push(...collectEnvOverrides(value, newPath));
+            }
+            
+            return overrides;
+        }
+
         // Load configuration
         async function loadConfig() {
             const editor = document.getElementById('config-editor');
             const message = document.getElementById('config-message');
+            const envOverridesContainer = document.getElementById('env-overrides');
             message.innerHTML = '';
             
             try {
                 const response = await fetch('/api/config');
-                const config = await response.json();
+                const annotatedConfig = await response.json();
+                
+                // Extract plain config values for editing
+                const plainConfig = extractConfigValues(annotatedConfig);
                 
                 // Pretty print JSON
-                editor.value = JSON.stringify(config, null, 2);
+                editor.value = JSON.stringify(plainConfig, null, 2);
+                
+                // Show environment overrides
+                const envOverrides = collectEnvOverrides(annotatedConfig);
+                if (envOverrides.length > 0) {
+                    let html = '<div class="card" style="background: #e8f4f8; border-left: 4px solid #17a2b8;">';
+                    html += '<h3 style="margin-top: 0;">🔒 Environment Variable Overrides</h3>';
+                    html += '<p style="margin-bottom: 15px;">The following settings are overridden by environment variables and cannot be changed via the Web UI:</p>';
+                    html += '<div class="status-grid">';
+                    
+                    for (const override of envOverrides) {
+                        let displayValue = override.value;
+                        // Mask sensitive values
+                        if (override.path.includes('password') || override.path.includes('api_key')) {
+                            displayValue = '********';
+                        }
+                        
+                        html += `
+                            <div class="status-item" style="border-left-color: #17a2b8;">
+                                <label>${override.path}</label>
+                                <value><code>${override.env_var}</code> = ${displayValue}</value>
+                            </div>
+                        `;
+                    }
+                    
+                    html += '</div></div>';
+                    envOverridesContainer.innerHTML = html;
+                } else {
+                    envOverridesContainer.innerHTML = '';
+                }
+                
             } catch (e) {
                 message.innerHTML = `<div class="error">Failed to load configuration: ${e.message}</div>`;
             }
@@ -600,7 +681,7 @@ class WebServer:
                 
                 // Send to API
                 const response = await fetch('/api/config', {
-                    method: 'PUT',
+                    method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
