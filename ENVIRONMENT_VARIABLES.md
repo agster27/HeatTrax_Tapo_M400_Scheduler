@@ -130,6 +130,19 @@ HTTP endpoints for container orchestration.
 | `HEATTRAX_HEALTH_SERVER_HOST` | String | `0.0.0.0` | Host to bind to |
 | `HEATTRAX_HEALTH_SERVER_PORT` | Integer | `8080` | Port for health endpoints |
 
+### Web UI Settings
+
+Configure the web interface for monitoring and configuration.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `HEATTRAX_WEB_HOST` | String | `127.0.0.1` | Host/IP address to bind web UI to. Use `0.0.0.0` to allow access from other machines (Docker/network deployments). |
+| `HEATTRAX_WEB_PORT` | Integer | `4328` | Port for web UI |
+
+**Security Note**: When setting `HEATTRAX_WEB_HOST` to `0.0.0.0`, the web UI becomes accessible from other machines on your network. Ensure your network is secure and consider using authentication if exposed beyond localhost.
+
+**Docker/Portainer Example**: Set `HEATTRAX_WEB_HOST=0.0.0.0` to access the web UI from other machines when using `network_mode: host` or appropriate port mappings.
+
 ### Reboot Settings
 
 | Variable | Type | Default | Description |
@@ -219,6 +232,10 @@ services:
       # Logging
       - HEATTRAX_LOG_LEVEL=INFO
       
+      # Web UI (for network access)
+      - HEATTRAX_WEB_HOST=0.0.0.0
+      - HEATTRAX_WEB_PORT=4328
+      
       # Notifications (Optional)
       - HEATTRAX_NOTIFICATIONS_REQUIRED=false
       - HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP=false
@@ -266,6 +283,10 @@ HEATTRAX_COOLDOWN_MINUTES=30
 
 # Morning Mode
 HEATTRAX_MORNING_MODE_ENABLED=true
+
+# Web UI (for network access - set to 0.0.0.0 for Docker/Portainer)
+HEATTRAX_WEB_HOST=0.0.0.0
+HEATTRAX_WEB_PORT=4328
 
 # Logging
 HEATTRAX_LOG_LEVEL=INFO
