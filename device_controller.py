@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from typing import Optional
-from kasa import SmartPlug
+from kasa import Discover
 
 
 logger = logging.getLogger(__name__)
@@ -28,11 +28,11 @@ class TapoController:
         self.ip_address = ip_address
         self.username = username
         self.password = password
-        self.device: Optional[SmartPlug] = None
+        self.device = None
         self._initialized = False
     
     async def initialize(self):
-        """Initialize connection to the device."""
+        """Initialize connection to the device using Tapo-authenticated discovery."""
         logger.info(f"Initializing connection to Tapo device at {self.ip_address}")
         logger.debug(f"Using username: {self.username}")
         
@@ -41,18 +41,33 @@ class TapoController:
             raise DeviceControllerError("IP address cannot be empty")
         
         if not self.username or not self.password:
-            logger.error("Username or password is empty")
-            raise DeviceControllerError("Username and password are required")
+            logger.error("Username or password is empty - Tapo credentials are required")
+            error_msg = (
+                "Username and password are required for Tapo device control. "
+                "Please set HEATTRAX_TAPO_USERNAME and HEATTRAX_TAPO_PASSWORD environment variables."
+            )
+            raise DeviceControllerError(error_msg)
         
         try:
-            logger.debug(f"Creating SmartPlug object for {self.ip_address}")
-            self.device = SmartPlug(self.ip_address)
+            logger.debug(f"Using Discover.discover_single with Tapo credentials for {self.ip_address}")
+            self.device = await Discover.discover_single(
+                self.ip_address,
+                username=self.username,
+                password=self.password,
+            )
             
-            logger.info(f"Attempting to connect and update device at {self.ip_address}")
+            logger.info(f"Attempting to update device at {self.ip_address}")
             await self.device.update()
             
             self._initialized = True
             logger.info(f"Successfully connected to device at {self.ip_address}")
+            
+            # Log device information
+            device_model = getattr(self.device, 'model', 'Unknown')
+            device_alias = getattr(self.device, 'alias', 'Unknown')
+            num_children = len(self.device.children) if hasattr(self.device, 'children') and self.device.children else 0
+            
+            logger.info(f"Device info: model={device_model}, alias={device_alias}, outlets={num_children}")
             
             if self.device.alias:
                 logger.info(f"Device name: {self.device.alias}")

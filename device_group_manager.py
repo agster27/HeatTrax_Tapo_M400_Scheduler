@@ -2,8 +2,9 @@
 
 import asyncio
 import logging
+import os
 from typing import Dict, List, Optional, Any
-from kasa import SmartPlug
+from kasa import Discover
 from device_controller import DeviceControllerError
 
 
@@ -237,20 +238,40 @@ class ManagedDevice:
             raise DeviceControllerError(f"IP address is required for device '{self.name}'")
     
     async def initialize(self):
-        """Initialize connection to the device."""
+        """Initialize connection to the device using Tapo-authenticated discovery."""
         logger.debug(f"Initializing device '{self.name}' at {self.ip_address}")
         
+        # Validate credentials
+        if not self.username or not self.password:
+            error_msg = (
+                f"Missing Tapo credentials for device '{self.name}'. "
+                "Please set HEATTRAX_TAPO_USERNAME and HEATTRAX_TAPO_PASSWORD environment variables."
+            )
+            logger.error(error_msg)
+            raise DeviceControllerError(error_msg)
+        
         try:
-            # Create SmartPlug device
-            self.device = SmartPlug(self.ip_address)
+            # Use Tapo-authenticated discovery instead of legacy SmartPlug
+            logger.debug(f"Using Discover.discover_single with Tapo credentials for {self.ip_address}")
+            self.device = await Discover.discover_single(
+                self.ip_address,
+                username=self.username,
+                password=self.password,
+            )
             await self.device.update()
             
             self._initialized = True
-            logger.debug(f"Successfully initialized device '{self.name}'")
+            
+            # Log device information
+            device_model = getattr(self.device, 'model', 'Unknown')
+            device_alias = getattr(self.device, 'alias', 'Unknown')
+            num_children = len(self.device.children) if hasattr(self.device, 'children') and self.device.children else 0
+            
+            logger.info(f"Successfully initialized device '{self.name}': model={device_model}, alias={device_alias}, outlets={num_children}")
             
             # Check if device has children (outlets)
-            if hasattr(self.device, 'children') and self.device.children:
-                logger.debug(f"Device '{self.name}' has {len(self.device.children)} outlets")
+            if num_children > 0:
+                logger.debug(f"Device '{self.name}' has {num_children} outlets")
             
         except Exception as e:
             logger.error(f"Failed to initialize device '{self.name}' at {self.ip_address}: {e}")
