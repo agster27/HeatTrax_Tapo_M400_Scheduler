@@ -43,6 +43,89 @@ class WebServer:
         
         logger.info("WebServer initialized")
     
+    def _build_annotated_config(self, config: Dict[str, Any], env_overridden_paths: Dict[str, str], 
+                                 current_path: str = "") -> Dict[str, Any]:
+        """
+        Build annotated configuration with source metadata for each field.
+        
+        Args:
+            config: Configuration dictionary
+            env_overridden_paths: Mapping of config paths to env var names
+            current_path: Current path in config tree (for recursion)
+            
+        Returns:
+            Dictionary with fields annotated with source metadata
+        """
+        if not isinstance(config, dict):
+            # Leaf value - determine source
+            path = current_path.rstrip('.')
+            if path in env_overridden_paths:
+                return {
+                    'value': config,
+                    'source': 'env',
+                    'env_var': env_overridden_paths[path],
+                    'readonly': True
+                }
+            else:
+                return {
+                    'value': config,
+                    'source': 'yaml',
+                    'readonly': False
+                }
+        
+        # Recursively annotate nested structures
+        result = {}
+        for key, value in config.items():
+            new_path = f"{current_path}{key}."
+            
+            if isinstance(value, dict):
+                # Check if this entire dict is overridden by env
+                path_without_dot = new_path.rstrip('.')
+                if path_without_dot in env_overridden_paths:
+                    result[key] = {
+                        'value': value,
+                        'source': 'env',
+                        'env_var': env_overridden_paths[path_without_dot],
+                        'readonly': True
+                    }
+                else:
+                    # Recurse into nested dict
+                    result[key] = self._build_annotated_config(value, env_overridden_paths, new_path)
+            elif isinstance(value, list):
+                # For lists, check if the path is overridden
+                path_without_dot = new_path.rstrip('.')
+                if path_without_dot in env_overridden_paths:
+                    result[key] = {
+                        'value': value,
+                        'source': 'env',
+                        'env_var': env_overridden_paths[path_without_dot],
+                        'readonly': True
+                    }
+                else:
+                    result[key] = {
+                        'value': value,
+                        'source': 'yaml',
+                        'readonly': False
+                    }
+            else:
+                # Scalar value - check if overridden
+                path_without_dot = new_path.rstrip('.')
+                if path_without_dot in env_overridden_paths:
+                    result[key] = {
+                        'value': value,
+                        'source': 'env',
+                        'env_var': env_overridden_paths[path_without_dot],
+                        'readonly': True
+                    }
+                else:
+                    result[key] = {
+                        'value': value,
+                        'source': 'yaml',
+                        'readonly': False
+                    }
+        
+        return result
+    
     def _register_routes(self):
         """Register Flask routes."""
         
@@ -111,14 +194,24 @@ class WebServer:
         @self.app.route('/api/config', methods=['GET'])
         def api_config_get():
             """
-            Get current configuration (without secrets).
+            Get current configuration with source metadata.
             
             Returns:
-                JSON: Configuration
+                JSON: Configuration with metadata for each field including:
+                    - value: the actual value
+                    - source: 'env' or 'yaml'
+                    - env_var: env variable name (if source is 'env')
+                    - readonly: boolean indicating if field is env-overridden
             """
             try:
+                # Get config without secrets and env overridden paths
                 config = self.config_manager.get_config(include_secrets=False)
-                return jsonify(config)
+                env_overridden_paths = self.config_manager.get_env_overridden_paths()
+                
+                # Build annotated config with metadata
+                annotated_config = self._build_annotated_config(config, env_overridden_paths)
+                
+                return jsonify(annotated_config)
             except Exception as e:
                 logger.error(f"Failed to get config: {e}", exc_info=True)
                 return jsonify({
@@ -126,7 +219,7 @@ class WebServer:
                     'details': str(e)
                 }), 500
         
-        @self.app.route('/api/config', methods=['PUT'])
+        @self.app.route('/api/config', methods=['PUT', 'POST'])
         def api_config_put():
             """
             Update configuration.
