@@ -171,9 +171,10 @@ After starting the container:
 ## Requirements
 
 - Python 3.11+
-- TP-Link Tapo smart plug (M400 or compatible)
-- Tapo account credentials
-- Network access to the smart plug
+- TP-Link Tapo smart plug (EP40M or compatible Tapo devices)
+- Tapo account credentials (username/email and password)
+- Network access to the smart plug (local network)
+- Internet access for Tapo cloud authentication (required for device control)
 
 ## Installation
 
@@ -734,24 +735,34 @@ Webhook notifications send JSON POST requests with the following structure:
 
 ## Device Control Library (python-kasa)
 
-This scheduler uses the [python-kasa](https://github.com/python-kasa/python-kasa) library to control TP-Link Tapo smart plugs. The implementation is designed for compatibility with multiple versions of python-kasa.
+This scheduler uses the [python-kasa](https://github.com/python-kasa/python-kasa) library to control TP-Link Tapo smart plugs. The implementation uses **Tapo-authenticated discovery** for compatibility with Tapo devices like the EP40M.
 
 ### Key Implementation Details
 
 - **Library Version**: Requires `python-kasa>=0.7.0`
-- **Device Initialization**: The `SmartPlug` device is initialized with only the IP address: `SmartPlug(ip_address)`
-- **Credentials Handling**: Tapo username and password are validated in configuration but are **not** passed to the `SmartPlug` constructor via a `credentials` keyword argument. This approach ensures compatibility across different python-kasa versions.
-- **Authentication**: Modern versions of python-kasa handle authentication automatically during the device update/communication phase.
+- **Device Initialization**: Uses `Discover.discover_single(ip_address, username=username, password=password)` for Tapo-authenticated access
+- **Credentials Required**: Tapo username and password **must** be provided via `HEATTRAX_TAPO_USERNAME` and `HEATTRAX_TAPO_PASSWORD` environment variables or in `config.yaml` under `devices.credentials`
+- **Authentication**: Tapo devices (like the EP40M) require authenticated discovery and cannot be controlled using the legacy IOT protocol (port 9999)
+
+### Tapo Device Support
+
+**Important**: Tapo devices (EP40M, etc.) require authenticated access:
+
+1. **Credentials are mandatory**: The scheduler will fail to start if `HEATTRAX_TAPO_USERNAME` or `HEATTRAX_TAPO_PASSWORD` are not set
+2. **Cloud authentication**: Tapo devices authenticate against TP-Link cloud services using your Tapo account credentials
+3. **No legacy protocol**: Tapo devices do NOT support the legacy Kasa IOT protocol (port 9999), so older connection methods will fail
+4. **Discovery method**: The scheduler uses `Discover.discover_single()` with credentials to establish authenticated connections
 
 ### Why This Matters
 
-Earlier versions of the scheduler may have used a `credentials` parameter when creating `SmartPlug` objects. This has been removed because:
+Tapo devices (like the EP40M) are different from older Kasa devices:
 
-1. The `credentials` keyword argument is not universally supported across all python-kasa versions
-2. Modern python-kasa handles authentication internally without requiring explicit credential injection at initialization
-3. This change prevents `TypeError` exceptions related to unexpected keyword arguments
+1. **Tapo devices require authenticated discovery** - They do not respond to the legacy IOT protocol on port 9999
+2. **Credentials are passed during discovery** - The `Discover.discover_single()` method accepts `username` and `password` parameters
+3. **Cloud-based authentication** - Tapo devices authenticate through TP-Link's cloud services, requiring valid account credentials
+4. **Enhanced security** - This newer authentication method provides better security than the legacy protocol
 
-The scheduler still validates that Tapo credentials are present in the configuration (for diagnostics and potential future use), but device control works without explicitly passing them to the constructor.
+If you see errors like `Unable to connect to the device: 10.0.50.74:9999: [Errno 111] Connect call failed`, this indicates the scheduler was attempting to use the legacy protocol. This version uses the correct Tapo-authenticated discovery method.
 
 ## How It Works
 
