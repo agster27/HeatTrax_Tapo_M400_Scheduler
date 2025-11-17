@@ -157,17 +157,17 @@ class ConfigManager:
         logger.info(f"Configuration path: {self.config_path}")
         
         # Load or create initial configuration
-        self._config = self._load_or_create_config()
+        self._config, self._env_overridden_paths = self._load_or_create_config()
         self._config_last_modified = datetime.now()
         
         logger.info("ConfigManager initialized successfully")
     
-    def _load_or_create_config(self) -> Dict[str, Any]:
+    def _load_or_create_config(self) -> tuple[Dict[str, Any], Dict[str, str]]:
         """
         Load configuration from file or create from defaults.
         
         Returns:
-            Configuration dictionary
+            Tuple of (configuration dictionary, env overridden paths mapping)
         """
         if not self.config_path.exists():
             logger.warning(f"Configuration file not found: {self.config_path}")
@@ -178,7 +178,7 @@ class ConfigManager:
             config = copy.deepcopy(self.DEFAULT_CONFIG)
             
             # Apply environment variable overrides
-            config = self._apply_env_overrides(config)
+            config, env_overridden_paths = self._apply_env_overrides(config)
             
             # Create parent directory if needed
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -187,7 +187,7 @@ class ConfigManager:
             self._write_config_to_disk(config)
             logger.info(f"Generated initial configuration file: {self.config_path}")
             
-            return config
+            return config, env_overridden_paths
         
         try:
             with open(self.config_path, 'r') as f:
@@ -197,44 +197,47 @@ class ConfigManager:
                 logger.error(f"Invalid configuration file format: {self.config_path}")
                 logger.warning("Falling back to default configuration with environment overrides")
                 config = copy.deepcopy(self.DEFAULT_CONFIG)
-                config = self._apply_env_overrides(config)
-                return config
+                config, env_overridden_paths = self._apply_env_overrides(config)
+                return config, env_overridden_paths
             
             logger.info(f"Loaded configuration from: {self.config_path}")
             
             # Apply environment variable overrides
-            config = self._apply_env_overrides(config)
+            config, env_overridden_paths = self._apply_env_overrides(config)
             
             # Validate loaded config
             self._validate_config(config)
             
-            return config
+            return config, env_overridden_paths
             
         except yaml.YAMLError as e:
             logger.error(f"Error parsing YAML configuration: {e}")
             logger.warning("Falling back to default configuration with environment overrides")
             config = copy.deepcopy(self.DEFAULT_CONFIG)
-            config = self._apply_env_overrides(config)
-            return config
+            config, env_overridden_paths = self._apply_env_overrides(config)
+            return config, env_overridden_paths
         except Exception as e:
             logger.error(f"Unexpected error loading configuration: {e}")
             logger.warning("Falling back to default configuration with environment overrides")
             config = copy.deepcopy(self.DEFAULT_CONFIG)
-            config = self._apply_env_overrides(config)
-            return config
+            config, env_overridden_paths = self._apply_env_overrides(config)
+            return config, env_overridden_paths
     
-    def _apply_env_overrides(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_env_overrides(self, config: Dict[str, Any]) -> tuple[Dict[str, Any], Dict[str, str]]:
         """
-        Apply environment variable overrides to configuration.
+        Apply environment variable overrides to configuration and track which fields were overridden.
         
         Args:
             config: Configuration dictionary
             
         Returns:
-            Configuration with environment overrides applied
+            Tuple of (config with overrides applied, dict mapping config paths to env var names)
         """
         # Import the existing mapping from config_loader
         from config_loader import ENV_VAR_MAPPING, get_env_var
+        
+        # Track which config paths are overridden by which env vars
+        env_overridden_paths = {}
         
         for env_var, mapping_tuple in ENV_VAR_MAPPING.items():
             value = get_env_var(env_var, mapping_tuple[-1])
@@ -254,12 +257,14 @@ class ConfigManager:
                 current[final_key] = value
                 
                 path = '.'.join(sections)
+                env_overridden_paths[path] = env_var
                 logger.debug(f"Environment override: {env_var} -> {path}")
         
         # Apply web-specific environment overrides
         if os.environ.get('HEATTRAX_WEB_ENABLED'):
             web_enabled = os.environ['HEATTRAX_WEB_ENABLED'].lower() in ('true', '1', 'yes', 'on')
             config.setdefault('web', {})['enabled'] = web_enabled
+            env_overridden_paths['web.enabled'] = 'HEATTRAX_WEB_ENABLED'
             logger.info(f"Environment override: HEATTRAX_WEB_ENABLED -> web.enabled = {web_enabled}")
         
         if os.environ.get('HEATTRAX_WEB_PASSWORD'):
@@ -269,9 +274,10 @@ class ConfigManager:
             # Simple hash for now (should use bcrypt in production)
             password_hash = hashlib.sha256(password.encode()).hexdigest()
             config.setdefault('web', {}).setdefault('auth', {})['password_hash'] = password_hash
+            env_overridden_paths['web.auth.password_hash'] = 'HEATTRAX_WEB_PASSWORD'
             logger.info("Environment override: HEATTRAX_WEB_PASSWORD -> web.auth.password_hash (hashed)")
         
-        return config
+        return config, env_overridden_paths
     
     def _validate_config(self, config: Dict[str, Any]) -> None:
         """
@@ -560,3 +566,13 @@ class ConfigManager:
                 'config_last_modified': self._config_last_modified.isoformat(),
                 'config_exists': self.config_path.exists()
             }
+    
+    def get_env_overridden_paths(self) -> Dict[str, str]:
+        """
+        Get mapping of config paths to environment variable names that override them.
+        
+        Returns:
+            Dictionary mapping config paths (e.g., 'location.latitude') to env var names (e.g., 'HEATTRAX_LATITUDE')
+        """
+        with self._lock:
+            return copy.deepcopy(self._env_overridden_paths)

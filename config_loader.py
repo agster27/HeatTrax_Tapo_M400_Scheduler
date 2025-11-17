@@ -126,17 +126,20 @@ def get_env_var(env_var: str, convert_type: type) -> Optional[Any]:
         return None
 
 
-def apply_env_overrides(config: Dict[str, Any]) -> Dict[str, Any]:
+def apply_env_overrides(config: Dict[str, Any]) -> tuple[Dict[str, Any], Dict[str, str]]:
     """
-    Apply environment variable overrides to configuration.
+    Apply environment variable overrides to configuration and track which fields were overridden.
     
     Args:
         config: Configuration dictionary
         
     Returns:
-        Configuration with environment variable overrides applied
+        Tuple of (config with overrides applied, dict mapping config paths to env var names)
     """
     logger.debug("Checking for environment variable overrides...")
+    
+    # Track which config paths are overridden by which env vars
+    env_overridden_paths = {}
     
     for env_var, mapping_tuple in ENV_VAR_MAPPING.items():
         value = get_env_var(env_var, mapping_tuple[-1])  # Last element is the convert function
@@ -156,11 +159,12 @@ def apply_env_overrides(config: Dict[str, Any]) -> Dict[str, Any]:
             final_key = sections[-1]
             current[final_key] = value
             
-            # Build path string for logging
+            # Build path string for logging and tracking
             path = '.'.join(sections)
+            env_overridden_paths[path] = env_var
             logger.info(f"Environment variable override: {env_var} -> {path} = {value}")
     
-    return config
+    return config, env_overridden_paths
 
 
 class Config:
@@ -181,8 +185,8 @@ class Config:
         self.config_path = Path(config_path)
         self._config = self._load_config()
         
-        # Apply environment variable overrides
-        self._config = apply_env_overrides(self._config)
+        # Apply environment variable overrides and track which fields were overridden
+        self._config, self._env_overridden_paths = apply_env_overrides(self._config)
         
         self._validate_config()
         logger.info("Configuration loaded and validated successfully")
@@ -491,3 +495,13 @@ class Config:
             'bind_host': '127.0.0.1',
             'port': 4328
         })
+    
+    @property
+    def env_overridden_paths(self) -> Dict[str, str]:
+        """
+        Get mapping of config paths to environment variable names that override them.
+        
+        Returns:
+            Dictionary mapping config paths (e.g., 'location.latitude') to env var names (e.g., 'HEATTRAX_LATITUDE')
+        """
+        return self._env_overridden_paths
