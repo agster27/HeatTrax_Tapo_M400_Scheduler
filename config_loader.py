@@ -95,6 +95,10 @@ ENV_VAR_MAPPING = {
     'HEATTRAX_HEALTH_SERVER_ENABLED': ('health_server', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
     'HEATTRAX_HEALTH_SERVER_HOST': ('health_server', 'host', str),
     'HEATTRAX_HEALTH_SERVER_PORT': ('health_server', 'port', int),
+    
+    # Web UI settings
+    'HEATTRAX_WEB_HOST': ('web', 'bind_host', str),
+    'HEATTRAX_WEB_PORT': ('web', 'port', int),
 }
 
 
@@ -211,7 +215,8 @@ class Config:
                 'health_check': {},
                 'notifications': {'email': {}, 'webhook': {}},
                 'reboot': {},
-                'health_server': {}
+                'health_server': {},
+                'web': {}
             }
             return config
         
@@ -234,7 +239,8 @@ class Config:
                     'health_check': {},
                     'notifications': {'email': {}, 'webhook': {}},
                     'reboot': {},
-                    'health_server': {}
+                    'health_server': {},
+                    'web': {}
                 }
             
             if not isinstance(config, dict):
@@ -475,4 +481,13 @@ class Config:
             'enabled': True,
             'host': '0.0.0.0',
             'port': 8080
+        })
+    
+    @property
+    def web(self) -> Dict[str, Any]:
+        """Get web UI configuration."""
+        return self._config.get('web', {
+            'enabled': True,
+            'bind_host': '127.0.0.1',
+            'port': 4328
         })
