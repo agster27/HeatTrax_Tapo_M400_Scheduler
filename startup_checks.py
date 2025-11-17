@@ -277,16 +277,21 @@ def check_device_connectivity(ip_address: str, port: int = 9999, timeout: float 
     """
     Attempt socket connection to Tapo device.
     
+    NOTE: This is a legacy check for port 9999. Tapo devices (EP40M, etc.) do NOT
+    use this port and require authenticated discovery instead. This check is kept
+    for backwards compatibility but will typically fail for Tapo devices.
+    
     Args:
         ip_address: Device IP address
-        port: Device port (default 9999 for Tapo)
+        port: Device port (default 9999 for legacy Kasa devices)
         timeout: Connection timeout in seconds
         
     Returns:
         True if connection successful, False otherwise
     """
-    print(f"\nDevice connectivity check:")
+    print(f"\nLegacy device connectivity check (port {port}):")
     print(f"  Testing connection to {ip_address}:{port} (timeout: {timeout}s)...")
+    print(f"  NOTE: Tapo devices do NOT use port 9999 - this check will fail for EP40M and similar devices")
     
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -299,7 +304,7 @@ def check_device_connectivity(ip_address: str, port: int = 9999, timeout: float 
             return True
         else:
             print(f"  ✗ Failed to connect to {ip_address}:{port} (error code: {result})")
-            print(f"    This may be normal if the device uses a different protocol/port")
+            print(f"    This is EXPECTED for Tapo devices - they require authenticated discovery")
             return False
             
     except socket.gaierror as e:
@@ -307,6 +312,7 @@ def check_device_connectivity(ip_address: str, port: int = 9999, timeout: float 
         return False
     except socket.timeout:
         print(f"  ✗ Connection timeout to {ip_address}:{port}")
+        print(f"    This is EXPECTED for Tapo devices - they require authenticated discovery")
         return False
     except Exception as e:
         print(f"  ✗ Connection error: {type(e).__name__}: {e}")
@@ -359,6 +365,71 @@ def _get_ip_from_external_service() -> Optional[str]:
     # Could implement with: requests.get('https://api.ipify.org').text
     # But avoiding to minimize external dependencies
     return None
+
+
+async def check_tapo_device_connectivity(ip_address: str, username: str, password: str, timeout: float = 10.0) -> bool:
+    """
+    Attempt Tapo-authenticated discovery and connection to a Tapo device.
+    
+    This is a pre-flight check that validates device reachability using the same
+    method as the main scheduler. This check is non-fatal - failure here will not
+    prevent the scheduler from starting.
+    
+    Args:
+        ip_address: Device IP address
+        username: Tapo account username
+        password: Tapo account password
+        timeout: Connection timeout in seconds
+        
+    Returns:
+        True if connection successful, False otherwise
+    """
+    print(f"\nTapo device connectivity check:")
+    print(f"  Testing authenticated discovery for {ip_address} (timeout: {timeout}s)...")
+    
+    if not username or not password:
+        print(f"  ⚠ Skipping: Tapo credentials not available")
+        print(f"    Set HEATTRAX_TAPO_USERNAME and HEATTRAX_TAPO_PASSWORD to enable this check")
+        return False
+    
+    try:
+        # Import here to avoid circular dependencies
+        from kasa import Discover
+        import asyncio
+        
+        # Attempt authenticated discovery
+        print(f"  Using Discover.discover_single with Tapo credentials...")
+        device = await asyncio.wait_for(
+            Discover.discover_single(ip_address, username=username, password=password),
+            timeout=timeout
+        )
+        
+        # Update device to get info
+        await device.update()
+        
+        # Log device information
+        device_model = getattr(device, 'model', 'Unknown')
+        device_alias = getattr(device, 'alias', 'Unknown')
+        num_children = len(device.children) if hasattr(device, 'children') and device.children else 0
+        
+        print(f"  ✓ Successfully connected to Tapo device at {ip_address}")
+        print(f"    Model: {device_model}")
+        print(f"    Alias: {device_alias}")
+        print(f"    Outlets: {num_children}")
+        
+        return True
+        
+    except asyncio.TimeoutError:
+        print(f"  ✗ Connection timeout to {ip_address} after {timeout}s")
+        print(f"    Device may be offline, unreachable, or credentials may be incorrect")
+        return False
+    except Exception as e:
+        print(f"  ✗ Connection failed: {type(e).__name__}: {e}")
+        print(f"    This may indicate:")
+        print(f"      - Device is offline or unreachable")
+        print(f"      - Incorrect credentials")
+        print(f"      - Network connectivity issues")
+        return False
 
 
 def check_notification_config(config_data: Optional[Dict]) -> bool:
@@ -497,11 +568,53 @@ def run_startup_checks(config_path: str = "config.yaml", device_ip: Optional[str
         print(f"⚠ WARNING: Notification configuration issues detected")
         print(f"  Full validation will be performed during application startup")
     
-    # 8. Device connectivity (optional, non-critical)
-    if device_ip:
-        check_device_connectivity(device_ip)
-    else:
-        print(f"\nDevice connectivity check: SKIPPED (no device IP provided)")
+    # 8. Tapo device connectivity (optional, non-critical)
+    # Try to get device IP and credentials for optional Tapo connectivity check
+    tapo_check_performed = False
+    if device_ip or (config_data and 'devices' in config_data):
+        # Get credentials from environment or config
+        username = os.environ.get('HEATTRAX_TAPO_USERNAME')
+        password = os.environ.get('HEATTRAX_TAPO_PASSWORD')
+        
+        if not username and config_data:
+            username = config_data.get('devices', {}).get('credentials', {}).get('username')
+        if not password and config_data:
+            password = config_data.get('devices', {}).get('credentials', {}).get('password')
+        
+        # Get first device IP if not provided
+        test_ip = device_ip
+        if not test_ip and config_data:
+            groups = config_data.get('devices', {}).get('groups', {})
+            for group_name, group_config in groups.items():
+                items = group_config.get('items', [])
+                if items and len(items) > 0:
+                    test_ip = items[0].get('ip_address')
+                    if test_ip:
+                        print(f"\nUsing first configured device IP for connectivity check: {test_ip}")
+                        break
+        
+        # Perform Tapo connectivity check if we have all required info
+        if test_ip and username and password:
+            try:
+                import asyncio
+                result = asyncio.run(check_tapo_device_connectivity(test_ip, username, password))
+                tapo_check_performed = True
+                if not result:
+                    print(f"  ⚠ Tapo connectivity check failed, but this is non-critical")
+                    print(f"    The scheduler will attempt to connect during normal operation")
+            except Exception as e:
+                print(f"  ⚠ Could not perform Tapo connectivity check: {e}")
+        elif test_ip:
+            # Fall back to legacy check (will likely fail for Tapo devices)
+            print(f"\nNote: Tapo credentials not available, falling back to legacy connectivity check")
+            check_device_connectivity(test_ip)
+    
+    if not tapo_check_performed:
+        print(f"\nTapo device connectivity check: SKIPPED")
+        print(f"  To enable this check, ensure:")
+        print(f"    - Device IP is configured in config.yaml")
+        print(f"    - HEATTRAX_TAPO_USERNAME is set")
+        print(f"    - HEATTRAX_TAPO_PASSWORD is set")
     
     # 9. Outbound IP (optional, non-critical)
     check_outbound_ip()
