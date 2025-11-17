@@ -14,12 +14,18 @@ HeatTrax Scheduler includes a browser-based web UI for monitoring system status 
 - Last error messages (if any)
 
 ### Configuration Editor
-- Edit configuration directly in your browser
-- **Environment Override Display**: Clearly shows which settings are controlled by environment variables
-  - Settings overridden by env vars are displayed as read-only with the env var name
-  - Only YAML-backed settings can be edited via the UI
+- Edit configuration directly in your browser using a structured form
+- **Organized into sections**: Location, Weather, Device Credentials, Thresholds & Scheduler, Safety & Morning Mode, Logging, Health & Reboot, Notifications, and Web UI
+- **Environment Override Display**: Settings controlled by environment variables are shown as read-only with the env var name displayed
+  - Readonly fields are disabled and show helper text: "Set via env: ENV_VAR_NAME"
+  - Only YAML-backed settings can be edited via the form
   - Secrets (passwords, API keys) are masked in the display
-- Syntax validation before saving
+- **Field types matched to data**:
+  - Numbers use numeric inputs with appropriate step values
+  - Booleans use checkboxes
+  - Options (like log level, weather provider) use dropdown selects
+  - Secrets use password inputs
+- Validation before saving
 - Changes written to `config.yaml` atomically
 - Hot-reload for most settings (some require restart)
 - Secrets are preserved during updates
@@ -41,8 +47,18 @@ HeatTrax Scheduler includes a browser-based web UI for monitoring system status 
 
 4. **Edit configuration**:
    - Switch to Configuration tab
-   - **View environment overrides**: The top section shows settings controlled by environment variables (read-only)
-   - **Edit YAML settings**: Use the JSON editor below to modify settings not overridden by env vars
+   - **View environment overrides**: If any settings are controlled by environment variables, a blue info box at the top lists them
+   - **Edit settings**: Use the structured form with organized sections to modify settings
+     - Location: latitude, longitude, timezone
+     - Weather: weather enabled, provider, API keys
+     - Device Credentials: Tapo username and password
+     - Thresholds & Scheduler: temperature thresholds, lead/trailing times, intervals
+     - Safety & Morning Mode: max runtime, cooldown, morning mode configuration
+     - Logging: log level selection
+     - Health & Reboot: health check settings, reboot configuration
+     - Notifications: global settings, email configuration, webhook settings
+     - Web UI: bind host and port
+   - Fields that are environment-controlled show "Set via env: ENV_VAR_NAME" and are read-only
    - Click "Save Configuration" to apply changes
    - System validates before saving
 
@@ -298,7 +314,7 @@ The API will indicate when a restart is needed with `"restart_required": "true"`
 
 ### Secrets not being preserved
 
-This is normal behavior when secrets are masked (`********`). The system preserves the existing value when you save with a masked secret. To change a secret, provide the new value instead of `********`.
+This is normal behavior when secrets are masked (`********`). The form automatically preserves existing values when you save with masked secrets displayed. To change a secret, clear the field and enter the new value, or type over the masked placeholder.
 
 ## Advanced Usage
 
