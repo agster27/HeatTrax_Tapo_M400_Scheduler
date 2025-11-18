@@ -91,6 +91,12 @@ class EnhancedScheduler:
         else:
             self.health_server = None
             self.logger.info("Health check HTTP server disabled")
+        
+        # Event loop reference for thread-safe async operations
+        # This will be set in run() and used by web server to avoid creating ad-hoc loops
+        # for python-kasa device operations. All kasa device I/O must run on the same loop
+        # to prevent "Timeout context manager should be used inside a task" errors.
+        self.loop = None
     
     async def initialize(self):
         """Initialize the scheduler and device connections."""
@@ -687,8 +693,42 @@ class EnhancedScheduler:
         
         return expectations
     
+    def run_coro_in_loop(self, coro):
+        """
+        Execute a coroutine on the scheduler's event loop from another thread.
+        
+        This method allows the Flask web server (running in a separate thread) to safely
+        execute async python-kasa device operations on the scheduler's event loop.
+        All kasa device I/O must run on the same asyncio event loop to avoid runtime errors
+        such as "Timeout context manager should be used inside a task" and INTERNAL_QUERY_ERROR.
+        
+        Args:
+            coro: Coroutine to execute on the scheduler's event loop
+            
+        Returns:
+            Result of the coroutine execution
+            
+        Raises:
+            RuntimeError: If the scheduler loop is not initialized
+        """
+        if self.loop is None:
+            raise RuntimeError(
+                "Scheduler event loop not initialized. "
+                "Ensure the scheduler is running before calling this method."
+            )
+        
+        # Use asyncio.run_coroutine_threadsafe to schedule the coroutine on the scheduler's loop
+        # and block until it completes
+        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+        return future.result()
+    
     async def run(self):
         """Run the main scheduler loop."""
+        # Capture the running event loop for thread-safe access from web server
+        # This allows web server threads to execute async kasa operations on this loop
+        self.loop = asyncio.get_running_loop()
+        self.logger.info(f"Scheduler event loop initialized: {self.loop}")
+        
         await self.initialize()
         
         # Start health check service
