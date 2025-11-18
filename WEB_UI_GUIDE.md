@@ -27,7 +27,11 @@ HeatTrax Scheduler includes a browser-based web UI for monitoring system status 
   - Secrets use password inputs
 - Validation before saving
 - Changes written to `config.yaml` atomically
-- Hot-reload for most settings (some require restart)
+- **Automatic restart after save**: When you save configuration via the Web UI, the application will automatically restart to ensure the new configuration takes effect
+  - The restart is triggered by the process exiting (via `os._exit(0)`)
+  - With Docker's `restart: always` policy, the container restarts automatically
+  - The Web UI will become temporarily unavailable during the restart (typically 5-10 seconds)
+  - If running without a restart policy, you'll need to manually restart the container
 - Secrets are preserved during updates
 
 ## Quick Start
@@ -60,6 +64,11 @@ HeatTrax Scheduler includes a browser-based web UI for monitoring system status 
      - Web UI: bind host and port
    - Fields that are environment-controlled show "Set via env: ENV_VAR_NAME" and are read-only
    - Click "Save Configuration" to apply changes
+   - **Automatic restart**: After saving, the application will restart automatically to load the new configuration
+     - The Web UI will show a message: "Configuration saved! Application is restarting."
+     - The page will become temporarily unavailable (typically 5-10 seconds)
+     - Once the container has restarted, refresh the page to access the Web UI again
+     - This requires Docker's restart policy to be enabled (see Configuration section below)
    - System validates before saving
 
 ## Configuration
@@ -108,6 +117,32 @@ To allow access from other machines:
 3. Restart the container
 
 **Important**: Authentication is currently disabled. Only expose the web UI on trusted networks. Authentication support is planned for a future release.
+
+### Docker Restart Policy
+
+For the automatic restart feature to work when saving configuration via the Web UI, ensure your Docker container has a restart policy configured.
+
+In `docker-compose.yml` (recommended):
+```yaml
+services:
+  heattrax-scheduler:
+    restart: always  # Container will restart automatically after exit
+```
+
+When using `docker run`:
+```bash
+docker run --restart=always ...
+```
+
+**Available restart policies:**
+- `always`: Always restart the container when it stops
+- `unless-stopped`: Restart unless explicitly stopped
+- `on-failure`: Only restart on non-zero exit codes
+
+**Without a restart policy**: If you run the container without a restart policy, saving configuration via the Web UI will cause the application to exit. You'll need to manually restart the container:
+```bash
+docker start heattrax-scheduler
+```
 
 ## API Endpoints
 
@@ -237,6 +272,30 @@ Simple liveness check.
 }
 ```
 
+### POST /api/restart
+Trigger application restart by exiting the process. This endpoint is automatically called by the Web UI after saving configuration.
+
+**Important**: This endpoint requires a Docker restart policy (e.g., `restart: always`) to automatically restart the container after exit. Without a restart policy, the application will exit and require manual restart.
+
+**Request**: No body required (POST request only)
+
+**Response**:
+```json
+{
+  "status": "ok",
+  "message": "Application is restarting..."
+}
+```
+
+**Behavior**:
+- Logs restart request at WARNING level
+- Flushes all log handlers to ensure messages are written
+- Exits the process with `os._exit(0)` after a 0.5 second delay
+- Docker's restart policy automatically restarts the container
+- The Web UI will become temporarily unavailable (5-10 seconds)
+
+**Security**: This endpoint only accepts POST requests to prevent accidental restarts from simple link clicks.
+
 ## Secret Handling
 
 Secrets (passwords, API keys, etc.) are handled securely:
@@ -266,21 +325,27 @@ await fetch('/api/config', {
 });
 ```
 
-## Hot Reload vs. Restart Required
+## Automatic Restart on Config Save
 
-Most configuration changes take effect immediately without restarting:
-- Location settings
-- Weather thresholds
-- Notification settings
-- Logging levels
+**New in v1.2**: When you save configuration via the Web UI, the application automatically restarts to ensure all changes take effect immediately.
 
-Some changes require a restart:
-- Device group structure changes
-- Weather provider changes
-- Web server port changes
-- Health server port changes
+**How it works:**
+1. After successfully saving configuration, the Web UI calls the `/api/restart` endpoint
+2. The application logs the restart request and exits cleanly (via `os._exit(0)`)
+3. Docker's restart policy (e.g., `restart: always`) automatically restarts the container
+4. The new configuration is loaded when the container starts up
+5. After 5-10 seconds, you can refresh the page to access the Web UI again
 
-The API will indicate when a restart is needed with `"restart_required": "true"` in the response.
+**Benefits:**
+- No need to manually restart the container after configuration changes
+- All settings take effect immediately, including those that previously required restart
+- Consistent behavior for all configuration changes
+
+**Requirements:**
+- Docker restart policy must be configured (see Docker Restart Policy section above)
+- Without a restart policy, the application will exit and require manual restart
+
+**Note**: The Web UI will become temporarily unavailable during the restart. Wait 5-10 seconds and refresh the page to reconnect.
 
 ## Troubleshooting
 
