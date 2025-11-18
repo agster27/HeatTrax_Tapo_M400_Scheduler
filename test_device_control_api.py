@@ -44,6 +44,19 @@ class TestDeviceStatusAPI(unittest.TestCase):
         self.mock_device_manager = Mock()
         self.mock_scheduler.device_manager = self.mock_device_manager
         
+        # Mock run_coro_in_loop to execute coroutines synchronously
+        def mock_run_coro_in_loop(coro):
+            """Mock that executes coroutines synchronously for testing."""
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(coro)
+            finally:
+                loop.close()
+        
+        self.mock_scheduler.run_coro_in_loop = mock_run_coro_in_loop
+        
         # Create web server with mock scheduler
         self.web_server = WebServer(self.config_manager, scheduler=self.mock_scheduler)
         
