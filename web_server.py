@@ -331,7 +331,7 @@ class WebServer:
         Returns:
             HTML string
         """
-        return """<!DOCTYPE html>
+        return r"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -802,6 +802,193 @@ class WebServer:
             `;
         }
 
+        // Build Device Groups section
+        function buildDeviceGroupsSection(config) {
+            const groups = config.devices?.groups || {};
+            let html = '<h3>Device Groups</h3>';
+            html += '<div id="device-groups-container">';
+            
+            // Render each group
+            for (const [groupKey, groupConfig] of Object.entries(groups)) {
+                html += buildDeviceGroupCard(groupKey, groupConfig);
+            }
+            
+            html += '</div>';
+            html += '<div style="margin-top: 15px;"><button type="button" onclick="addDeviceGroup()" style="background: #27ae60;">➕ Add Group</button></div>';
+            
+            return html;
+        }
+        
+        // Build a single device group card
+        function buildDeviceGroupCard(groupKey, groupConfig) {
+            const groupId = `group-${groupKey.replace(/[^a-zA-Z0-9]/g, '-')}`;
+            const enabled = groupConfig.enabled !== false;  // Default true
+            const items = groupConfig.items || [];
+            
+            let html = `<div class="device-group-card" id="${groupId}" data-group-key="${groupKey}" style="background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; border: 2px solid #ddd;">`;
+            
+            // Header with group name and enabled checkbox
+            html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px;">';
+            html += '<div style="flex: 1;">';
+            html += `<label style="font-weight: 600; margin-right: 10px;">Group Name:</label>`;
+            html += `<input type="text" class="group-name-input" value="${groupKey}" style="padding: 8px; font-size: 16px; font-weight: 600; border: 1px solid #ddd; border-radius: 4px; min-width: 250px;" onchange="updateGroupKey('${groupKey}', this.value)">`;
+            html += '</div>';
+            html += '<div>';
+            html += `<label style="margin-right: 10px;"><input type="checkbox" class="group-enabled-input" ${enabled ? 'checked' : ''}> Enabled</label>`;
+            html += `<button type="button" onclick="deleteDeviceGroup('${groupKey}')" style="background: #e74c3c; margin-left: 10px;">🗑️ Delete Group</button>`;
+            html += '</div>';
+            html += '</div>';
+            
+            // Items table
+            html += '<div class="group-items-container">';
+            html += '<table style="width: 100%; border-collapse: collapse;">';
+            html += '<thead><tr style="background: #ecf0f1;">';
+            html += '<th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Device Name</th>';
+            html += '<th style="padding: 10px; text-align: left; border: 1px solid #ddd;">IP Address</th>';
+            html += '<th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Outlets (CSV)</th>';
+            html += '<th style="padding: 10px; text-align: center; border: 1px solid #ddd; width: 100px;">Actions</th>';
+            html += '</tr></thead>';
+            html += '<tbody class="group-items-tbody">';
+            
+            items.forEach((item, idx) => {
+                html += buildDeviceItemRow(groupKey, item, idx);
+            });
+            
+            html += '</tbody>';
+            html += '</table>';
+            html += `<div style="margin-top: 10px;"><button type="button" onclick="addDeviceItem('${groupKey}')" style="background: #3498db;">➕ Add Device</button></div>`;
+            html += '</div>';
+            
+            html += '</div>';
+            return html;
+        }
+        
+        // Build a single device item row
+        function buildDeviceItemRow(groupKey, item, idx) {
+            const outlets = item.outlets ? item.outlets.join(', ') : '';
+            const rowId = `item-${groupKey}-${idx}`;
+            
+            let html = `<tr id="${rowId}" class="device-item-row" data-group-key="${groupKey}">`;
+            html += `<td style="padding: 10px; border: 1px solid #ddd;"><input type="text" class="item-name-input" value="${item.name || ''}" placeholder="Device Name (required)" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 3px;"></td>`;
+            html += `<td style="padding: 10px; border: 1px solid #ddd;"><input type="text" class="item-ip-input" value="${item.ip_address || ''}" placeholder="192.168.1.100 (required)" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 3px;"></td>`;
+            html += `<td style="padding: 10px; border: 1px solid #ddd;"><input type="text" class="item-outlets-input" value="${outlets}" placeholder="0, 1 (optional)" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 3px;"></td>`;
+            html += `<td style="padding: 10px; border: 1px solid #ddd; text-align: center;"><button type="button" onclick="deleteDeviceItem('${groupKey}', ${idx})" style="background: #e74c3c; padding: 5px 10px;">🗑️</button></td>`;
+            html += '</tr>';
+            return html;
+        }
+        
+        // Add a new device group
+        function addDeviceGroup() {
+            const newGroupName = prompt('Enter a name for the new device group:');
+            if (!newGroupName || newGroupName.trim() === '') {
+                return;
+            }
+            
+            // Normalize group name (replace spaces with underscores, lowercase)
+            const normalizedName = newGroupName.trim().toLowerCase().replace(/\\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+            
+            // Check if group already exists
+            const container = document.getElementById('device-groups-container');
+            const existingGroups = container.querySelectorAll('.device-group-card');
+            for (const card of existingGroups) {
+                if (card.dataset.groupKey === normalizedName) {
+                    alert(`A group named "${normalizedName}" already exists!`);
+                    return;
+                }
+            }
+            
+            // Create new group card
+            const newGroupConfig = {
+                enabled: true,
+                items: []
+            };
+            
+            const newCardHtml = buildDeviceGroupCard(normalizedName, newGroupConfig);
+            container.insertAdjacentHTML('beforeend', newCardHtml);
+        }
+        
+        // Delete a device group
+        function deleteDeviceGroup(groupKey) {
+            if (!confirm(`Are you sure you want to delete group '${groupKey}'?`)) {
+                return;
+            }
+            
+            const groupCard = document.querySelector(`.device-group-card[data-group-key="${groupKey}"]`);
+            if (groupCard) {
+                groupCard.remove();
+            }
+        }
+        
+        // Add a device item to a group
+        function addDeviceItem(groupKey) {
+            const groupCard = document.querySelector(`.device-group-card[data-group-key="${groupKey}"]`);
+            if (!groupCard) return;
+            
+            const tbody = groupCard.querySelector('.group-items-tbody');
+            const currentItems = tbody.querySelectorAll('.device-item-row').length;
+            
+            const newItem = {
+                name: '',
+                ip_address: '',
+                outlets: []
+            };
+            
+            const newRowHtml = buildDeviceItemRow(groupKey, newItem, currentItems);
+            tbody.insertAdjacentHTML('beforeend', newRowHtml);
+        }
+        
+        // Delete a device item
+        function deleteDeviceItem(groupKey, itemIdx) {
+            const groupCard = document.querySelector(`.device-group-card[data-group-key="${groupKey}"]`);
+            if (!groupCard) return;
+            
+            const rows = groupCard.querySelectorAll('.device-item-row');
+            if (rows[itemIdx]) {
+                rows[itemIdx].remove();
+            }
+        }
+        
+        // Update group key when group name is changed
+        function updateGroupKey(oldKey, newKey) {
+            if (!newKey || newKey.trim() === '') {
+                alert('Group name cannot be empty!');
+                // Restore old value
+                const groupCard = document.querySelector(`.device-group-card[data-group-key="${oldKey}"]`);
+                if (groupCard) {
+                    const input = groupCard.querySelector('.group-name-input');
+                    if (input) input.value = oldKey;
+                }
+                return;
+            }
+            
+            // Normalize new key
+            const normalizedKey = newKey.trim().toLowerCase().replace(/\\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+            
+            // Check if already exists
+            if (normalizedKey !== oldKey) {
+                const existingCard = document.querySelector(`.device-group-card[data-group-key="${normalizedKey}"]`);
+                if (existingCard) {
+                    alert(`A group named "${normalizedKey}" already exists!`);
+                    // Restore old value
+                    const groupCard = document.querySelector(`.device-group-card[data-group-key="${oldKey}"]`);
+                    if (groupCard) {
+                        const input = groupCard.querySelector('.group-name-input');
+                        if (input) input.value = oldKey;
+                    }
+                    return;
+                }
+            }
+            
+            // Update the card's data attribute
+            const groupCard = document.querySelector(`.device-group-card[data-group-key="${oldKey}"]`);
+            if (groupCard) {
+                groupCard.dataset.groupKey = normalizedKey;
+                // Update input value to normalized version
+                const input = groupCard.querySelector('.group-name-input');
+                if (input) input.value = normalizedKey;
+            }
+        }
+
         // Build the form from annotated config
         function buildConfigForm(annotatedConfig) {
             const config = extractConfigValues(annotatedConfig);
@@ -824,6 +1011,9 @@ class WebServer:
                     html += createFormField(fieldDef, metadata, displayValue);
                 }
             }
+            
+            // Add Device Groups section after Device Credentials
+            html += buildDeviceGroupsSection(config);
             
             form.innerHTML = html;
             
@@ -869,7 +1059,7 @@ class WebServer:
             
             for (const [sectionName, fields] of Object.entries(FORM_FIELDS)) {
                 for (const fieldDef of fields) {
-                    const fieldId = 'field-' + fieldDef.path.replace(/\./g, '-');
+                    const fieldId = 'field-' + fieldDef.path.replace(/\\./g, '-');
                     const element = document.getElementById(fieldId);
                     
                     if (!element) continue;
@@ -892,7 +1082,65 @@ class WebServer:
                 }
             }
             
+            // Collect device groups
+            config.devices = config.devices || {};
+            config.devices.groups = collectDeviceGroups();
+            
             return config;
+        }
+        
+        // Collect device groups from the UI
+        function collectDeviceGroups() {
+            const groups = {};
+            const groupCards = document.querySelectorAll('.device-group-card');
+            
+            groupCards.forEach(card => {
+                const groupKey = card.dataset.groupKey;
+                const enabledInput = card.querySelector('.group-enabled-input');
+                const enabled = enabledInput ? enabledInput.checked : true;
+                
+                // Collect items
+                const items = [];
+                const itemRows = card.querySelectorAll('.device-item-row');
+                
+                itemRows.forEach(row => {
+                    const nameInput = row.querySelector('.item-name-input');
+                    const ipInput = row.querySelector('.item-ip-input');
+                    const outletsInput = row.querySelector('.item-outlets-input');
+                    
+                    const name = nameInput ? nameInput.value.trim() : '';
+                    const ip_address = ipInput ? ipInput.value.trim() : '';
+                    const outletsStr = outletsInput ? outletsInput.value.trim() : '';
+                    
+                    // Only include items with both name and IP
+                    if (name && ip_address) {
+                        const item = {
+                            name: name,
+                            ip_address: ip_address
+                        };
+                        
+                        // Parse outlets if provided
+                        if (outletsStr) {
+                            const outlets = outletsStr.split(',')
+                                .map(s => parseInt(s.trim()))
+                                .filter(n => !isNaN(n) && n >= 0);
+                            
+                            if (outlets.length > 0) {
+                                item.outlets = outlets;
+                            }
+                        }
+                        
+                        items.push(item);
+                    }
+                });
+                
+                groups[groupKey] = {
+                    enabled: enabled,
+                    items: items
+                };
+            });
+            
+            return groups;
         }
 
         // Show environment overrides info
