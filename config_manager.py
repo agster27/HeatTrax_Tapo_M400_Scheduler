@@ -326,6 +326,50 @@ class ConfigManager:
             if field not in credentials:
                 raise ConfigValidationError(f"devices.credentials must include {field}")
         
+        # Validate device groups
+        if 'groups' in devices:
+            groups = devices['groups']
+            if not isinstance(groups, dict):
+                raise ConfigValidationError("devices.groups must be a dictionary")
+            
+            for group_name, group_config in groups.items():
+                if not isinstance(group_config, dict):
+                    raise ConfigValidationError(f"devices.groups.{group_name} must be a dictionary")
+                
+                # Validate enabled field if present
+                if 'enabled' in group_config:
+                    if not isinstance(group_config['enabled'], bool):
+                        raise ConfigValidationError(f"devices.groups.{group_name}.enabled must be a boolean")
+                
+                # Validate items
+                if 'items' in group_config:
+                    items = group_config['items']
+                    if not isinstance(items, list):
+                        raise ConfigValidationError(f"devices.groups.{group_name}.items must be a list")
+                    
+                    for idx, item in enumerate(items):
+                        if not isinstance(item, dict):
+                            raise ConfigValidationError(f"devices.groups.{group_name}.items[{idx}] must be a dictionary")
+                        
+                        # Validate required fields
+                        if 'name' not in item or not item['name']:
+                            raise ConfigValidationError(f"devices.groups.{group_name}.items[{idx}] must include 'name' field")
+                        
+                        if 'ip_address' not in item or not item['ip_address']:
+                            raise ConfigValidationError(f"devices.groups.{group_name}.items[{idx}] must include 'ip_address' field")
+                        
+                        # Validate outlets if present
+                        if 'outlets' in item:
+                            outlets = item['outlets']
+                            if not isinstance(outlets, list):
+                                raise ConfigValidationError(f"devices.groups.{group_name}.items[{idx}].outlets must be a list")
+                            
+                            for outlet_idx, outlet in enumerate(outlets):
+                                if not isinstance(outlet, int) or outlet < 0:
+                                    raise ConfigValidationError(
+                                        f"devices.groups.{group_name}.items[{idx}].outlets[{outlet_idx}] must be a non-negative integer"
+                                    )
+        
         # Validate thresholds
         thresholds = config['thresholds']
         if not isinstance(thresholds, dict):
