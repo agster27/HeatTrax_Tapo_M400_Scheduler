@@ -134,12 +134,16 @@ class DeviceGroupManager:
         """
         all_devices = []
         
+        logger.debug(f"Getting status for {len(self.groups)} group(s)")
+        
         for group_name, group in self.groups.items():
             devices_status = await group.get_devices_status()
+            logger.debug(f"Group '{group_name}': retrieved status for {len(devices_status)} device(s)")
             for device_status in devices_status:
                 device_status['group'] = group_name
                 all_devices.append(device_status)
         
+        logger.info(f"Retrieved status for {len(all_devices)} total device(s) across all groups")
         return all_devices
     
     async def control_device_outlet(self, group_name: str, device_name: str, 
