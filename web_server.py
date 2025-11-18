@@ -547,6 +547,39 @@ class WebServer:
     </div>
 
     <script>
+        // Module-level variables to track the last full config
+        let lastAnnotatedConfig = null;
+        let lastRawConfig = null;
+
+        // Deep merge helper function
+        // Recursively merges source into target, replacing arrays entirely
+        function deepMerge(target, source) {
+            const result = {};
+            
+            // Copy all properties from target
+            for (const key in target) {
+                if (target.hasOwnProperty(key)) {
+                    result[key] = target[key];
+                }
+            }
+            
+            // Merge properties from source
+            for (const key in source) {
+                if (source.hasOwnProperty(key)) {
+                    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key]) &&
+                        result[key] && typeof result[key] === 'object' && !Array.isArray(result[key])) {
+                        // Recursively merge nested objects
+                        result[key] = deepMerge(result[key], source[key]);
+                    } else {
+                        // Replace value (including arrays)
+                        result[key] = source[key];
+                    }
+                }
+            }
+            
+            return result;
+        }
+
         // Tab switching
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -1212,6 +1245,10 @@ class WebServer:
                 const response = await fetch('/api/config');
                 const annotatedConfig = await response.json();
                 
+                // Store the last full config for merging during save
+                lastAnnotatedConfig = annotatedConfig;
+                lastRawConfig = extractConfigValues(annotatedConfig);
+                
                 // Build the form
                 buildConfigForm(annotatedConfig);
                 
@@ -1226,21 +1263,42 @@ class WebServer:
             message.innerHTML = '';
             
             try {
-                // Collect form values
-                const config = collectFormValues();
+                // Ensure we have a baseline config to merge into
+                if (!lastRawConfig) {
+                    // If for some reason we don't have lastRawConfig, fetch it now
+                    try {
+                        const response = await fetch('/api/config');
+                        const annotatedConfig = await response.json();
+                        lastAnnotatedConfig = annotatedConfig;
+                        lastRawConfig = extractConfigValues(annotatedConfig);
+                    } catch (fetchError) {
+                        message.innerHTML = '<div class="error">❌ Error: Could not load current configuration. Please reload the page and try again.</div>';
+                        return;
+                    }
+                }
                 
-                // Send to API
+                // Collect form values (these are the edited values)
+                const formConfig = collectFormValues();
+                
+                // Merge form values into the last raw config to ensure all required sections are present
+                // Use structuredClone to avoid modifying lastRawConfig
+                const fullConfig = deepMerge(structuredClone(lastRawConfig), formConfig);
+                
+                // Send the full merged config to API
                 const response = await fetch('/api/config', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(config)
+                    body: JSON.stringify(fullConfig)
                 });
                 
                 const result = await response.json();
                 
                 if (result.status === 'ok') {
+                    // Update lastRawConfig with the successfully saved config
+                    lastRawConfig = fullConfig;
+                    
                     message.innerHTML = '<div class="success">✅ Configuration saved successfully! Restarting...</div>';
                     
                     // Trigger restart after a short delay to let the message render
