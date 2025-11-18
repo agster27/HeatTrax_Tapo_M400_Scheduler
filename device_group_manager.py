@@ -117,6 +117,72 @@ class DeviceGroupManager:
         """Get list of all group names."""
         return list(self.groups.keys())
     
+    async def get_all_devices_status(self) -> List[Dict[str, Any]]:
+        """
+        Get detailed status of all devices across all groups.
+        
+        This method queries each device to get its current state, including:
+        - Device reachability (whether the device responds to queries)
+        - Individual outlet states (on/off for each outlet)
+        - Any error conditions (connection failures, timeouts, etc.)
+        
+        Unreachable devices are included in the results with reachable=False
+        and an error message, rather than raising exceptions.
+        
+        Returns:
+            List of device status dictionaries with device info and outlet states
+        """
+        all_devices = []
+        
+        for group_name, group in self.groups.items():
+            devices_status = await group.get_devices_status()
+            for device_status in devices_status:
+                device_status['group'] = group_name
+                all_devices.append(device_status)
+        
+        return all_devices
+    
+    async def control_device_outlet(self, group_name: str, device_name: str, 
+                                    outlet_index: Optional[int], action: str) -> Dict[str, Any]:
+        """
+        Control a specific device or outlet.
+        
+        This method provides manual control of devices and outlets, bypassing
+        the scheduler's automated logic. Use cases include:
+        - Emergency shutoff of malfunctioning devices
+        - Manual override for special circumstances
+        - Testing device functionality
+        
+        Note: Manual control is temporary. The scheduler will reassert control
+        on its next evaluation cycle (typically check_interval_minutes).
+        The scheduler does not persist or remember manual overrides.
+        
+        Args:
+            group_name: Name of the group containing the device
+            device_name: Name of the device
+            outlet_index: Outlet index (None for entire device)
+            action: 'on' or 'off'
+            
+        Returns:
+            Dictionary with status of the control operation:
+            {
+                'success': bool,
+                'device': str,
+                'outlet': int or None,
+                'action': str,
+                'error': str or None
+            }
+        """
+        if group_name not in self.groups:
+            return {
+                'success': False,
+                'error': f"Group '{group_name}' not found"
+            }
+        
+        return await self.groups[group_name].control_device_outlet(
+            device_name, outlet_index, action
+        )
+    
     async def close(self):
         """Close all device connections."""
         logger.info("Closing all device group connections...")
@@ -207,6 +273,50 @@ class DeviceGroup:
         
         # Return True if any device is on (and didn't fail)
         return any(state is True for state in states if not isinstance(state, Exception))
+    
+    async def get_devices_status(self) -> List[Dict[str, Any]]:
+        """
+        Get detailed status of all devices in the group.
+        
+        Returns:
+            List of device status dictionaries
+        """
+        devices_status = []
+        
+        for device in self.devices:
+            status = await device.get_detailed_status()
+            devices_status.append(status)
+        
+        return devices_status
+    
+    async def control_device_outlet(self, device_name: str, outlet_index: Optional[int], 
+                                    action: str) -> Dict[str, Any]:
+        """
+        Control a specific device or outlet in the group.
+        
+        Args:
+            device_name: Name of the device
+            outlet_index: Outlet index (None for entire device)
+            action: 'on' or 'off'
+            
+        Returns:
+            Dictionary with status of the control operation
+        """
+        # Find the device
+        target_device = None
+        for device in self.devices:
+            if device.name == device_name:
+                target_device = device
+                break
+        
+        if not target_device:
+            return {
+                'success': False,
+                'error': f"Device '{device_name}' not found in group '{self.name}'"
+            }
+        
+        # Control the device/outlet
+        return await target_device.control_outlet(outlet_index, action)
     
     async def close(self):
         """Close all device connections."""
@@ -368,6 +478,129 @@ class ManagedDevice:
         except Exception as e:
             logger.error(f"Failed to get state of device '{self.name}': {e}")
             raise DeviceControllerError(f"Failed to get state of device '{self.name}': {e}")
+    
+    async def get_detailed_status(self) -> Dict[str, Any]:
+        """
+        Get detailed status of the device including outlet states.
+        
+        Returns:
+            Dictionary with device information and outlet states
+        """
+        status = {
+            'name': self.name,
+            'ip_address': self.ip_address,
+            'reachable': False,
+            'has_outlets': False,
+            'outlets': [],
+            'error': None
+        }
+        
+        try:
+            if not self._initialized:
+                await self.initialize()
+            
+            await self.device.update()
+            status['reachable'] = True
+            
+            # Check if device has children (outlets)
+            if hasattr(self.device, 'children') and self.device.children:
+                status['has_outlets'] = True
+                num_outlets = len(self.device.children)
+                
+                for i in range(num_outlets):
+                    child = self.device.children[i]
+                    outlet_info = {
+                        'index': i,
+                        'is_on': child.is_on,
+                        'alias': getattr(child, 'alias', f'Outlet {i}'),
+                        'controlled': i in self.outlets if self.outlets else True
+                    }
+                    status['outlets'].append(outlet_info)
+            else:
+                # Single device (no outlets)
+                status['outlets'].append({
+                    'index': None,
+                    'is_on': self.device.is_on,
+                    'alias': getattr(self.device, 'alias', self.name),
+                    'controlled': True
+                })
+            
+        except Exception as e:
+            logger.error(f"Failed to get detailed status for device '{self.name}': {e}")
+            status['error'] = str(e)
+        
+        return status
+    
+    async def control_outlet(self, outlet_index: Optional[int], action: str) -> Dict[str, Any]:
+        """
+        Control a specific outlet or the entire device.
+        
+        Args:
+            outlet_index: Outlet index (None for entire device)
+            action: 'on' or 'off'
+            
+        Returns:
+            Dictionary with status of the control operation
+        """
+        result = {
+            'success': False,
+            'device': self.name,
+            'outlet': outlet_index,
+            'action': action,
+            'error': None
+        }
+        
+        try:
+            if not self._initialized:
+                await self.initialize()
+            
+            await self.device.update()
+            
+            # Validate action
+            if action not in ['on', 'off']:
+                result['error'] = f"Invalid action: {action}. Must be 'on' or 'off'"
+                return result
+            
+            # Control specific outlet
+            if outlet_index is not None:
+                if not hasattr(self.device, 'children') or not self.device.children:
+                    result['error'] = "Device has no outlets"
+                    return result
+                
+                if outlet_index >= len(self.device.children):
+                    result['error'] = f"Outlet index {outlet_index} out of range (device has {len(self.device.children)} outlets)"
+                    return result
+                
+                child = self.device.children[outlet_index]
+                
+                if action == 'on':
+                    await child.turn_on()
+                    logger.info(f"Manually turned ON outlet {outlet_index} on device '{self.name}'")
+                else:
+                    await child.turn_off()
+                    logger.info(f"Manually turned OFF outlet {outlet_index} on device '{self.name}'")
+                
+            else:
+                # Control entire device
+                if action == 'on':
+                    await self.device.turn_on()
+                    logger.info(f"Manually turned ON device '{self.name}'")
+                else:
+                    await self.device.turn_off()
+                    logger.info(f"Manually turned OFF device '{self.name}'")
+            
+            # Verify state after action
+            await asyncio.sleep(1)
+            await self.device.update()
+            
+            result['success'] = True
+            logger.info(f"Successfully {action} device '{self.name}' outlet {outlet_index}")
+            
+        except Exception as e:
+            logger.error(f"Failed to control device '{self.name}' outlet {outlet_index}: {e}")
+            result['error'] = str(e)
+        
+        return result
     
     async def close(self):
         """Close connection to the device."""

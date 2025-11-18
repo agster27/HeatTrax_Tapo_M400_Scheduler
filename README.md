@@ -6,6 +6,7 @@ Automated control system for TP-Link Kasa/Tapo smart plugs to manage heated outd
 
 - **[Quick Start Guide](QUICKSTART.md)** - 5-minute setup guide
 - **[Setup Instructions](SETUP.md)** - Detailed installation and configuration
+- **[Manual Device Control](MANUAL_CONTROL.md)** - Manual control of devices and outlets via Web UI
 - **[Environment Variables Reference](ENVIRONMENT_VARIABLES.md)** - Complete environment variable documentation
 - **[Logging Guide](LOGGING.md)** - Troubleshooting and logging information
 - **[Startup Checks](STARTUP_CHECKS.md)** - Debugging containerized deployments
@@ -18,6 +19,7 @@ HeatTrax Scheduler now includes a **browser-based web UI** for easy monitoring a
 
 - ✅ **Web UI & JSON API** for monitoring and configuration
 - ✅ **Real-time status** of devices, weather, and scheduler
+- ✅ **Manual device control** - Turn devices and outlets on/off from the Health page
 - ✅ **Configuration editor** with validation and hot-reload
 - ✅ **Secure by default** - binds to localhost only
 - ✅ **Multi-device group support** with independent automation rules
@@ -56,6 +58,7 @@ After starting the container:
 ### Web UI & API
 - **Browser-based Interface**: Monitor and configure your system from any device
   - Real-time status dashboard showing device states and weather info
+  - **Manual device control** on Health page - Turn devices/outlets ON/OFF instantly
   - Configuration editor with syntax validation
   - **Environment override visibility**: See which settings are controlled by env vars
   - Clear separation between editable (YAML) and read-only (env) configuration
@@ -67,6 +70,8 @@ After starting the container:
   - `POST /api/config` - Update configuration with validation
   - `GET /api/health` - Health check endpoint
   - `GET /api/ping` - Simple liveness check
+  - `GET /api/devices/status` - Detailed device and outlet states
+  - `POST /api/devices/control` - Manual device/outlet control
 - **Configuration as Code**: `config.yaml` is the single source of truth
   - Auto-generated on first run if missing
   - Environment variables override YAML values at runtime
