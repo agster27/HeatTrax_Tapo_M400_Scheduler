@@ -40,7 +40,7 @@ After starting the container:
 1. Open your browser to `http://localhost:4328` (or the host/port you configured)
 2. View real-time system status and device information
 3. Edit configuration directly in the browser with validation
-4. Changes are written to `config.yaml` and applied without restart (where possible)
+4. **Auto-restart on save**: Configuration changes trigger an automatic container restart to apply all settings immediately
 
 **Network Access**: By default, the web UI binds to `127.0.0.1` (localhost only) for security. To access from other machines:
 - Set environment variable: `HEATTRAX_WEB_HOST=0.0.0.0` (recommended for Docker)
@@ -48,6 +48,8 @@ After starting the container:
 - Change port with: `HEATTRAX_WEB_PORT=8080` (environment) or `web.port: 8080` (YAML)
 
 **Security Note**: When binding to `0.0.0.0`, the web UI is accessible from other machines on your network. Ensure your network is secure. Authentication is planned for future releases.
+
+**Restart Policy**: The auto-restart feature requires Docker's restart policy (e.g., `restart: always` in docker-compose.yml). See [WEB_UI_GUIDE.md](WEB_UI_GUIDE.md) for details.
 
 ## Features
 

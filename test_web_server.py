@@ -99,14 +99,22 @@ class TestWebServerAPI(unittest.TestCase):
         self.assertIn('devices', data)
         self.assertIn('web', data)
         
+        # Check that config is annotated with metadata
+        self.assertIn('value', data['devices']['credentials']['password'])
+        self.assertIn('source', data['devices']['credentials']['password'])
+        self.assertIn('readonly', data['devices']['credentials']['password'])
+        
         # Secrets should be masked
-        self.assertEqual(data['devices']['credentials']['password'], '********')
+        self.assertEqual(data['devices']['credentials']['password']['value'], '********')
     
     def test_config_put_endpoint_success(self):
         """Test PUT /api/config endpoint with valid config."""
         # Get current config
         response = self.client.get('/api/config')
-        config = json.loads(response.data)
+        annotated_config = json.loads(response.data)
+        
+        # Extract plain values for updating
+        config = self._extract_values(annotated_config)
         
         # Modify config
         config['thresholds']['temperature_f'] = 30
@@ -126,9 +134,25 @@ class TestWebServerAPI(unittest.TestCase):
         
         # Verify changes
         response = self.client.get('/api/config')
-        updated_config = json.loads(response.data)
+        updated_annotated = json.loads(response.data)
+        updated_config = self._extract_values(updated_annotated)
         self.assertEqual(updated_config['thresholds']['temperature_f'], 30)
         self.assertEqual(updated_config['location']['latitude'], 42.0)
+    
+    def _extract_values(self, annotated):
+        """Helper to extract plain values from annotated config."""
+        if not isinstance(annotated, dict):
+            return annotated
+        
+        # Check if this is a field with metadata
+        if 'value' in annotated and 'source' in annotated:
+            return annotated['value']
+        
+        # Recursively process nested objects
+        result = {}
+        for key, value in annotated.items():
+            result[key] = self._extract_values(value)
+        return result
     
     def test_config_put_endpoint_validation_error(self):
         """Test PUT /api/config endpoint with invalid config."""
@@ -202,12 +226,15 @@ class TestWebServerAPI(unittest.TestCase):
         full_config['devices']['credentials']['password'] = 'actual_secret_password'
         self.config_manager.update_config(full_config, preserve_secrets=False)
         
-        # Get current config (secrets masked)
+        # Get current config (secrets masked and annotated)
         response = self.client.get('/api/config')
-        config = json.loads(response.data)
+        annotated_config = json.loads(response.data)
         
-        # Verify password is masked
-        self.assertEqual(config['devices']['credentials']['password'], '********')
+        # Verify password is masked in annotated format
+        self.assertEqual(annotated_config['devices']['credentials']['password']['value'], '********')
+        
+        # Extract plain values for updating
+        config = self._extract_values(annotated_config)
         
         # Update config (with masked password)
         config['thresholds']['temperature_f'] = 33
@@ -229,7 +256,10 @@ class TestWebServerAPI(unittest.TestCase):
         """Test that restart_required flag is set for structural changes."""
         # Get current config
         response = self.client.get('/api/config')
-        config = json.loads(response.data)
+        annotated_config = json.loads(response.data)
+        
+        # Extract plain values
+        config = self._extract_values(annotated_config)
         
         # Change web port (requires restart)
         config['web']['port'] = 5000
@@ -245,6 +275,33 @@ class TestWebServerAPI(unittest.TestCase):
         data = json.loads(response.data)
         self.assertEqual(data['status'], 'ok')
         self.assertEqual(data['restart_required'], 'true')
+    
+    def test_restart_endpoint_post(self):
+        """Test POST /api/restart endpoint."""
+        # Mock os._exit to prevent actual process termination
+        import unittest.mock as mock
+        with mock.patch('os._exit') as mock_exit:
+            response = self.client.post('/api/restart')
+            
+            self.assertEqual(response.status_code, 200)
+            
+            data = json.loads(response.data)
+            self.assertEqual(data['status'], 'ok')
+            self.assertIn('restarting', data['message'].lower())
+            
+            # Give the delayed thread time to execute
+            import time
+            time.sleep(1)
+            
+            # Verify os._exit was called
+            mock_exit.assert_called_once_with(0)
+    
+    def test_restart_endpoint_get_not_allowed(self):
+        """Test that GET /api/restart is not allowed."""
+        response = self.client.get('/api/restart')
+        
+        # Should return 405 Method Not Allowed
+        self.assertEqual(response.status_code, 405)
 
 
 if __name__ == '__main__':

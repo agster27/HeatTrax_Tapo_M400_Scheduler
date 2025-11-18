@@ -260,6 +260,44 @@ class WebServer:
                     'message': f'Failed to update configuration: {str(e)}'
                 }), 500
         
+        @self.app.route('/api/restart', methods=['POST'])
+        def api_restart():
+            """
+            Trigger application restart by exiting the process.
+            
+            This endpoint should only be called after saving configuration.
+            When running in Docker with a restart policy (e.g., restart: always),
+            the container will automatically restart and load the new configuration.
+            
+            Returns:
+                JSON: Confirmation message before process exits
+            """
+            logger.warning("Restart requested via Web UI. Process will exit now.")
+            logger.warning("Container should restart automatically with restart policy.")
+            
+            # Flush all log handlers to ensure messages are written
+            for handler in logging.root.handlers:
+                handler.flush()
+            
+            # Return response first
+            response = jsonify({
+                'status': 'ok',
+                'message': 'Application is restarting...'
+            })
+            
+            # Schedule exit after response is sent
+            # Use os._exit(0) to immediately terminate without cleanup
+            # This is intentional - we want Docker to restart the container
+            import threading
+            def delayed_exit():
+                import time
+                time.sleep(0.5)  # Give time for response to be sent
+                os._exit(0)
+            
+            threading.Thread(target=delayed_exit, daemon=True).start()
+            
+            return response
+        
         @self.app.route('/web/<path:filename>')
         def serve_web_file(filename):
             """Serve static web files."""
@@ -955,14 +993,21 @@ class WebServer:
                 const result = await response.json();
                 
                 if (result.status === 'ok') {
-                    let msg = '<div class="success">✅ Configuration saved successfully!</div>';
-                    if (result.restart_required === 'true') {
-                        msg += '<div class="warning" style="margin-top: 10px;">⚠️ Some changes require a restart to take effect.</div>';
-                    }
-                    message.innerHTML = msg;
+                    message.innerHTML = '<div class="success">✅ Configuration saved successfully! Restarting...</div>';
                     
-                    // Reload config to show any server-side changes
-                    setTimeout(loadConfig, 1000);
+                    // Trigger restart after a short delay to let the message render
+                    setTimeout(async () => {
+                        try {
+                            await fetch('/api/restart', {
+                                method: 'POST'
+                            });
+                            // After restart is triggered, show additional message
+                            message.innerHTML = '<div class="success">✅ Configuration saved! Application is restarting. This page will become unavailable temporarily.</div>';
+                        } catch (e) {
+                            // Connection will be lost when the process exits, this is expected
+                            message.innerHTML = '<div class="success">✅ Configuration saved! Application is restarting. Please wait a moment and refresh the page.</div>';
+                        }
+                    }, 500);
                 } else {
                     message.innerHTML = `<div class="error">❌ Failed to save: ${result.message}</div>`;
                 }
