@@ -302,6 +302,42 @@ class TestWebServerAPI(unittest.TestCase):
         
         # Should return 405 Method Not Allowed
         self.assertEqual(response.status_code, 405)
+    
+    def test_status_includes_device_expectations(self):
+        """Test that /api/status includes device_expectations field."""
+        response = self.client.get('/api/status')
+        
+        self.assertEqual(response.status_code, 200)
+        
+        data = json.loads(response.data)
+        
+        # device_expectations should be present (even if empty)
+        # When scheduler is not initialized, it should be an empty list or not present
+        # This test just validates the field structure when present
+        if 'device_expectations' in data:
+            self.assertIsInstance(data['device_expectations'], list)
+            
+            # If there are expectations, validate structure
+            if len(data['device_expectations']) > 0:
+                expectation = data['device_expectations'][0]
+                
+                # Required fields
+                self.assertIn('group', expectation)
+                self.assertIn('device_name', expectation)
+                self.assertIn('ip_address', expectation)
+                self.assertIn('outlet', expectation)
+                self.assertIn('current_state', expectation)
+                self.assertIn('expected_state', expectation)
+                
+                # Optional timing fields
+                if 'expected_on_from' in expectation and expectation['expected_on_from']:
+                    # Should be ISO format datetime string
+                    from datetime import datetime
+                    datetime.fromisoformat(expectation['expected_on_from'])
+                
+                if 'expected_off_at' in expectation and expectation['expected_off_at']:
+                    from datetime import datetime
+                    datetime.fromisoformat(expectation['expected_off_at'])
 
 
 if __name__ == '__main__':

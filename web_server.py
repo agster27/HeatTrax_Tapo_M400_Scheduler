@@ -487,16 +487,73 @@ class WebServer:
             background: none;
             border: none;
             border-bottom: 3px solid transparent;
+            color: #000;
         }
         .tab.active {
             border-bottom-color: #3498db;
             font-weight: 600;
+            color: #000;
         }
         .tab-content {
             display: none;
         }
         .tab-content.active {
             display: block;
+        }
+        .device-health-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .device-health-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+        }
+        .device-health-item.match {
+            border-left-color: #27ae60;
+        }
+        .device-health-item.mismatch {
+            border-left-color: #e74c3c;
+        }
+        .device-health-item .device-name {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        .device-health-item .device-detail {
+            font-size: 13px;
+            color: #555;
+            margin: 4px 0;
+        }
+        .device-health-item .device-detail label {
+            font-weight: 600;
+            margin-right: 5px;
+        }
+        .health-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .health-summary-item {
+            padding: 15px;
+            background: #e8f4f8;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .health-summary-item .value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .health-summary-item .label {
+            font-size: 12px;
+            color: #555;
+            margin-top: 5px;
         }
     </style>
 </head>
@@ -515,6 +572,7 @@ class WebServer:
         <div class="tabs">
             <button class="tab active" onclick="switchTab('status')">Status</button>
             <button class="tab" onclick="switchTab('config')">Configuration</button>
+            <button class="tab" onclick="switchTab('health')">Health</button>
         </div>
     </div>
 
@@ -543,6 +601,35 @@ class WebServer:
                 <button onclick="saveConfig()">💾 Save Configuration</button>
             </div>
             <div id="config-message"></div>
+        </div>
+    </div>
+
+    <div id="health-tab" class="tab-content">
+        <div class="card">
+            <h2>Health Summary</h2>
+            <button onclick="refreshHealth()">🔄 Refresh</button>
+            <div id="health-summary" class="health-summary">
+                <div class="health-summary-item">
+                    <div class="value">-</div>
+                    <div class="label">System Status</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Health Checks</h2>
+            <div id="health-checks-content">
+                <p>Loading health information...</p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Device Health</h2>
+            <div id="device-health-content" class="device-health-grid">
+                <div class="device-health-item">
+                    <div class="device-name">Loading...</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -592,6 +679,8 @@ class WebServer:
                 refreshStatus();
             } else if (tabName === 'config') {
                 loadConfig();
+            } else if (tabName === 'health') {
+                refreshHealth();
             }
         }
 
@@ -686,6 +775,155 @@ class WebServer:
                 
             } catch (e) {
                 statusContent.innerHTML = `<div class="error">Failed to load status: ${e.message}</div>`;
+            }
+        }
+
+        // Refresh health information
+        async function refreshHealth() {
+            const healthSummary = document.getElementById('health-summary');
+            const healthChecksContent = document.getElementById('health-checks-content');
+            const deviceHealthContent = document.getElementById('device-health-content');
+            
+            try {
+                // Fetch health and status data in parallel
+                const [healthResponse, statusResponse] = await Promise.all([
+                    fetch('/api/health'),
+                    fetch('/api/status')
+                ]);
+                
+                const health = await healthResponse.json();
+                const status = await statusResponse.json();
+                
+                // Update health summary
+                let summaryHtml = `
+                    <div class="health-summary-item">
+                        <div class="value">${health.status === 'ok' ? '✅' : '❌'}</div>
+                        <div class="label">System Health</div>
+                    </div>
+                    <div class="health-summary-item">
+                        <div class="value">${health.config_loaded ? 'Yes' : 'No'}</div>
+                        <div class="label">Config Loaded</div>
+                    </div>
+                `;
+                
+                // Add device group counts if available
+                if (status.device_groups) {
+                    const enabledGroups = Object.values(status.device_groups).filter(g => g.enabled).length;
+                    const totalGroups = Object.keys(status.device_groups).length;
+                    summaryHtml += `
+                        <div class="health-summary-item">
+                            <div class="value">${enabledGroups}/${totalGroups}</div>
+                            <div class="label">Active Groups</div>
+                        </div>
+                    `;
+                }
+                
+                // Add weather fetch time if available
+                if (status.last_weather_fetch) {
+                    const lastFetch = new Date(status.last_weather_fetch);
+                    const now = new Date();
+                    const minutesAgo = Math.floor((now - lastFetch) / 60000);
+                    summaryHtml += `
+                        <div class="health-summary-item">
+                            <div class="value">${minutesAgo}m ago</div>
+                            <div class="label">Last Weather Fetch</div>
+                        </div>
+                    `;
+                }
+                
+                healthSummary.innerHTML = summaryHtml;
+                
+                // Update health checks card
+                let healthChecksHtml = '<div class="status-grid">';
+                healthChecksHtml += `
+                    <div class="status-item">
+                        <label>Status</label>
+                        <value>${health.status}</value>
+                    </div>
+                    <div class="status-item">
+                        <label>Timestamp</label>
+                        <value>${new Date(health.timestamp).toLocaleString()}</value>
+                    </div>
+                    <div class="status-item">
+                        <label>Config Loaded</label>
+                        <value>${health.config_loaded ? 'Yes' : 'No'}</value>
+                    </div>
+                `;
+                healthChecksHtml += '</div>';
+                healthChecksContent.innerHTML = healthChecksHtml;
+                
+                // Update device health
+                if (status.device_expectations && status.device_expectations.length > 0) {
+                    let deviceHtml = '';
+                    
+                    for (const device of status.device_expectations) {
+                        const isMatch = device.current_state === device.expected_state;
+                        const cssClass = isMatch ? 'match' : 'mismatch';
+                        
+                        deviceHtml += `
+                            <div class="device-health-item ${cssClass}">
+                                <div class="device-name">${device.device_name || 'Unknown Device'}</div>
+                                <div class="device-detail">
+                                    <label>Group:</label> ${device.group || 'N/A'}
+                                </div>
+                                <div class="device-detail">
+                                    <label>IP:</label> ${device.ip_address || 'N/A'}
+                                </div>
+                                <div class="device-detail">
+                                    <label>Outlet:</label> ${device.outlet !== undefined ? device.outlet : 'N/A'}
+                                </div>
+                                <div class="device-detail">
+                                    <label>Current State:</label> ${device.current_state || 'unknown'}
+                                </div>
+                                <div class="device-detail">
+                                    <label>Expected State:</label> ${device.expected_state || 'unknown'}
+                                </div>
+                        `;
+                        
+                        if (device.expected_on_from) {
+                            deviceHtml += `
+                                <div class="device-detail">
+                                    <label>Expected ON from:</label> ${new Date(device.expected_on_from).toLocaleString()}
+                                </div>
+                            `;
+                        }
+                        
+                        if (device.expected_off_at) {
+                            deviceHtml += `
+                                <div class="device-detail">
+                                    <label>Expected OFF at:</label> ${new Date(device.expected_off_at).toLocaleString()}
+                                </div>
+                            `;
+                        }
+                        
+                        if (device.last_state_change) {
+                            deviceHtml += `
+                                <div class="device-detail">
+                                    <label>Last State Change:</label> ${new Date(device.last_state_change).toLocaleString()}
+                                </div>
+                            `;
+                        }
+                        
+                        if (device.last_error) {
+                            deviceHtml += `
+                                <div class="device-detail" style="color: #e74c3c;">
+                                    <label>Last Error:</label> ${device.last_error}
+                                </div>
+                            `;
+                        }
+                        
+                        deviceHtml += '</div>';
+                    }
+                    
+                    deviceHealthContent.innerHTML = deviceHtml;
+                } else {
+                    deviceHealthContent.innerHTML = '<div class="status-item"><label>No device expectations available</label></div>';
+                }
+                
+            } catch (e) {
+                healthSummary.innerHTML = '<div class="error">Failed to load health data</div>';
+                healthChecksContent.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+                deviceHealthContent.innerHTML = `<div class="error">Error: ${e.message}</div>`;
             }
         }
 
@@ -1373,6 +1611,22 @@ class WebServer:
                         status['last_weather_fetch'] = weather.last_successful_fetch.isoformat() if weather.last_successful_fetch else None
                     if hasattr(weather, 'state'):
                         status['weather_state'] = weather.state
+                
+                # Get device expectations for health monitoring
+                if hasattr(self.scheduler, 'get_device_expectations'):
+                    try:
+                        # This is an async method, so we need to run it in an event loop
+                        import asyncio
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            expectations = loop.run_until_complete(self.scheduler.get_device_expectations())
+                            status['device_expectations'] = expectations
+                        finally:
+                            loop.close()
+                    except Exception as e:
+                        logger.warning(f"Could not get device expectations: {e}")
+                        status['device_expectations'] = []
                 
             except Exception as e:
                 logger.warning(f"Could not get full scheduler status: {e}")

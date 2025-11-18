@@ -9,6 +9,65 @@ The scheduler now includes:
 2. **Automatic Device Discovery** at startup
 3. **Periodic Health Checks** to monitor device connectivity
 4. **Notification System** for alerts about device issues
+5. **Web UI Health Dashboard** for visual monitoring of system and device health
+
+## Web UI Health Dashboard
+
+The Web UI includes a dedicated "Health" tab that provides a visual interface for monitoring system health and device expectations.
+
+### Features
+
+**Health Summary**
+- Quick overview card showing:
+  - System health status (✅ or ❌)
+  - Configuration loaded status
+  - Number of active device groups
+  - Time since last weather fetch
+
+**Health Checks**
+- Displays detailed system health information:
+  - System status (ok/error)
+  - Current timestamp
+  - Configuration loaded confirmation
+- Data fetched from `/api/health` endpoint
+
+**Device Health**
+- Visual grid showing all configured devices
+- Each device card displays:
+  - Device name and group
+  - IP address and outlet number
+  - Current state (on/off/unknown)
+  - Expected state (on/off) based on scheduler logic
+  - Expected ON/OFF times (from schedule or weather forecast)
+  - Last state change timestamp
+  - Any recent errors
+- **Color coding**:
+  - Green border: Device is in expected state
+  - Red border: Mismatch between current and expected state
+
+### Device Expectations
+
+The Health tab displays device expectations calculated by the scheduler based on:
+
+1. **Schedule-based control**: If a device has `schedule_control` enabled, expectations are derived from the configured `on_time` and `off_time`
+
+2. **Weather-based control**: If `precipitation_control` is enabled, expectations are based on:
+   - Precipitation forecast times
+   - Lead time (when to turn on before precipitation)
+   - Trailing time (when to turn off after precipitation ends)
+
+3. **Morning mode**: For devices with `morning_mode` enabled, expectations include morning hours when temperature is below threshold
+
+The device expectations are computed in real-time when the Health tab is accessed, providing current state vs expected state for monitoring and troubleshooting.
+
+### Accessing the Health Dashboard
+
+1. Open the Web UI at `http://localhost:4328` (or your configured host/port)
+2. Click the "Health" tab in the navigation bar
+3. Click "Refresh" to update health data
+4. Review health summary, health checks, and device health information
+
+The Health dashboard complements the health check API endpoints by providing a user-friendly visual interface for monitoring.
 
 ## HTTP Health Check Endpoints
 
