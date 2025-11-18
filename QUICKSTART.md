@@ -82,6 +82,11 @@ Get your HeatTrax scheduler running in 5 minutes!
    
    Open your browser to `http://localhost:4328` to access the monitoring interface.
    
+   **Features:**
+   - View system status and device information
+   - Edit configuration directly in the browser
+   - **Auto-restart on save**: When you save configuration changes, the container automatically restarts to apply them
+   
    **For network access** (to view from other machines):
    ```bash
    # Add to your stack.env or docker-compose.yml environment:
