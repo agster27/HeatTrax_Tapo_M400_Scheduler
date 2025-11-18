@@ -13,6 +13,24 @@ HeatTrax Scheduler includes a browser-based web UI for monitoring system status 
 - Device group information
 - Last error messages (if any)
 
+### Health Dashboard
+- **Health Summary**: Quick overview of system health metrics
+  - System health status (✅ or ❌)
+  - Configuration loaded status
+  - Active device groups count
+  - Last weather fetch time
+- **Health Checks**: Detailed health information
+  - System status (ok/error)
+  - Current timestamp
+  - Configuration loaded status
+- **Device Health**: Expected vs actual device states
+  - Shows all configured devices with their current and expected states
+  - Green border indicates device is in expected state
+  - Red border indicates mismatch between current and expected state
+  - Displays expected ON/OFF times based on schedule or weather forecast
+  - Shows last state change timestamp
+  - Displays any device errors
+
 ### Configuration Editor
 - Edit configuration directly in your browser using a structured form
 - **Organized into sections**: Location, Weather, Device Credentials, Thresholds & Scheduler, Safety & Morning Mode, Logging, Health & Reboot, Notifications, and Web UI
@@ -49,7 +67,15 @@ HeatTrax Scheduler includes a browser-based web UI for monitoring system status 
    - Status tab shows current system state
    - Click "Refresh" to update
 
-4. **Edit configuration**:
+4. **Check system health**:
+   - Switch to Health tab
+   - View health summary with system metrics
+   - Check device health to see expected vs actual states
+   - Green-bordered devices are in expected state
+   - Red-bordered devices indicate a mismatch
+   - Click "Refresh" to update health data
+
+5. **Edit configuration**:
    - Switch to Configuration tab
    - **View environment overrides**: If any settings are controlled by environment variables, a blue info box at the top lists them
    - **Edit settings**: Use the structured form with organized sections to modify settings
