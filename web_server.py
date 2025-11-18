@@ -342,16 +342,31 @@ class WebServer:
                         'error': 'Device manager not available'
                     }), 503
                 
-                # Get device status asynchronously
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    devices_status = loop.run_until_complete(
-                        self.scheduler.device_manager.get_all_devices_status()
-                    )
-                finally:
-                    loop.close()
+                # Check if scheduler has the run_coro_in_loop method (for thread-safe async execution)
+                if hasattr(self.scheduler, 'run_coro_in_loop'):
+                    # Use the scheduler's event loop to avoid python-kasa async issues
+                    # This prevents "Timeout context manager should be used inside a task" errors
+                    try:
+                        devices_status = self.scheduler.run_coro_in_loop(
+                            self.scheduler.device_manager.get_all_devices_status()
+                        )
+                    except RuntimeError as e:
+                        logger.error(f"Scheduler loop not available: {e}")
+                        return jsonify({
+                            'error': 'Async operations not available',
+                            'details': str(e)
+                        }), 500
+                else:
+                    # Fallback for backward compatibility (though this may cause kasa errors)
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        devices_status = loop.run_until_complete(
+                            self.scheduler.device_manager.get_all_devices_status()
+                        )
+                    finally:
+                        loop.close()
                 
                 return jsonify({
                     'status': 'ok',
@@ -2085,15 +2100,26 @@ class WebServer:
                 # Get device expectations for health monitoring
                 if hasattr(self.scheduler, 'get_device_expectations'):
                     try:
-                        # This is an async method, so we need to run it in an event loop
-                        import asyncio
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        try:
-                            expectations = loop.run_until_complete(self.scheduler.get_device_expectations())
-                            status['device_expectations'] = expectations
-                        finally:
-                            loop.close()
+                        # Use scheduler's event loop if available to avoid python-kasa async issues
+                        if hasattr(self.scheduler, 'run_coro_in_loop'):
+                            try:
+                                expectations = self.scheduler.run_coro_in_loop(
+                                    self.scheduler.get_device_expectations()
+                                )
+                                status['device_expectations'] = expectations
+                            except RuntimeError as e:
+                                logger.warning(f"Scheduler loop not available: {e}")
+                                status['device_expectations'] = []
+                        else:
+                            # Fallback for backward compatibility
+                            import asyncio
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                expectations = loop.run_until_complete(self.scheduler.get_device_expectations())
+                                status['device_expectations'] = expectations
+                            finally:
+                                loop.close()
                     except Exception as e:
                         logger.warning(f"Could not get device expectations: {e}")
                         status['device_expectations'] = []
