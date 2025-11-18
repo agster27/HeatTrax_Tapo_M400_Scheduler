@@ -1273,6 +1273,10 @@ class WebServer:
                     
                     if (device.error) {
                         html += `<div style="color: #e74c3c; margin-top: 8px;"><strong>Error:</strong> ${device.error}</div>`;
+                        // Add helper note for kasa/tapo library errors
+                        if (device.error.includes('INTERNAL_QUERY_ERROR')) {
+                            html += `<div style="color: #e74c3c; margin-top: 4px; font-size: 12px; font-style: italic;">Note: This error is reported by the underlying python-kasa/Tapo library, not the scheduler itself.</div>`;
+                        }
                     }
                     
                     html += '</div>';
@@ -2068,7 +2072,15 @@ class WebServer:
                     if hasattr(weather, 'last_successful_fetch'):
                         status['last_weather_fetch'] = weather.last_successful_fetch.isoformat() if weather.last_successful_fetch else None
                     if hasattr(weather, 'state'):
-                        status['weather_state'] = weather.state
+                        # Normalize weather_state to a JSON-serializable primitive
+                        # (enums are not JSON-serializable by default)
+                        state = weather.state
+                        if hasattr(state, 'value'):
+                            status['weather_state'] = state.value
+                        elif hasattr(state, 'name'):
+                            status['weather_state'] = state.name
+                        else:
+                            status['weather_state'] = str(state)
                 
                 # Get device expectations for health monitoring
                 if hasattr(self.scheduler, 'get_device_expectations'):
