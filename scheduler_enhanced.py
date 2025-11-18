@@ -560,6 +560,132 @@ class EnhancedScheduler:
             self.logger.error(f"Error in weather fetch loop: {type(e).__name__}: {e}")
             raise
     
+    async def get_device_expectations(self):
+        """
+        Get device expectations for all configured device groups.
+        
+        Returns a list of device expectation dictionaries showing expected vs actual state.
+        This is used by the web UI Health tab to display device health information.
+        
+        Returns:
+            List of dicts with device expectation data
+        """
+        expectations = []
+        
+        try:
+            for group_name in self.device_manager.get_all_groups():
+                group_config = self.device_manager.get_group_config(group_name)
+                if not group_config:
+                    continue
+                
+                # Get current state
+                state = self.states.get(group_name)
+                if not state:
+                    continue
+                
+                # Determine expected state based on scheduler logic
+                try:
+                    should_on = await self.should_turn_on_group(group_name)
+                    should_off = await self.should_turn_off_group(group_name)
+                    
+                    if should_on:
+                        expected_state = "on"
+                    elif should_off:
+                        expected_state = "off"
+                    else:
+                        # Neither turn on nor turn off triggered, maintain current state
+                        expected_state = "on" if state.device_on else "off"
+                except Exception as e:
+                    self.logger.warning(f"Could not determine expected state for group '{group_name}': {e}")
+                    expected_state = "unknown"
+                
+                # Get current state from state manager
+                current_state = "on" if state.device_on else "off"
+                
+                # Get timing information
+                expected_on_from = None
+                expected_off_at = None
+                
+                # For schedule-based control, calculate expected times
+                automation = group_config.get('automation', {})
+                if automation.get('schedule_control', False):
+                    schedule = group_config.get('schedule', {})
+                    if schedule:
+                        on_time_str = schedule.get('on_time')
+                        off_time_str = schedule.get('off_time')
+                        
+                        if on_time_str and off_time_str:
+                            try:
+                                # Build datetime objects for today
+                                today = datetime.now().date()
+                                on_time = datetime.combine(today, datetime.strptime(on_time_str, "%H:%M").time())
+                                off_time = datetime.combine(today, datetime.strptime(off_time_str, "%H:%M").time())
+                                
+                                # If we're past the on time today, schedule is for today
+                                # If we're before the on time, it's also for today
+                                now = datetime.now()
+                                if now.time() < on_time.time():
+                                    expected_on_from = on_time.isoformat()
+                                    expected_off_at = off_time.isoformat()
+                                elif on_time.time() <= now.time() < off_time.time():
+                                    expected_on_from = on_time.isoformat()
+                                    expected_off_at = off_time.isoformat()
+                                else:
+                                    # Past off time, schedule is for tomorrow
+                                    tomorrow = today + timedelta(days=1)
+                                    expected_on_from = datetime.combine(tomorrow, on_time.time()).isoformat()
+                                    expected_off_at = datetime.combine(tomorrow, off_time.time()).isoformat()
+                            except ValueError:
+                                pass
+                
+                # For weather-based control with precipitation, try to estimate times
+                if automation.get('weather_control', False) and automation.get('precipitation_control', False):
+                    if self.weather_enabled and self.weather:
+                        try:
+                            result = await self.weather.check_precipitation_forecast(
+                                hours_ahead=self.config.scheduler['forecast_hours'],
+                                temperature_threshold_f=self.config.thresholds['temperature_f']
+                            )
+                            
+                            if result and result != (False, None, None):
+                                has_precip, precip_time, temp = result
+                                if has_precip and precip_time:
+                                    lead_time = timedelta(minutes=self.config.thresholds['lead_time_minutes'])
+                                    turn_on_time = precip_time - lead_time
+                                    expected_on_from = turn_on_time.isoformat()
+                                    
+                                    # Expected off time is trailing time after precipitation ends
+                                    trailing_time = timedelta(minutes=self.config.thresholds['trailing_time_minutes'])
+                                    expected_off_at = (precip_time + trailing_time).isoformat()
+                        except Exception as e:
+                            self.logger.debug(f"Could not get weather forecast for expectations: {e}")
+                
+                # Get last state change time
+                last_state_change = None
+                if state.turn_on_time:
+                    last_state_change = state.turn_on_time.isoformat()
+                
+                # Add expectation for each device in the group
+                items = group_config.get('items', [])
+                for item in items:
+                    device_expectation = {
+                        'group': group_name,
+                        'device_name': item.get('name', 'Unknown'),
+                        'ip_address': item.get('ip_address', 'N/A'),
+                        'outlet': item.get('outlet', 0),
+                        'current_state': current_state,
+                        'expected_state': expected_state,
+                        'expected_on_from': expected_on_from,
+                        'expected_off_at': expected_off_at,
+                        'last_state_change': last_state_change,
+                        'last_error': None  # Could be enhanced to track device errors
+                    }
+                    expectations.append(device_expectation)
+        
+        except Exception as e:
+            self.logger.error(f"Error getting device expectations: {e}", exc_info=True)
+        
+        return expectations
     
     async def run(self):
         """Run the main scheduler loop."""
