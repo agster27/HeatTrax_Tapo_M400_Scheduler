@@ -121,6 +121,14 @@ class DeviceGroupManager:
         """
         Get detailed status of all devices across all groups.
         
+        This method queries each device to get its current state, including:
+        - Device reachability (whether the device responds to queries)
+        - Individual outlet states (on/off for each outlet)
+        - Any error conditions (connection failures, timeouts, etc.)
+        
+        Unreachable devices are included in the results with reachable=False
+        and an error message, rather than raising exceptions.
+        
         Returns:
             List of device status dictionaries with device info and outlet states
         """
@@ -139,6 +147,16 @@ class DeviceGroupManager:
         """
         Control a specific device or outlet.
         
+        This method provides manual control of devices and outlets, bypassing
+        the scheduler's automated logic. Use cases include:
+        - Emergency shutoff of malfunctioning devices
+        - Manual override for special circumstances
+        - Testing device functionality
+        
+        Note: Manual control is temporary. The scheduler will reassert control
+        on its next evaluation cycle (typically check_interval_minutes).
+        The scheduler does not persist or remember manual overrides.
+        
         Args:
             group_name: Name of the group containing the device
             device_name: Name of the device
@@ -146,7 +164,14 @@ class DeviceGroupManager:
             action: 'on' or 'off'
             
         Returns:
-            Dictionary with status of the control operation
+            Dictionary with status of the control operation:
+            {
+                'success': bool,
+                'device': str,
+                'outlet': int or None,
+                'action': str,
+                'error': str or None
+            }
         """
         if group_name not in self.groups:
             return {

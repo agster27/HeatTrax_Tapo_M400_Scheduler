@@ -303,8 +303,33 @@ class WebServer:
             """
             Get detailed status of all devices and outlets.
             
+            This endpoint returns real-time status information for all configured
+            devices including their reachability, outlet states, and any errors.
+            
             Returns:
                 JSON: List of devices with outlet states and reachability info
+                {
+                    "status": "ok",
+                    "devices": [
+                        {
+                            "name": "Device Name",
+                            "ip_address": "192.168.1.100",
+                            "group": "group_name",
+                            "reachable": true/false,
+                            "has_outlets": true/false,
+                            "outlets": [
+                                {
+                                    "index": 0,
+                                    "is_on": true/false,
+                                    "alias": "Outlet 0",
+                                    "controlled": true/false
+                                }
+                            ],
+                            "error": null or error message
+                        }
+                    ],
+                    "timestamp": "2024-01-01T12:00:00"
+                }
             """
             try:
                 if not self.scheduler:
@@ -346,16 +371,33 @@ class WebServer:
             """
             Control a specific device or outlet.
             
+            This endpoint allows manual control of devices and individual outlets.
+            Manual control overrides scheduled behavior temporarily. The scheduler
+            will reassert control on its next cycle (typically within check_interval_minutes).
+            
+            For best practices:
+            - Manual ON: Device stays on until scheduler turns it off or max_runtime_hours exceeded
+            - Manual OFF: Device stays off until scheduler turns it on based on conditions
+            - The scheduler does not track manual overrides; it simply evaluates conditions
+              and sets the desired state on each cycle
+            
             Expects JSON:
                 {
                     "group": "group_name",
                     "device": "device_name",
-                    "outlet": outlet_index or null,
+                    "outlet": outlet_index or null,  # null for entire device
                     "action": "on" or "off"
                 }
             
             Returns:
                 JSON: Control operation result
+                {
+                    "success": true/false,
+                    "device": "device_name",
+                    "outlet": outlet_index or null,
+                    "action": "on" or "off",
+                    "error": null or error message
+                }
             """
             try:
                 if not self.scheduler:
