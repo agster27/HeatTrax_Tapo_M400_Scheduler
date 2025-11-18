@@ -298,6 +298,137 @@ class WebServer:
             
             return response
         
+        @self.app.route('/api/devices/status', methods=['GET'])
+        def api_devices_status():
+            """
+            Get detailed status of all devices and outlets.
+            
+            Returns:
+                JSON: List of devices with outlet states and reachability info
+            """
+            try:
+                if not self.scheduler:
+                    return jsonify({
+                        'error': 'Scheduler not available'
+                    }), 503
+                
+                if not hasattr(self.scheduler, 'device_manager'):
+                    return jsonify({
+                        'error': 'Device manager not available'
+                    }), 503
+                
+                # Get device status asynchronously
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    devices_status = loop.run_until_complete(
+                        self.scheduler.device_manager.get_all_devices_status()
+                    )
+                finally:
+                    loop.close()
+                
+                return jsonify({
+                    'status': 'ok',
+                    'devices': devices_status,
+                    'timestamp': datetime.now().isoformat()
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to get devices status: {e}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to get devices status',
+                    'details': str(e)
+                }), 500
+        
+        @self.app.route('/api/devices/control', methods=['POST'])
+        def api_devices_control():
+            """
+            Control a specific device or outlet.
+            
+            Expects JSON:
+                {
+                    "group": "group_name",
+                    "device": "device_name",
+                    "outlet": outlet_index or null,
+                    "action": "on" or "off"
+                }
+            
+            Returns:
+                JSON: Control operation result
+            """
+            try:
+                if not self.scheduler:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Scheduler not available'
+                    }), 503
+                
+                if not hasattr(self.scheduler, 'device_manager'):
+                    return jsonify({
+                        'success': False,
+                        'error': 'Device manager not available'
+                    }), 503
+                
+                if not request.is_json:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Request must be JSON'
+                    }), 400
+                
+                data = request.get_json()
+                
+                # Validate required fields
+                required_fields = ['group', 'device', 'action']
+                for field in required_fields:
+                    if field not in data:
+                        return jsonify({
+                            'success': False,
+                            'error': f"Missing required field: {field}"
+                        }), 400
+                
+                group_name = data['group']
+                device_name = data['device']
+                outlet_index = data.get('outlet')  # May be None
+                action = data['action']
+                
+                # Validate action
+                if action not in ['on', 'off']:
+                    return jsonify({
+                        'success': False,
+                        'error': f"Invalid action: {action}. Must be 'on' or 'off'"
+                    }), 400
+                
+                # Control the device asynchronously
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(
+                        self.scheduler.device_manager.control_device_outlet(
+                            group_name, device_name, outlet_index, action
+                        )
+                    )
+                finally:
+                    loop.close()
+                
+                if result['success']:
+                    logger.info(
+                        f"Manual control via WebUI: {action.upper()} device '{device_name}' "
+                        f"outlet {outlet_index} in group '{group_name}'"
+                    )
+                    return jsonify(result)
+                else:
+                    return jsonify(result), 400
+                
+            except Exception as e:
+                logger.error(f"Failed to control device: {e}", exc_info=True)
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to control device',
+                    'details': str(e)
+                }), 500
+        
         @self.app.route('/web/<path:filename>')
         def serve_web_file(filename):
             """Serve static web files."""
@@ -555,6 +686,131 @@ class WebServer:
             color: #555;
             margin-top: 5px;
         }
+        .device-control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-top: 15px;
+        }
+        .device-control-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #3498db;
+        }
+        .device-control-card.unreachable {
+            border-left-color: #e74c3c;
+            background: #fff5f5;
+        }
+        .device-control-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        .device-control-header h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #2c3e50;
+        }
+        .device-status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .device-status-badge.online {
+            background: #d5f4e6;
+            color: #27ae60;
+        }
+        .device-status-badge.offline {
+            background: #fadbd8;
+            color: #e74c3c;
+        }
+        .device-info {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        .outlet-controls {
+            margin-top: 10px;
+        }
+        .outlet-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .outlet-info {
+            flex: 1;
+        }
+        .outlet-name {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .outlet-state {
+            font-size: 12px;
+            color: #666;
+            margin-left: 10px;
+        }
+        .outlet-state.on {
+            color: #27ae60;
+            font-weight: 600;
+        }
+        .outlet-state.off {
+            color: #95a5a6;
+        }
+        .outlet-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        .btn-control {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-control:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-on {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-on:hover:not(:disabled) {
+            background: #229954;
+        }
+        .btn-off {
+            background: #95a5a6;
+            color: white;
+        }
+        .btn-off:hover:not(:disabled) {
+            background: #7f8c8d;
+        }
+        .control-message {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .control-message.success {
+            background: #d5f4e6;
+            color: #27ae60;
+        }
+        .control-message.error {
+            background: #fadbd8;
+            color: #e74c3c;
+        }
     </style>
 </head>
 <body>
@@ -631,6 +887,19 @@ class WebServer:
                 </div>
             </div>
         </div>
+        
+        <div class="card">
+            <h2>Device Control</h2>
+            <p>Manually control device outlets. Changes take effect immediately and override scheduled behavior until the next scheduled action.</p>
+            <button onclick="refreshDeviceControl()">🔄 Refresh</button>
+            <div id="device-control-content" class="device-control-grid">
+                <div class="device-control-card">
+                    <div class="device-control-header">
+                        <h3>Loading...</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -681,6 +950,7 @@ class WebServer:
                 loadConfig();
             } else if (tabName === 'health') {
                 refreshHealth();
+                refreshDeviceControl();
             }
         }
 
@@ -924,6 +1194,152 @@ class WebServer:
                 healthSummary.innerHTML = '<div class="error">Failed to load health data</div>';
                 healthChecksContent.innerHTML = `<div class="error">Error: ${e.message}</div>`;
                 deviceHealthContent.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+            }
+        }
+
+        // Refresh device control information
+        async function refreshDeviceControl() {
+            const deviceControlContent = document.getElementById('device-control-content');
+            
+            try {
+                const response = await fetch('/api/devices/status');
+                const data = await response.json();
+                
+                if (data.status !== 'ok' || !data.devices || data.devices.length === 0) {
+                    deviceControlContent.innerHTML = '<div class="device-control-card"><p>No devices configured or available.</p></div>';
+                    return;
+                }
+                
+                let html = '';
+                
+                for (const device of data.devices) {
+                    const isReachable = device.reachable;
+                    const cardClass = isReachable ? '' : 'unreachable';
+                    const statusBadgeClass = isReachable ? 'online' : 'offline';
+                    const statusText = isReachable ? '● Online' : '● Offline';
+                    
+                    html += `
+                        <div class="device-control-card ${cardClass}">
+                            <div class="device-control-header">
+                                <h3>${device.name}</h3>
+                                <span class="device-status-badge ${statusBadgeClass}">${statusText}</span>
+                            </div>
+                            <div class="device-info">
+                                <div><strong>Group:</strong> ${device.group}</div>
+                                <div><strong>IP:</strong> ${device.ip_address}</div>
+                    `;
+                    
+                    if (device.error) {
+                        html += `<div style="color: #e74c3c; margin-top: 8px;"><strong>Error:</strong> ${device.error}</div>`;
+                    }
+                    
+                    html += '</div>';
+                    
+                    // Add outlet controls
+                    if (device.outlets && device.outlets.length > 0) {
+                        html += '<div class="outlet-controls">';
+                        
+                        for (const outlet of device.outlets) {
+                            const outletState = outlet.is_on ? 'on' : 'off';
+                            const outletStateText = outlet.is_on ? 'ON' : 'OFF';
+                            const outletLabel = outlet.alias || (outlet.index !== null ? `Outlet ${outlet.index}` : device.name);
+                            
+                            html += `
+                                <div class="outlet-row">
+                                    <div class="outlet-info">
+                                        <span class="outlet-name">${outletLabel}</span>
+                                        <span class="outlet-state ${outletState}">${outletStateText}</span>
+                                    </div>
+                                    <div class="outlet-buttons">
+                                        <button class="btn-control btn-on" 
+                                                onclick="controlOutlet('${device.group}', '${device.name}', ${outlet.index}, 'on')"
+                                                ${!isReachable || outlet.is_on ? 'disabled' : ''}>
+                                            Turn ON
+                                        </button>
+                                        <button class="btn-control btn-off" 
+                                                onclick="controlOutlet('${device.group}', '${device.name}', ${outlet.index}, 'off')"
+                                                ${!isReachable || !outlet.is_on ? 'disabled' : ''}>
+                                            Turn OFF
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
+                        html += '</div>';
+                    }
+                    
+                    html += '<div id="control-message-' + device.name.replace(/[^a-zA-Z0-9]/g, '-') + '" class="control-message" style="display: none;"></div>';
+                    html += '</div>';
+                }
+                
+                deviceControlContent.innerHTML = html;
+                
+            } catch (e) {
+                console.error('Failed to fetch device status:', e);
+                deviceControlContent.innerHTML = `<div class="device-control-card"><div class="error">Failed to load device control: ${e.message}</div></div>`;
+            }
+        }
+
+        // Control a device outlet
+        async function controlOutlet(group, deviceName, outletIndex, action) {
+            const messageId = 'control-message-' + deviceName.replace(/[^a-zA-Z0-9]/g, '-');
+            const messageDiv = document.getElementById(messageId);
+            
+            if (!messageDiv) {
+                console.error('Message div not found');
+                return;
+            }
+            
+            // Show loading message
+            messageDiv.className = 'control-message';
+            messageDiv.style.display = 'block';
+            messageDiv.textContent = `Sending ${action.toUpperCase()} command...`;
+            
+            try {
+                const response = await fetch('/api/devices/control', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        group: group,
+                        device: deviceName,
+                        outlet: outletIndex,
+                        action: action
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    messageDiv.className = 'control-message success';
+                    const outletText = outletIndex !== null ? ` outlet ${outletIndex}` : '';
+                    messageDiv.textContent = `✓ Successfully turned ${action.toUpperCase()}${outletText}`;
+                    
+                    // Refresh device status after 1 second
+                    setTimeout(() => {
+                        refreshDeviceControl();
+                    }, 1000);
+                } else {
+                    messageDiv.className = 'control-message error';
+                    messageDiv.textContent = `✗ Failed: ${result.error || 'Unknown error'}`;
+                }
+                
+                // Hide message after 5 seconds
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 5000);
+                
+            } catch (e) {
+                console.error('Control request failed:', e);
+                messageDiv.className = 'control-message error';
+                messageDiv.textContent = `✗ Error: ${e.message}`;
+                
+                // Hide message after 5 seconds
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 5000);
             }
         }
 
