@@ -456,18 +456,37 @@ class WebServer:
                         'error': f"Invalid action: {action}. Must be 'on' or 'off'"
                     }), 400
                 
-                # Control the device asynchronously
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    result = loop.run_until_complete(
-                        self.scheduler.device_manager.control_device_outlet(
-                            group_name, device_name, outlet_index, action
+                # Control the device asynchronously using scheduler's event loop
+                # Check if scheduler has the run_coro_in_loop method (for thread-safe async execution)
+                if hasattr(self.scheduler, 'run_coro_in_loop'):
+                    # Use the scheduler's event loop to avoid python-kasa async issues
+                    # This prevents "Timeout context manager should be used inside a task" errors
+                    try:
+                        result = self.scheduler.run_coro_in_loop(
+                            self.scheduler.device_manager.control_device_outlet(
+                                group_name, device_name, outlet_index, action
+                            )
                         )
-                    )
-                finally:
-                    loop.close()
+                    except RuntimeError as e:
+                        logger.error(f"Scheduler loop not available: {e}")
+                        return jsonify({
+                            'success': False,
+                            'error': 'Async operations not available',
+                            'details': str(e)
+                        }), 500
+                else:
+                    # Fallback for backward compatibility (though this may cause kasa errors)
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        result = loop.run_until_complete(
+                            self.scheduler.device_manager.control_device_outlet(
+                                group_name, device_name, outlet_index, action
+                            )
+                        )
+                    finally:
+                        loop.close()
                 
                 if result['success']:
                     logger.info(

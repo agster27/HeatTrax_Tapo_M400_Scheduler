@@ -597,11 +597,19 @@ def run_startup_checks(config_path: str = "config.yaml", device_ip: Optional[str
         if test_ip and username and password:
             try:
                 import asyncio
-                result = asyncio.run(check_tapo_device_connectivity(test_ip, username, password))
-                tapo_check_performed = True
-                if not result:
-                    print(f"  ⚠ Tapo connectivity check failed, but this is non-critical")
-                    print(f"    The scheduler will attempt to connect during normal operation")
+                # Check if we're already in a running event loop (which would cause asyncio.run to fail)
+                try:
+                    running_loop = asyncio.get_running_loop()
+                    # We're in a running loop - skip the check to avoid RuntimeError
+                    print(f"  ⚠ Skipping Tapo connectivity check - already in running event loop")
+                    print(f"    The scheduler will perform connectivity checks during normal operation")
+                except RuntimeError:
+                    # No running loop, safe to use asyncio.run
+                    result = asyncio.run(check_tapo_device_connectivity(test_ip, username, password))
+                    tapo_check_performed = True
+                    if not result:
+                        print(f"  ⚠ Tapo connectivity check failed, but this is non-critical")
+                        print(f"    The scheduler will attempt to connect during normal operation")
             except Exception as e:
                 print(f"  ⚠ Could not perform Tapo connectivity check: {e}")
         elif test_ip:
