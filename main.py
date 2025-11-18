@@ -112,12 +112,12 @@ def signal_handler(signum, frame):
     shutdown_event.set()
 
 
-def run_scheduler_thread(config: Config):
+def run_scheduler_thread(scheduler: EnhancedScheduler):
     """
     Run scheduler in a separate thread.
     
     Args:
-        config: Application configuration
+        scheduler: EnhancedScheduler instance to run
     """
     logger = logging.getLogger(__name__)
     
@@ -126,8 +126,7 @@ def run_scheduler_thread(config: Config):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        # Create and run scheduler
-        scheduler = EnhancedScheduler(config)
+        # Run the scheduler
         loop.run_until_complete(scheduler.run())
         
     except Exception as e:
@@ -234,7 +233,7 @@ async def main():
             global scheduler_thread
             scheduler_thread = threading.Thread(
                 target=run_scheduler_thread,
-                args=(config,),
+                args=(scheduler,),
                 daemon=False,
                 name="SchedulerThread"
             )
