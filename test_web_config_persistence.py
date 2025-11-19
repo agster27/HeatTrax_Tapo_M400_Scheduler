@@ -226,6 +226,91 @@ class TestWebConfigPersistence(unittest.TestCase):
         data = json.loads(response.data)
         self.assertEqual(data['status'], 'ok')
         self.assertEqual(data['message'], 'pong')
+    
+    def test_post_config_notification_checkboxes_persist(self):
+        """
+        Test that notification checkboxes persist correctly via Web API.
+        This test specifically validates the fix for the bug where notification
+        checkboxes (required, test_on_startup, email.enabled) don't persist.
+        """
+        # First, get current config to build a baseline
+        get_response = self.client.get('/api/config')
+        self.assertEqual(get_response.status_code, 200)
+        
+        # Extract raw values from annotated config
+        annotated_config = json.loads(get_response.data)
+        
+        def extract_values(annotated, path=''):
+            """Helper to extract values from annotated config."""
+            if isinstance(annotated, dict):
+                if 'value' in annotated:
+                    # This is a leaf node
+                    return annotated['value']
+                else:
+                    # This is a nested object
+                    result = {}
+                    for key, val in annotated.items():
+                        result[key] = extract_values(val, f"{path}.{key}" if path else key)
+                    return result
+            else:
+                return annotated
+        
+        config = extract_values(annotated_config)
+        
+        # Verify initial state (all disabled)
+        self.assertFalse(config['notifications']['required'])
+        self.assertFalse(config['notifications']['test_on_startup'])
+        self.assertFalse(config['notifications']['email']['enabled'])
+        
+        # Enable the three notification flags
+        config['notifications']['required'] = True
+        config['notifications']['test_on_startup'] = True
+        config['notifications']['email']['enabled'] = True
+        
+        # Ensure valid SMTP settings are present (required for validation when email is enabled)
+        config['notifications']['email']['smtp_host'] = 'smtp.example.com'
+        config['notifications']['email']['smtp_port'] = 587
+        config['notifications']['email']['smtp_username'] = 'user@example.com'
+        config['notifications']['email']['smtp_password'] = 'password123'
+        config['notifications']['email']['from_email'] = 'user@example.com'
+        config['notifications']['email']['to_emails'] = ['admin@example.com']
+        config['notifications']['email']['use_tls'] = True
+        
+        # POST the updated config
+        post_response = self.client.post('/api/config',
+                                         data=json.dumps(config),
+                                         content_type='application/json')
+        
+        self.assertEqual(post_response.status_code, 200)
+        
+        result = json.loads(post_response.data)
+        self.assertEqual(result['status'], 'ok')
+        
+        # Re-GET config to verify persistence
+        get_response2 = self.client.get('/api/config')
+        self.assertEqual(get_response2.status_code, 200)
+        
+        annotated_config2 = json.loads(get_response2.data)
+        config2 = extract_values(annotated_config2)
+        
+        # Verify the three flags are now True
+        self.assertTrue(config2['notifications']['required'],
+                       "notifications.required should be True after update")
+        self.assertTrue(config2['notifications']['test_on_startup'],
+                       "notifications.test_on_startup should be True after update")
+        self.assertTrue(config2['notifications']['email']['enabled'],
+                       "notifications.email.enabled should be True after update")
+        
+        # Verify on-disk persistence
+        with open(self.config_path, 'r') as f:
+            disk_config = yaml.safe_load(f)
+        
+        self.assertTrue(disk_config['notifications']['required'],
+                       "notifications.required should be True on disk")
+        self.assertTrue(disk_config['notifications']['test_on_startup'],
+                       "notifications.test_on_startup should be True on disk")
+        self.assertTrue(disk_config['notifications']['email']['enabled'],
+                       "notifications.email.enabled should be True on disk")
 
 
 class TestWebConfigEnvOverrides(unittest.TestCase):

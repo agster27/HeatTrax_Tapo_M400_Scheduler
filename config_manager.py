@@ -545,6 +545,9 @@ class ConfigManager:
         """
         with self._lock:
             try:
+                # Log notification settings for debugging
+                logger.debug("update_config received notifications: %s", new_config.get("notifications"))
+                
                 # Deep copy to avoid modifying input
                 config_to_validate = copy.deepcopy(new_config)
                 

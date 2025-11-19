@@ -2326,7 +2326,7 @@ class WebServer:
             
             for (const [sectionName, fields] of Object.entries(FORM_FIELDS)) {
                 for (const fieldDef of fields) {
-                    const fieldId = 'field-' + fieldDef.path.replace(/\\./g, '-');
+                    const fieldId = 'field-' + fieldDef.path.replace(/\./g, '-');
                     const element = document.getElementById(fieldId);
                     
                     if (!element) continue;
