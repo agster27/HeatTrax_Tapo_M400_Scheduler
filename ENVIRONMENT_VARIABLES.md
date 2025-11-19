@@ -159,12 +159,12 @@ Configure the web interface for monitoring and configuration.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `HEATTRAX_WEB_HOST` | String | `127.0.0.1` | Host/IP address to bind web UI to. Use `0.0.0.0` to allow access from other machines (Docker/network deployments). |
+| `HEATTRAX_WEB_HOST` | String | `0.0.0.0` | Host/IP address to bind web UI to. Default `0.0.0.0` allows access from other machines. Set to `127.0.0.1` to restrict to localhost only. |
 | `HEATTRAX_WEB_PORT` | Integer | `4328` | Port for web UI |
 
-**Security Note**: When setting `HEATTRAX_WEB_HOST` to `0.0.0.0`, the web UI becomes accessible from other machines on your network. Ensure your network is secure and consider using authentication if exposed beyond localhost.
+**Security Note**: The default binding (`0.0.0.0`) makes the web UI accessible from other machines on your network. Do not expose this service directly to the internet. Keep it on your internal network, or place it behind a reverse proxy with authentication.
 
-**Docker/Portainer Example**: Set `HEATTRAX_WEB_HOST=0.0.0.0` to access the web UI from other machines when using `network_mode: host` or appropriate port mappings.
+**Docker/Portainer Example**: The default `0.0.0.0` binding is suitable for Docker deployments. To restrict access to localhost only, set `HEATTRAX_WEB_HOST=127.0.0.1`.
 
 ### Reboot Settings
 

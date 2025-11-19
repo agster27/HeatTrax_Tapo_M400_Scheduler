@@ -109,8 +109,8 @@ class TestWebUIConfig(unittest.TestCase):
         self.assertIn('bind_host', config['web'])
         self.assertIn('port', config['web'])
         
-        # Check defaults
-        self.assertEqual(config['web']['bind_host'], '127.0.0.1')
+        # Check defaults (updated to 0.0.0.0 for network accessibility)
+        self.assertEqual(config['web']['bind_host'], '0.0.0.0')
         self.assertEqual(config['web']['port'], 4328)
     
     def test_web_config_manager_env_override(self):

@@ -44,12 +44,12 @@ After starting the container:
 3. Edit configuration directly in the browser with validation
 4. **Auto-restart on save**: Configuration changes trigger an automatic container restart to apply all settings immediately
 
-**Network Access**: By default, the web UI binds to `127.0.0.1` (localhost only) for security. To access from other machines:
-- Set environment variable: `HEATTRAX_WEB_HOST=0.0.0.0` (recommended for Docker)
-- Or configure in `config.yaml`: `web.bind_host: 0.0.0.0`
+**Network Access**: By default, the web UI binds to `0.0.0.0:4328`, making it accessible from other machines on your network when Docker ports are mapped. This is the typical Docker deployment pattern. To restrict access to localhost only:
+- Set environment variable: `HEATTRAX_WEB_HOST=127.0.0.1` (restricts to localhost)
+- Or configure in `config.yaml`: `web.bind_host: 127.0.0.1`
 - Change port with: `HEATTRAX_WEB_PORT=8080` (environment) or `web.port: 8080` (YAML)
 
-**Security Note**: When binding to `0.0.0.0`, the web UI is accessible from other machines on your network. Ensure your network is secure. Authentication is planned for future releases.
+**Security Note**: The web UI is accessible from other machines on your network by default. Do not expose this service directly to the internet. Keep it on your internal network, or place it behind a reverse proxy with authentication. Authentication is planned for future releases.
 
 **Restart Policy**: The auto-restart feature requires Docker's restart policy (e.g., `restart: always` in docker-compose.yml). See [WEB_UI_GUIDE.md](WEB_UI_GUIDE.md) for details.
 
