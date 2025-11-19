@@ -305,9 +305,11 @@ class WebServer:
             
             This endpoint returns real-time status information for all configured
             devices including their reachability, outlet states, and any errors.
+            Also includes initialization summary to help diagnose when devices
+            fail to initialize (e.g., timeout during discovery).
             
             Returns:
-                JSON: List of devices with outlet states and reachability info
+                JSON: List of devices with outlet states, reachability info, and initialization summary
                 {
                     "status": "ok",
                     "devices": [
@@ -316,6 +318,7 @@ class WebServer:
                             "ip_address": "192.168.1.100",
                             "group": "group_name",
                             "reachable": true/false,
+                            "initialized": true/false,
                             "has_outlets": true/false,
                             "outlets": [
                                 {
@@ -325,9 +328,26 @@ class WebServer:
                                     "controlled": true/false
                                 }
                             ],
-                            "error": null or error message
+                            "error": null or error message,
+                            "initialization_error": null or error message from initialization
                         }
                     ],
+                    "initialization_summary": {
+                        "total_groups": 1,
+                        "overall": {
+                            "configured_devices": 1,
+                            "initialized_devices": 0,
+                            "failed_devices": 1
+                        },
+                        "groups": {
+                            "group_name": {
+                                "configured_count": 1,
+                                "initialized_count": 0,
+                                "failed_count": 1,
+                                "failed_devices": [...]
+                            }
+                        }
+                    },
                     "timestamp": "2024-01-01T12:00:00"
                 }
             """
@@ -368,9 +388,13 @@ class WebServer:
                     finally:
                         loop.close()
                 
+                # Get initialization summary
+                init_summary = self.scheduler.device_manager.get_initialization_summary()
+                
                 return jsonify({
                     'status': 'ok',
                     'devices': devices_status,
+                    'initialization_summary': init_summary,
                     'timestamp': datetime.now().isoformat()
                 })
                 
@@ -1263,7 +1287,29 @@ class WebServer:
                     
                     deviceHealthContent.innerHTML = deviceHtml;
                 } else {
-                    deviceHealthContent.innerHTML = '<div class="status-item"><label>No device expectations available</label></div>';
+                    // Check if we have initialization summary to show more helpful message
+                    if (status.device_groups) {
+                        let totalConfigured = 0;
+                        for (const groupInfo of Object.values(status.device_groups)) {
+                            totalConfigured += groupInfo.device_count || 0;
+                        }
+                        if (totalConfigured > 0) {
+                            deviceHealthContent.innerHTML = `
+                                <div class="device-health-item" style="border-left-color: #f39c12;">
+                                    <div class="device-name">⚠️ No Device Status Available</div>
+                                    <div class="device-detail">
+                                        ${totalConfigured} device(s) configured, but device status/expectations not available.
+                                        This may indicate devices failed to initialize or scheduler not fully started.
+                                        Check Device Control tab and logs for details.
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            deviceHealthContent.innerHTML = '<div class="status-item"><label>No devices configured</label></div>';
+                        }
+                    } else {
+                        deviceHealthContent.innerHTML = '<div class="status-item"><label>No device expectations available</label></div>';
+                    }
                 }
                 
             } catch (e) {
@@ -1281,18 +1327,53 @@ class WebServer:
                 const response = await fetch('/api/devices/status');
                 const data = await response.json();
                 
+                // Check for initialization failures
+                let initWarningHtml = '';
+                if (data.initialization_summary) {
+                    const summary = data.initialization_summary.overall;
+                    if (summary.failed_devices > 0) {
+                        initWarningHtml = `
+                            <div class="device-control-card" style="border-left-color: #f39c12; background: #fff8e1;">
+                                <div class="device-control-header">
+                                    <h3>⚠️ Device Initialization Warning</h3>
+                                </div>
+                                <div class="device-info">
+                                    <p><strong>${summary.failed_devices} out of ${summary.configured_devices} configured device(s) failed to initialize.</strong></p>
+                                    <p>These devices will appear as offline/unreachable below. Common causes:</p>
+                                    <ul style="margin: 10px 0; padding-left: 20px;">
+                                        <li>Device is unreachable on the network</li>
+                                        <li>Device IP address is incorrect</li>
+                                        <li>Device is slow to respond (timeout during discovery)</li>
+                                        <li>Network connectivity issues</li>
+                                    </ul>
+                                    <p style="margin-top: 10px; font-size: 13px; color: #666;">
+                                        Check the container logs for detailed error messages. If devices are reachable but slow,
+                                        consider adding <code>discovery_timeout_seconds: 60</code> to the device configuration.
+                                    </p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                
                 if (data.status !== 'ok' || !data.devices || data.devices.length === 0) {
-                    deviceControlContent.innerHTML = '<div class="device-control-card"><p>No devices configured or available.</p></div>';
+                    // Check if devices are configured but none initialized
+                    if (data.initialization_summary && data.initialization_summary.overall.configured_devices > 0) {
+                        deviceControlContent.innerHTML = initWarningHtml + '<div class="device-control-card"><p><strong>No devices successfully initialized.</strong><br>All configured devices failed to connect. Check logs for details.</p></div>';
+                    } else {
+                        deviceControlContent.innerHTML = '<div class="device-control-card"><p>No devices configured or available.</p></div>';
+                    }
                     return;
                 }
                 
-                let html = '';
+                let html = initWarningHtml;
                 
                 for (const device of data.devices) {
                     const isReachable = device.reachable;
+                    const isInitialized = device.initialized !== false; // Default true for backward compatibility
                     const cardClass = isReachable ? '' : 'unreachable';
                     const statusBadgeClass = isReachable ? 'online' : 'offline';
-                    const statusText = isReachable ? '● Online' : '● Offline';
+                    const statusText = isReachable ? '● Online' : (isInitialized ? '● Offline' : '● Not Initialized');
                     
                     html += `
                         <div class="device-control-card ${cardClass}">
@@ -1305,7 +1386,13 @@ class WebServer:
                                 <div><strong>IP:</strong> ${device.ip_address}</div>
                     `;
                     
-                    if (device.error) {
+                    // Show initialization error first if present
+                    if (!isInitialized && device.initialization_error) {
+                        html += `<div style="color: #e74c3c; margin-top: 8px; padding: 10px; background: #fff5f5; border-radius: 4px;">
+                            <strong>Initialization Failed:</strong><br>
+                            ${device.initialization_error}
+                        </div>`;
+                    } else if (device.error) {
                         html += `<div style="color: #e74c3c; margin-top: 8px;"><strong>Error:</strong> ${device.error}</div>`;
                         // Add helper note for kasa/tapo library errors
                         if (device.error.includes('INTERNAL_QUERY_ERROR')) {

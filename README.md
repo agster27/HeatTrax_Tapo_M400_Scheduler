@@ -864,6 +864,27 @@ If you see connection errors:
 4. Try accessing the device through the Tapo app first
 5. **See the [FAQ section](#faq) for subnet/VLAN discovery limitations**
 
+### Device Initialization Timeout
+
+**NEW:** If you see "Timeout after 30s while initializing device" errors but the device is reachable:
+
+1. **Check the Web UI Health tab** - Shows clear initialization status and detailed errors
+2. **Increase the timeout** - Add to your device configuration:
+   ```yaml
+   devices:
+     groups:
+       my_group:
+         items:
+           - name: kitchen
+             ip_address: 10.0.50.74
+             outlets: [0, 1]
+             discovery_timeout_seconds: 60  # Increase for slow devices
+   ```
+3. **Verify network latency** - Multi-outlet devices (EP40M) may be slower to respond
+4. **Check container logs** - Look for detailed error messages with full exception information
+
+See [HEALTH_CHECK.md](HEALTH_CHECK.md#device-initialization-timeout) for complete documentation on device initialization and timeout configuration.
+
 ### Device Discovery Issues
 
 If your device is not being discovered:

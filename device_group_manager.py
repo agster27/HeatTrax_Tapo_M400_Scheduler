@@ -146,6 +146,34 @@ class DeviceGroupManager:
         logger.info(f"Retrieved status for {len(all_devices)} total device(s) across all groups")
         return all_devices
     
+    def get_initialization_summary(self) -> Dict[str, Any]:
+        """
+        Get summary of device initialization across all groups.
+        
+        Returns:
+            Dictionary with initialization statistics for all groups
+        """
+        summary = {
+            'total_groups': len(self.groups),
+            'groups': {},
+            'overall': {
+                'configured_devices': 0,
+                'initialized_devices': 0,
+                'failed_devices': 0
+            }
+        }
+        
+        for group_name, group in self.groups.items():
+            group_info = group.get_initialization_info()
+            summary['groups'][group_name] = group_info
+            
+            # Aggregate totals
+            summary['overall']['configured_devices'] += group_info['configured_count']
+            summary['overall']['initialized_devices'] += group_info['initialized_count']
+            summary['overall']['failed_devices'] += group_info['failed_count']
+        
+        return summary
+    
     async def control_device_outlet(self, group_name: str, device_name: str, 
                                     outlet_index: Optional[int], action: str) -> Dict[str, Any]:
         """
@@ -213,18 +241,24 @@ class DeviceGroup:
         self.password = password
         self.devices = []
         self._initialized = False
+        self._configured_device_count = 0  # Track how many devices were configured
+        self._failed_devices = []  # Track devices that failed to initialize
     
     async def initialize(self):
         """Initialize all devices in the group."""
         items = self.config.get('items', [])
+        self._configured_device_count = len(items)
         
         if not items:
             logger.warning(f"Group '{self.name}' has no devices configured")
             return
         
-        logger.info(f"Initializing {len(items)} devices in group '{self.name}'")
+        logger.info(f"Initializing {len(items)} device(s) in group '{self.name}'")
         
         for item_config in items:
+            device_name = item_config.get('name', 'unknown')
+            device_ip = item_config.get('ip_address', 'unknown')
+            
             try:
                 device = ManagedDevice(
                     config=item_config,
@@ -233,13 +267,25 @@ class DeviceGroup:
                 )
                 await device.initialize()
                 self.devices.append(device)
-                logger.info(f"  ✓ Initialized device: {device.name}")
+                logger.info(f"  ✓ Initialized device: {device.name} at {device.ip_address}")
             except Exception as e:
-                logger.error(f"  ✗ Failed to initialize device '{item_config.get('name', 'unknown')}': {e}")
+                # Track failed device for reporting
+                self._failed_devices.append({
+                    'name': device_name,
+                    'ip_address': device_ip,
+                    'error': str(e)
+                })
+                logger.error(f"  ✗ Failed to initialize device '{device_name}' at {device_ip}: {e}")
                 # Continue with other devices even if one fails
         
         self._initialized = True
-        logger.info(f"Group '{self.name}' initialized with {len(self.devices)} devices")
+        
+        if len(self.devices) == 0:
+            logger.warning(f"Group '{self.name}' initialized with 0 devices (all {self._configured_device_count} configured device(s) failed)")
+        elif len(self.devices) < self._configured_device_count:
+            logger.warning(f"Group '{self.name}' initialized with {len(self.devices)}/{self._configured_device_count} devices ({self._configured_device_count - len(self.devices)} failed)")
+        else:
+            logger.info(f"Group '{self.name}' initialized successfully with {len(self.devices)} device(s)")
     
     async def turn_on(self):
         """Turn on all devices in the group."""
@@ -293,6 +339,22 @@ class DeviceGroup:
         
         return devices_status
     
+    def get_initialization_info(self) -> Dict[str, Any]:
+        """
+        Get information about device initialization for this group.
+        
+        Returns:
+            Dictionary with initialization statistics and failed device details
+        """
+        return {
+            'group_name': self.name,
+            'configured_count': self._configured_device_count,
+            'initialized_count': len(self.devices),
+            'failed_count': len(self._failed_devices),
+            'failed_devices': self._failed_devices,
+            'initialization_complete': self._initialized
+        }
+    
     async def control_device_outlet(self, device_name: str, outlet_index: Optional[int], 
                                     action: str) -> Dict[str, Any]:
         """
@@ -331,6 +393,10 @@ class DeviceGroup:
 class ManagedDevice:
     """Represents a managed smart device with optional outlet control."""
     
+    # Default timeout for Tapo device discovery and initialization (in seconds)
+    # Increased from default to handle slow Tapo responses
+    DEFAULT_DISCOVERY_TIMEOUT = 30
+    
     def __init__(self, config: Dict[str, Any], username: str, password: str):
         """
         Initialize a managed device.
@@ -347,13 +413,17 @@ class ManagedDevice:
         self.password = password
         self.device = None
         self._initialized = False
+        self._initialization_error = None  # Track initialization failures
+        
+        # Allow timeout configuration per device (optional)
+        self.discovery_timeout = config.get('discovery_timeout_seconds', self.DEFAULT_DISCOVERY_TIMEOUT)
         
         if not self.ip_address:
             raise DeviceControllerError(f"IP address is required for device '{self.name}'")
     
     async def initialize(self):
         """Initialize connection to the device using Tapo-authenticated discovery."""
-        logger.debug(f"Initializing device '{self.name}' at {self.ip_address}")
+        logger.debug(f"Initializing device '{self.name}' at {self.ip_address} (timeout: {self.discovery_timeout}s)")
         
         # Validate credentials
         if not self.username or not self.password:
@@ -362,19 +432,44 @@ class ManagedDevice:
                 "Please set HEATTRAX_TAPO_USERNAME and HEATTRAX_TAPO_PASSWORD environment variables."
             )
             logger.error(error_msg)
+            self._initialization_error = error_msg
             raise DeviceControllerError(error_msg)
         
         try:
-            # Use Tapo-authenticated discovery instead of legacy SmartPlug
+            # Use Tapo-authenticated discovery with extended timeout
+            # Wrap in asyncio.wait_for to control timeout explicitly
             logger.debug(f"Using Discover.discover_single with Tapo credentials for {self.ip_address}")
-            self.device = await Discover.discover_single(
-                self.ip_address,
-                username=self.username,
-                password=self.password,
-            )
-            await self.device.update()
+            
+            try:
+                # Discovery step with timeout
+                self.device = await asyncio.wait_for(
+                    Discover.discover_single(
+                        self.ip_address,
+                        username=self.username,
+                        password=self.password,
+                    ),
+                    timeout=self.discovery_timeout
+                )
+                logger.debug(f"Device discovered at {self.ip_address}, fetching initial state...")
+                
+                # Update step with timeout
+                await asyncio.wait_for(
+                    self.device.update(),
+                    timeout=self.discovery_timeout
+                )
+                
+            except asyncio.TimeoutError as te:
+                error_msg = (
+                    f"Timeout after {self.discovery_timeout}s while initializing device '{self.name}' at {self.ip_address}. "
+                    f"Device may be unreachable, overloaded, or slow to respond. "
+                    f"Consider increasing 'discovery_timeout_seconds' in device config if device is reachable but slow."
+                )
+                logger.error(error_msg)
+                self._initialization_error = f"Timeout after {self.discovery_timeout}s"
+                raise DeviceControllerError(error_msg) from te
             
             self._initialized = True
+            self._initialization_error = None
             
             # Log device information
             device_model = getattr(self.device, 'model', 'Unknown')
@@ -387,9 +482,17 @@ class ManagedDevice:
             if num_children > 0:
                 logger.debug(f"Device '{self.name}' has {num_children} outlets")
             
+        except DeviceControllerError:
+            # Re-raise controller errors as-is
+            raise
         except Exception as e:
-            logger.error(f"Failed to initialize device '{self.name}' at {self.ip_address}: {e}")
-            raise DeviceControllerError(f"Failed to initialize device '{self.name}': {e}")
+            # Capture detailed error information for any other exceptions
+            error_type = type(e).__name__
+            error_msg = f"{error_type}: {str(e)}"
+            logger.error(f"Failed to initialize device '{self.name}' at {self.ip_address}: {error_msg}")
+            logger.debug(f"Full exception for device '{self.name}':", exc_info=True)
+            self._initialization_error = error_msg
+            raise DeviceControllerError(f"Failed to initialize device '{self.name}': {error_msg}") from e
     
     async def turn_on(self):
         """Turn on the device or specified outlets."""
@@ -494,10 +597,17 @@ class ManagedDevice:
             'name': self.name,
             'ip_address': self.ip_address,
             'reachable': False,
+            'initialized': self._initialized,
             'has_outlets': False,
             'outlets': [],
-            'error': None
+            'error': None,
+            'initialization_error': self._initialization_error
         }
+        
+        # If device never initialized successfully, return status with initialization error
+        if not self._initialized and self._initialization_error:
+            status['error'] = f"Device not initialized: {self._initialization_error}"
+            return status
         
         try:
             if not self._initialized:
@@ -505,6 +615,7 @@ class ManagedDevice:
             
             await self.device.update()
             status['reachable'] = True
+            status['initialized'] = True
             
             # Check if device has children (outlets)
             if hasattr(self.device, 'children') and self.device.children:
@@ -532,6 +643,7 @@ class ManagedDevice:
         except Exception as e:
             logger.error(f"Failed to get detailed status for device '{self.name}': {e}")
             status['error'] = str(e)
+            status['reachable'] = False
         
         return status
     
