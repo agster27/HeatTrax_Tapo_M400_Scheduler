@@ -105,7 +105,7 @@ In `config.yaml`:
 ```yaml
 web:
   enabled: true  # Set to false to disable
-  bind_host: "127.0.0.1"
+  bind_host: "0.0.0.0"  # Default: accessible from network
   port: 4328
 ```
 
@@ -124,25 +124,26 @@ web:
 
 ### Network Access
 
-⚠️ **Security Warning**: By default, the web UI only accepts connections from localhost.
+⚠️ **Security Warning**: By default, the web UI binds to `0.0.0.0:4328`, making it accessible from other machines on your network when Docker ports are mapped.
 
-To allow access from other machines:
+The default configuration is suitable for typical Docker deployments:
 
-1. Edit `config.yaml`:
-   ```yaml
-   web:
-     bind_host: "0.0.0.0"  # Allow connections from any IP
-   ```
-
-2. Update `docker-compose.yml` to expose the port:
+1. Make sure `docker-compose.yml` exposes the port:
    ```yaml
    ports:
-     - "4328:4328"  # Already included
+     - "4328:4328"  # Exposes Web UI to host network
    ```
 
-3. Restart the container
+2. Access the Web UI from any machine on your network at `http://[host-ip]:4328`
 
-**Important**: Authentication is currently disabled. Only expose the web UI on trusted networks. Authentication support is planned for a future release.
+**To restrict access to localhost only**, set:
+   ```yaml
+   web:
+     bind_host: "127.0.0.1"  # Restrict to localhost
+   ```
+   Or use environment variable: `HEATTRAX_WEB_HOST=127.0.0.1`
+
+**Important**: Authentication is currently disabled. Do not expose the web UI directly to the internet. Keep it on your internal network, or place it behind a reverse proxy with authentication. Authentication support is planned for a future release.
 
 ### Docker Restart Policy
 
