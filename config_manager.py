@@ -25,6 +25,16 @@ class ConfigManager:
     - Validating config changes
     - Atomic config updates
     - Secret field handling
+    - Environment variable to YAML synchronization (new in v1.1)
+    
+    Environment Variable Synchronization:
+    On startup, env-overridden values are automatically synced to config.yaml if they
+    differ from the on-disk values. This allows:
+    - Smooth migration from env-based to Web UI-based configuration
+    - config.yaml always reflects the last effective configuration
+    - Removing an env var falls back to the last synced value in YAML
+    
+    While an env var is present, the field remains env-controlled and read-only in Web UI.
     """
     
     # Fields that are considered secrets (should not be returned in API responses)

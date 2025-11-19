@@ -14,6 +14,23 @@ Configuration values are resolved in the following order (highest to lowest prio
 2. **YAML Configuration File** - Used if no environment variable is set
 3. **Default Values** - Used if neither environment variable nor YAML value is provided
 
+### Environment Variable to YAML Synchronization
+
+**New in v1.1**: On startup, any environment variable overrides are automatically synchronized back to `config.yaml`. This provides a smooth migration path:
+
+- **While an env var is set**: The field is controlled by the environment variable and appears as read-only in the Web UI
+- **When you remove an env var**: On next restart, the application falls back to the last value that was stored in `config.yaml` (which will be the value the env var provided)
+- **Benefits**: You can start with env-based config, then gradually transition to Web UI management without losing your configuration values
+
+**Example Workflow**:
+1. Deploy with `HEATTRAX_LATITUDE=51.5074` environment variable
+2. Startup: Value is applied and synced to `config.yaml`
+3. Later, remove the env var from your Docker Compose / Portainer stack
+4. Restart: Application loads `latitude: 51.5074` from `config.yaml`
+5. Now you can edit latitude via Web UI and changes persist
+
+This feature ensures `config.yaml` always reflects your last effective configuration, whether set via environment variables or the Web UI.
+
 ## Boolean Values
 
 For boolean environment variables, the following values are accepted:
