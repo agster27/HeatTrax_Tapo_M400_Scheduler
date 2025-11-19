@@ -529,6 +529,180 @@ class WebServer:
                     'details': str(e)
                 }), 500
         
+        @self.app.route('/api/groups/<group_name>/automation', methods=['GET'])
+        def api_get_group_automation(group_name):
+            """
+            Get automation configuration for a specific group.
+            
+            Returns base automation from config.yaml, any overrides from state file,
+            and the effective merged automation values.
+            
+            Args:
+                group_name: Name of the device group
+                
+            Returns:
+                JSON: {
+                    "group": "group_name",
+                    "base": {...},         # From config.yaml
+                    "overrides": {...},    # From automation_overrides.json
+                    "effective": {...},    # Merged result
+                    "schedule": {          # Schedule info (read-only)
+                        "on_time": "HH:MM",
+                        "off_time": "HH:MM",
+                        "valid": true/false
+                    }
+                }
+            """
+            try:
+                if not self.scheduler:
+                    return jsonify({
+                        'error': 'Scheduler not available'
+                    }), 503
+                
+                # Get group config
+                config = self.config_manager.get_config(include_secrets=False)
+                groups = config.get('devices', {}).get('groups', {})
+                
+                if group_name not in groups:
+                    return jsonify({
+                        'error': f"Group '{group_name}' not found"
+                    }), 404
+                
+                group_config = groups[group_name]
+                base_automation = group_config.get('automation', {})
+                
+                # Get overrides and effective automation
+                overrides = self.scheduler.automation_overrides.get_group_overrides(group_name)
+                effective = self.scheduler.automation_overrides.get_effective_automation(
+                    group_name, base_automation
+                )
+                
+                # Get schedule info
+                schedule = group_config.get('schedule', {})
+                schedule_valid, on_time, off_time = self.scheduler.validate_schedule(schedule)
+                
+                schedule_info = {
+                    'on_time': on_time,
+                    'off_time': off_time,
+                    'valid': schedule_valid
+                }
+                
+                return jsonify({
+                    'group': group_name,
+                    'base': base_automation,
+                    'overrides': overrides,
+                    'effective': effective,
+                    'schedule': schedule_info
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to get group automation: {e}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to get group automation',
+                    'details': str(e)
+                }), 500
+        
+        @self.app.route('/api/groups/<group_name>/automation', methods=['PATCH'])
+        def api_update_group_automation(group_name):
+            """
+            Update automation overrides for a specific group.
+            
+            Accepts a JSON body with automation flags to override. Set a flag to
+            true/false to override, or null to clear the override and fall back
+            to config.yaml value.
+            
+            Args:
+                group_name: Name of the device group
+                
+            Expects JSON:
+                {
+                    "weather_control": true/false/null,
+                    "precipitation_control": true/false/null,
+                    "morning_mode": true/false/null,
+                    "schedule_control": true/false/null
+                }
+            
+            Returns:
+                JSON: Same structure as GET endpoint with updated values
+            """
+            try:
+                if not self.scheduler:
+                    return jsonify({
+                        'error': 'Scheduler not available'
+                    }), 503
+                
+                if not request.is_json:
+                    return jsonify({
+                        'error': 'Request must be JSON'
+                    }), 400
+                
+                # Get group config
+                config = self.config_manager.get_config(include_secrets=False)
+                groups = config.get('devices', {}).get('groups', {})
+                
+                if group_name not in groups:
+                    return jsonify({
+                        'error': f"Group '{group_name}' not found"
+                    }), 404
+                
+                data = request.get_json()
+                
+                # Valid automation flags
+                valid_flags = [
+                    'weather_control',
+                    'precipitation_control',
+                    'morning_mode',
+                    'schedule_control'
+                ]
+                
+                # Update each flag in the request
+                for flag_name, flag_value in data.items():
+                    if flag_name not in valid_flags:
+                        logger.warning(f"Ignoring unknown automation flag: {flag_name}")
+                        continue
+                    
+                    # Validate value is bool or None
+                    if flag_value is not None and not isinstance(flag_value, bool):
+                        return jsonify({
+                            'error': f"Invalid value for {flag_name}: must be true, false, or null"
+                        }), 400
+                    
+                    # Set the override
+                    self.scheduler.automation_overrides.set_flag(group_name, flag_name, flag_value)
+                    logger.info(f"Updated automation override: {group_name}.{flag_name} = {flag_value}")
+                
+                # Return updated state (same as GET endpoint)
+                group_config = groups[group_name]
+                base_automation = group_config.get('automation', {})
+                overrides = self.scheduler.automation_overrides.get_group_overrides(group_name)
+                effective = self.scheduler.automation_overrides.get_effective_automation(
+                    group_name, base_automation
+                )
+                
+                schedule = group_config.get('schedule', {})
+                schedule_valid, on_time, off_time = self.scheduler.validate_schedule(schedule)
+                
+                schedule_info = {
+                    'on_time': on_time,
+                    'off_time': off_time,
+                    'valid': schedule_valid
+                }
+                
+                return jsonify({
+                    'group': group_name,
+                    'base': base_automation,
+                    'overrides': overrides,
+                    'effective': effective,
+                    'schedule': schedule_info
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to update group automation: {e}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to update group automation',
+                    'details': str(e)
+                }), 500
+        
         @self.app.route('/web/<path:filename>')
         def serve_web_file(filename):
             """Serve static web files."""
