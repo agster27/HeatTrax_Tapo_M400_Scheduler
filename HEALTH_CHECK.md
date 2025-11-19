@@ -222,28 +222,102 @@ health_server:
 ```
 
 
-## Device Discovery
+## Device Discovery and Initialization
 
 ### What It Does
 
 At startup, the scheduler automatically:
-- Discovers all Kasa/Tapo devices on the local network
+- Discovers all Kasa/Tapo devices on the local network (legacy single-device mode)
+- For multi-device/group mode: Initializes each configured device with Tapo authentication
 - Logs detailed information about each device:
   - IP address
-  - MAC address
+  - MAC address (in legacy mode)
   - Device alias (friendly name)
   - Model number
   - Current state (ON/OFF)
+  - Number of outlets (for multi-outlet devices like EP40M)
   - Signal strength (RSSI) if available
   - Available features
   - Hardware and software versions
 - Validates the configured device IP
-- Auto-selects the device if only one is found
+- Auto-selects the device if only one is found (legacy mode)
 - Provides configuration suggestions if multiple devices are detected
+
+### Device Initialization Timeout
+
+**NEW:** The scheduler now includes configurable timeout settings for Tapo device initialization to handle slow network responses or busy devices.
+
+**Default Timeout:** 30 seconds (increased from the python-kasa default to handle slower Tapo responses)
+
+**Per-Device Configuration:**
+
+You can customize the timeout for specific devices that are slow to respond:
+
+```yaml
+devices:
+  credentials:
+    username: your_tapo_email
+    password: your_tapo_password
+  groups:
+    my_group:
+      enabled: true
+      items:
+        - name: kitchen
+          ip_address: 10.0.50.74
+          outlets: [0, 1]
+          discovery_timeout_seconds: 60  # Increase timeout for slow device
+```
+
+**When to Increase Timeout:**
+
+Increase the timeout if:
+- Your device is on a slow or congested network
+- The device consistently times out during initialization but is reachable
+- Container logs show "Timeout after 30s" errors but manual testing works
+- The device is an EP40M or other multi-outlet device (these can be slower)
+
+**Initialization Failure Handling:**
+
+When device initialization fails:
+1. The error is logged with full details (exception type, message, timeout duration)
+2. The device is tracked as "failed to initialize" 
+3. The group continues to initialize other devices (partial failures don't stop other devices)
+4. The Web UI Health and Device Control tabs show clear initialization failure status
+5. The `/api/devices/status` endpoint includes initialization summary and per-device errors
+
+**Troubleshooting Initialization Failures:**
+
+If you see "Timeout after Ns while initializing device" errors:
+
+1. **Verify Network Connectivity:**
+   ```bash
+   # From inside the container
+   ping -c 3 10.0.50.74
+   ```
+
+2. **Test python-kasa Directly:**
+   ```bash
+   # Inside container
+   python3 -c "
+   import asyncio
+   from kasa import Discover
+   async def test():
+       dev = await Discover.discover_single('10.0.50.74', username='your_email', password='your_password')
+       await dev.update()
+       print(f'Success: {dev.model}')
+   asyncio.run(test())
+   "
+   ```
+
+3. **Increase Timeout:** Add `discovery_timeout_seconds: 60` to device config
+
+4. **Check Device Load:** Multi-outlet devices with active outlets may respond slower
+
+5. **Check Container Logs:** Look for detailed error messages with exception types
 
 ### Configuration
 
-Device discovery runs automatically at startup with no configuration required. Discovery uses UDP broadcast on port 9999 with a 10-second timeout.
+Device discovery runs automatically at startup with no configuration required. Discovery uses UDP broadcast on port 9999 with a 10-second timeout (legacy mode) or Tapo-authenticated discovery with configurable timeout (multi-device mode).
 
 ### Example Output
 
