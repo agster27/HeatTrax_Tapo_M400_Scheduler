@@ -84,7 +84,9 @@ Get your HeatTrax scheduler running in 5 minutes!
    
    **Features:**
    - View system status and device information
+   - **Groups tab**: Toggle automation flags (weather_control, precipitation_control, morning_mode, schedule_control) for each device group - changes apply immediately!
    - Edit configuration directly in the browser
+   - Manual device control from the Health tab
    - **Auto-restart on save**: When you save configuration changes, the container automatically restarts to apply them
    
    **For network access** (to view from other machines):
