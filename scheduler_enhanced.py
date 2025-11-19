@@ -12,6 +12,7 @@ from device_group_manager import DeviceGroupManager
 from state_manager import StateManager
 from health_check import HealthCheckService
 from health_server import HealthCheckServer
+from automation_overrides import AutomationOverrides
 from notification_service import (
     validate_and_test_notifications,
     NotificationValidationError
@@ -55,6 +56,9 @@ class EnhancedScheduler:
         
         # State management per group
         self.states = {}  # group_name -> StateManager
+        
+        # Automation overrides management
+        self.automation_overrides = AutomationOverrides()
         
         # Initialize notification service (will be set during validation)
         self.notification_service = None
@@ -246,6 +250,45 @@ class EnhancedScheduler:
         except Exception as e:
             self.logger.warning(f"Failed to send weather mode notification: {e}")
     
+    def validate_schedule(self, schedule: dict) -> tuple[bool, str, str]:
+        """
+        Validate schedule configuration.
+        
+        Args:
+            schedule: Schedule dictionary with on_time and off_time
+            
+        Returns:
+            Tuple of (is_valid, on_time_str, off_time_str)
+        """
+        if not schedule:
+            return (False, None, None)
+        
+        on_time_str = schedule.get('on_time')
+        off_time_str = schedule.get('off_time')
+        
+        if not on_time_str or not off_time_str:
+            return (False, None, None)
+        
+        try:
+            # Validate format by parsing
+            datetime.strptime(on_time_str, "%H:%M")
+            datetime.strptime(off_time_str, "%H:%M")
+            
+            # Optionally log warning if on_time >= off_time (crosses midnight or same)
+            on_time = datetime.strptime(on_time_str, "%H:%M").time()
+            off_time = datetime.strptime(off_time_str, "%H:%M").time()
+            
+            if on_time >= off_time:
+                self.logger.warning(
+                    f"Schedule has on_time >= off_time ({on_time_str} >= {off_time_str}). "
+                    "This may cross midnight or be invalid."
+                )
+            
+            return (True, on_time_str, off_time_str)
+        except ValueError as e:
+            self.logger.error(f"Invalid schedule time format: {e}")
+            return (False, None, None)
+    
     async def should_turn_on_group(self, group_name: str) -> bool:
         """
         Determine if a device group should be turned on.
@@ -266,7 +309,8 @@ class EnhancedScheduler:
             self.logger.error(f"State manager not found for group '{group_name}'")
             return False
         
-        automation = group_config.get('automation', {})
+        base_automation = group_config.get('automation', {})
+        automation = self.automation_overrides.get_effective_automation(group_name, base_automation)
         
         # Check if in cooldown
         if state.is_in_cooldown(self.config.safety['cooldown_minutes']):
@@ -394,7 +438,8 @@ class EnhancedScheduler:
         if not state:
             return True  # Turn off if state not found
         
-        automation = group_config.get('automation', {})
+        base_automation = group_config.get('automation', {})
+        automation = self.automation_overrides.get_effective_automation(group_name, base_automation)
         
         # Check if exceeded max runtime
         if state.exceeded_max_runtime(self.config.safety['max_runtime_hours']):
@@ -613,7 +658,8 @@ class EnhancedScheduler:
                 expected_off_at = None
                 
                 # For schedule-based control, calculate expected times
-                automation = group_config.get('automation', {})
+                base_automation = group_config.get('automation', {})
+                automation = self.automation_overrides.get_effective_automation(group_name, base_automation)
                 if automation.get('schedule_control', False):
                     schedule = group_config.get('schedule', {})
                     if schedule:

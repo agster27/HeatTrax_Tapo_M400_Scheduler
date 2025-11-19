@@ -529,6 +529,180 @@ class WebServer:
                     'details': str(e)
                 }), 500
         
+        @self.app.route('/api/groups/<group_name>/automation', methods=['GET'])
+        def api_get_group_automation(group_name):
+            """
+            Get automation configuration for a specific group.
+            
+            Returns base automation from config.yaml, any overrides from state file,
+            and the effective merged automation values.
+            
+            Args:
+                group_name: Name of the device group
+                
+            Returns:
+                JSON: {
+                    "group": "group_name",
+                    "base": {...},         # From config.yaml
+                    "overrides": {...},    # From automation_overrides.json
+                    "effective": {...},    # Merged result
+                    "schedule": {          # Schedule info (read-only)
+                        "on_time": "HH:MM",
+                        "off_time": "HH:MM",
+                        "valid": true/false
+                    }
+                }
+            """
+            try:
+                if not self.scheduler:
+                    return jsonify({
+                        'error': 'Scheduler not available'
+                    }), 503
+                
+                # Get group config
+                config = self.config_manager.get_config(include_secrets=False)
+                groups = config.get('devices', {}).get('groups', {})
+                
+                if group_name not in groups:
+                    return jsonify({
+                        'error': f"Group '{group_name}' not found"
+                    }), 404
+                
+                group_config = groups[group_name]
+                base_automation = group_config.get('automation', {})
+                
+                # Get overrides and effective automation
+                overrides = self.scheduler.automation_overrides.get_group_overrides(group_name)
+                effective = self.scheduler.automation_overrides.get_effective_automation(
+                    group_name, base_automation
+                )
+                
+                # Get schedule info
+                schedule = group_config.get('schedule', {})
+                schedule_valid, on_time, off_time = self.scheduler.validate_schedule(schedule)
+                
+                schedule_info = {
+                    'on_time': on_time,
+                    'off_time': off_time,
+                    'valid': schedule_valid
+                }
+                
+                return jsonify({
+                    'group': group_name,
+                    'base': base_automation,
+                    'overrides': overrides,
+                    'effective': effective,
+                    'schedule': schedule_info
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to get group automation: {e}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to get group automation',
+                    'details': str(e)
+                }), 500
+        
+        @self.app.route('/api/groups/<group_name>/automation', methods=['PATCH'])
+        def api_update_group_automation(group_name):
+            """
+            Update automation overrides for a specific group.
+            
+            Accepts a JSON body with automation flags to override. Set a flag to
+            true/false to override, or null to clear the override and fall back
+            to config.yaml value.
+            
+            Args:
+                group_name: Name of the device group
+                
+            Expects JSON:
+                {
+                    "weather_control": true/false/null,
+                    "precipitation_control": true/false/null,
+                    "morning_mode": true/false/null,
+                    "schedule_control": true/false/null
+                }
+            
+            Returns:
+                JSON: Same structure as GET endpoint with updated values
+            """
+            try:
+                if not self.scheduler:
+                    return jsonify({
+                        'error': 'Scheduler not available'
+                    }), 503
+                
+                if not request.is_json:
+                    return jsonify({
+                        'error': 'Request must be JSON'
+                    }), 400
+                
+                # Get group config
+                config = self.config_manager.get_config(include_secrets=False)
+                groups = config.get('devices', {}).get('groups', {})
+                
+                if group_name not in groups:
+                    return jsonify({
+                        'error': f"Group '{group_name}' not found"
+                    }), 404
+                
+                data = request.get_json()
+                
+                # Valid automation flags
+                valid_flags = [
+                    'weather_control',
+                    'precipitation_control',
+                    'morning_mode',
+                    'schedule_control'
+                ]
+                
+                # Update each flag in the request
+                for flag_name, flag_value in data.items():
+                    if flag_name not in valid_flags:
+                        logger.warning(f"Ignoring unknown automation flag: {flag_name}")
+                        continue
+                    
+                    # Validate value is bool or None
+                    if flag_value is not None and not isinstance(flag_value, bool):
+                        return jsonify({
+                            'error': f"Invalid value for {flag_name}: must be true, false, or null"
+                        }), 400
+                    
+                    # Set the override
+                    self.scheduler.automation_overrides.set_flag(group_name, flag_name, flag_value)
+                    logger.info(f"Updated automation override: {group_name}.{flag_name} = {flag_value}")
+                
+                # Return updated state (same as GET endpoint)
+                group_config = groups[group_name]
+                base_automation = group_config.get('automation', {})
+                overrides = self.scheduler.automation_overrides.get_group_overrides(group_name)
+                effective = self.scheduler.automation_overrides.get_effective_automation(
+                    group_name, base_automation
+                )
+                
+                schedule = group_config.get('schedule', {})
+                schedule_valid, on_time, off_time = self.scheduler.validate_schedule(schedule)
+                
+                schedule_info = {
+                    'on_time': on_time,
+                    'off_time': off_time,
+                    'valid': schedule_valid
+                }
+                
+                return jsonify({
+                    'group': group_name,
+                    'base': base_automation,
+                    'overrides': overrides,
+                    'effective': effective,
+                    'schedule': schedule_info
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to update group automation: {e}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to update group automation',
+                    'details': str(e)
+                }), 500
+        
         @self.app.route('/web/<path:filename>')
         def serve_web_file(filename):
             """Serve static web files."""
@@ -911,6 +1085,106 @@ class WebServer:
             background: #fadbd8;
             color: #e74c3c;
         }
+        .group-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .group-card h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+        }
+        .automation-panel {
+            margin-top: 15px;
+        }
+        .automation-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .automation-label {
+            font-weight: 600;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .automation-label .override-badge {
+            background: #ffc107;
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .automation-toggle {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .automation-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .automation-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .automation-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        .automation-toggle input:checked + .automation-slider {
+            background-color: #27ae60;
+        }
+        .automation-toggle input:checked + .automation-slider:before {
+            transform: translateX(26px);
+        }
+        .automation-toggle input:disabled + .automation-slider {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .schedule-info {
+            padding: 15px;
+            background: #e8f4f8;
+            border-radius: 4px;
+            margin-top: 15px;
+            color: #2c3e50;
+        }
+        .schedule-info strong {
+            display: block;
+            margin-bottom: 8px;
+        }
+        .schedule-info code {
+            background: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
     </style>
 </head>
 <body>
@@ -927,6 +1201,7 @@ class WebServer:
     <div class="tab-container">
         <div class="tabs">
             <button class="tab active" onclick="switchTab('status')">Status</button>
+            <button class="tab" onclick="switchTab('groups')">Groups</button>
             <button class="tab" onclick="switchTab('config')">Configuration</button>
             <button class="tab" onclick="switchTab('health')">Health</button>
         </div>
@@ -940,6 +1215,17 @@ class WebServer:
                 <div class="status-item">
                     <label>Loading...</label>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="groups-tab" class="tab-content">
+        <div class="card">
+            <h2>Device Groups</h2>
+            <p>Control automation settings for each device group. Changes apply immediately and override config.yaml values until cleared.</p>
+            <button onclick="refreshGroups()">🔄 Refresh</button>
+            <div id="groups-content">
+                <p>Loading groups...</p>
             </div>
         </div>
     </div>
@@ -1046,6 +1332,8 @@ class WebServer:
             
             if (tabName === 'status') {
                 refreshStatus();
+            } else if (tabName === 'groups') {
+                refreshGroups();
             } else if (tabName === 'config') {
                 loadConfig();
             } else if (tabName === 'health') {
@@ -1145,6 +1433,131 @@ class WebServer:
                 
             } catch (e) {
                 statusContent.innerHTML = `<div class="error">Failed to load status: ${e.message}</div>`;
+            }
+        }
+
+        // Refresh groups and automation controls
+        async function refreshGroups() {
+            const groupsContent = document.getElementById('groups-content');
+            
+            try {
+                // Fetch config to get list of groups
+                const configResponse = await fetch('/api/config');
+                const annotatedConfig = await configResponse.json();
+                const config = extractConfigValues(annotatedConfig);
+                
+                const groups = config.devices?.groups;
+                if (!groups || Object.keys(groups).length === 0) {
+                    groupsContent.innerHTML = '<p>No device groups configured.</p>';
+                    return;
+                }
+                
+                let html = '';
+                
+                for (const [groupName, groupConfig] of Object.entries(groups)) {
+                    // Fetch automation data for this group
+                    try {
+                        const automationResponse = await fetch(`/api/groups/${groupName}/automation`);
+                        const automationData = await automationResponse.json();
+                        
+                        if (automationData.error) {
+                            html += `<div class="group-card">
+                                <h3>${groupName}</h3>
+                                <p class="error">${automationData.error}</p>
+                            </div>`;
+                            continue;
+                        }
+                        
+                        const base = automationData.base || {};
+                        const overrides = automationData.overrides || {};
+                        const effective = automationData.effective || {};
+                        const schedule = automationData.schedule || {};
+                        
+                        html += `<div class="group-card">
+                            <h3>${groupName}</h3>
+                            <div class="automation-panel">
+                                ${createAutomationToggle('weather_control', 'Weather Control', groupName, effective.weather_control, base.weather_control, overrides.weather_control !== undefined)}
+                                ${createAutomationToggle('precipitation_control', 'Precipitation Control', groupName, effective.precipitation_control, base.precipitation_control, overrides.precipitation_control !== undefined)}
+                                ${createAutomationToggle('morning_mode', 'Morning Mode', groupName, effective.morning_mode, base.morning_mode, overrides.morning_mode !== undefined)}
+                                ${createAutomationToggle('schedule_control', 'Schedule Control', groupName, effective.schedule_control, base.schedule_control, overrides.schedule_control !== undefined)}
+                            </div>`;
+                        
+                        // Show schedule info if available
+                        if (schedule.valid) {
+                            html += `<div class="schedule-info">
+                                <strong>📅 Schedule (from config.yaml):</strong>
+                                <code>${schedule.on_time} → ${schedule.off_time}</code>
+                            </div>`;
+                        } else if (effective.schedule_control) {
+                            html += `<div class="schedule-info" style="background: #fff3cd;">
+                                <strong>⚠️ Schedule Control Enabled</strong>
+                                <p>No valid schedule configured in config.yaml. Add <code>schedule.on_time</code> and <code>schedule.off_time</code> to enable schedule-based control.</p>
+                            </div>`;
+                        }
+                        
+                        html += '</div>';
+                        
+                    } catch (e) {
+                        html += `<div class="group-card">
+                            <h3>${groupName}</h3>
+                            <p class="error">Failed to load automation: ${e.message}</p>
+                        </div>`;
+                    }
+                }
+                
+                groupsContent.innerHTML = html;
+                
+            } catch (e) {
+                groupsContent.innerHTML = `<div class="error">Failed to load groups: ${e.message}</div>`;
+            }
+        }
+
+        function createAutomationToggle(flagName, displayName, groupName, effectiveValue, baseValue, isOverridden) {
+            const toggleId = `toggle-${groupName}-${flagName}`;
+            const checked = effectiveValue ? 'checked' : '';
+            const overrideBadge = isOverridden ? '<span class="override-badge">overridden</span>' : '';
+            
+            return `<div class="automation-row">
+                <div class="automation-label">
+                    ${displayName}
+                    ${overrideBadge}
+                </div>
+                <label class="automation-toggle">
+                    <input type="checkbox" id="${toggleId}" ${checked} 
+                           onchange="toggleAutomation('${groupName}', '${flagName}', this.checked)">
+                    <span class="automation-slider"></span>
+                </label>
+            </div>`;
+        }
+
+        async function toggleAutomation(groupName, flagName, value) {
+            try {
+                const payload = {};
+                payload[flagName] = value;
+                
+                const response = await fetch(`/api/groups/${groupName}/automation`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert(`Failed to update automation: ${error.error || 'Unknown error'}`);
+                    // Revert the toggle
+                    document.getElementById(`toggle-${groupName}-${flagName}`).checked = !value;
+                    return;
+                }
+                
+                // Refresh groups to update override badges
+                await refreshGroups();
+                
+            } catch (e) {
+                alert(`Failed to update automation: ${e.message}`);
+                // Revert the toggle
+                document.getElementById(`toggle-${groupName}-${flagName}`).checked = !value;
             }
         }
 

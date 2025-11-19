@@ -58,12 +58,20 @@ After starting the container:
 ### Web UI & API
 - **Browser-based Interface**: Monitor and configure your system from any device
   - Real-time status dashboard showing device states and weather info
+  - **Groups tab** - Control automation flags for each device group from the Web UI
   - **Manual device control** on Health page - Turn devices/outlets ON/OFF instantly
   - Configuration editor with syntax validation
   - **Environment override visibility**: See which settings are controlled by env vars
   - Clear separation between editable (YAML) and read-only (env) configuration
   - Clear error messages and success notifications
   - Security warnings when binding to non-local addresses
+- **Automation Control** (NEW): Toggle automation flags per group via Web UI
+  - Control weather_control, precipitation_control, morning_mode, schedule_control for each group
+  - Changes apply immediately without restarting the scheduler
+  - Overrides stored in `state/automation_overrides.json`
+  - `config.yaml` remains the base configuration; Web UI changes override temporarily
+  - Visual indicators show when a flag is overridden vs. base config
+  - Schedule times remain configured in `config.yaml` (read-only in Web UI)
 - **JSON REST API**: Programmatic access to system status and configuration
   - `GET /api/status` - System status, device states, weather info
   - `GET /api/config` - Current configuration with source metadata (env/yaml)
@@ -72,6 +80,8 @@ After starting the container:
   - `GET /api/ping` - Simple liveness check
   - `GET /api/devices/status` - Detailed device and outlet states
   - `POST /api/devices/control` - Manual device/outlet control
+  - `GET /api/groups/{group}/automation` - Get automation config for a group
+  - `PATCH /api/groups/{group}/automation` - Update automation overrides for a group
 - **Configuration as Code**: `config.yaml` is the single source of truth
   - Auto-generated on first run if missing
   - Environment variables override YAML values at runtime
@@ -355,6 +365,48 @@ devices:
 ### Migration from Legacy Configuration
 
 If you have an old single-device configuration (using `device:` instead of `devices:`), it is no longer supported. Please migrate to the multi-device format shown above. For single-device setups, simply create one group with one device.
+
+### Automation Control via Web UI
+
+**NEW**: Automation flags can now be toggled via the Web UI without editing `config.yaml`:
+
+1. Navigate to the **Groups** tab in the Web UI
+2. Each group displays toggles for:
+   - **Weather Control**: Enable/disable weather-based automation
+   - **Precipitation Control**: Enable/disable precipitation forecasting
+   - **Morning Mode**: Enable/disable early morning black ice protection
+   - **Schedule Control**: Enable/disable time-based scheduling
+3. Toggle any flag to override the base configuration from `config.yaml`
+4. Changes apply immediately (no restart required)
+5. Overrides are stored in `state/automation_overrides.json`
+6. Overridden flags show an "overridden" badge in the UI
+7. To clear an override and return to `config.yaml` value, toggle back to the base value
+
+**Example workflow:**
+- Configure base automation in `config.yaml`:
+  ```yaml
+  heated_mats:
+    enabled: true
+    automation:
+      weather_control: true
+      precipitation_control: true
+      morning_mode: true
+      schedule_control: false
+  ```
+- Temporarily disable morning mode via Web UI toggle
+- Override persists across scheduler restarts
+- Schedule times (`on_time`, `off_time`) remain configured in `config.yaml`
+
+**State file location:** `state/automation_overrides.json`
+```json
+{
+  "heated_mats": {
+    "morning_mode": false
+  }
+}
+```
+
+This file can be manually edited or deleted to clear all overrides. The scheduler automatically creates the `state/` directory if it doesn't exist.
 
 ## Environment Variable Configuration
 
