@@ -174,20 +174,21 @@ class ConfigManager:
             logger.info("Generating config.yaml from defaults and environment variables")
             logger.info("Future changes via web UI will be written to config.yaml and may differ from environment variable values")
             
-            # Start with defaults
-            config = copy.deepcopy(self.DEFAULT_CONFIG)
+            # Start with defaults (this is the "original" config before env overrides)
+            original_config = copy.deepcopy(self.DEFAULT_CONFIG)
             
             # Apply environment variable overrides
-            config, env_overridden_paths = self._apply_env_overrides(config)
+            config_with_env = copy.deepcopy(original_config)
+            config_with_env, env_overridden_paths = self._apply_env_overrides(config_with_env)
             
             # Create parent directory if needed
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # Write initial config
-            self._write_config_to_disk(config)
+            # Write initial config with env-provided values
+            self._write_config_to_disk(config_with_env)
             logger.info(f"Generated initial configuration file: {self.config_path}")
             
-            return config, env_overridden_paths
+            return config_with_env, env_overridden_paths
         
         try:
             with open(self.config_path, 'r') as f:
@@ -196,32 +197,58 @@ class ConfigManager:
             if config is None or not isinstance(config, dict):
                 logger.error(f"Invalid configuration file format: {self.config_path}")
                 logger.warning("Falling back to default configuration with environment overrides")
-                config = copy.deepcopy(self.DEFAULT_CONFIG)
-                config, env_overridden_paths = self._apply_env_overrides(config)
-                return config, env_overridden_paths
+                
+                # Use defaults as original config
+                original_config = copy.deepcopy(self.DEFAULT_CONFIG)
+                config_with_env = copy.deepcopy(original_config)
+                config_with_env, env_overridden_paths = self._apply_env_overrides(config_with_env)
+                
+                # Sync env overrides to disk (no validation in fallback path - defaults + env should be safe)
+                self._sync_env_overrides_to_disk_if_needed(original_config, config_with_env, env_overridden_paths)
+                
+                return config_with_env, env_overridden_paths
             
             logger.info(f"Loaded configuration from: {self.config_path}")
             
+            # Save original config before env overrides
+            original_config = copy.deepcopy(config)
+            
             # Apply environment variable overrides
-            config, env_overridden_paths = self._apply_env_overrides(config)
+            config_with_env = copy.deepcopy(config)
+            config_with_env, env_overridden_paths = self._apply_env_overrides(config_with_env)
             
             # Validate loaded config
-            self._validate_config(config)
+            self._validate_config(config_with_env)
             
-            return config, env_overridden_paths
+            # Sync env overrides to disk if any values changed
+            self._sync_env_overrides_to_disk_if_needed(original_config, config_with_env, env_overridden_paths)
+            
+            return config_with_env, env_overridden_paths
             
         except yaml.YAMLError as e:
             logger.error(f"Error parsing YAML configuration: {e}")
             logger.warning("Falling back to default configuration with environment overrides")
-            config = copy.deepcopy(self.DEFAULT_CONFIG)
-            config, env_overridden_paths = self._apply_env_overrides(config)
-            return config, env_overridden_paths
+            
+            original_config = copy.deepcopy(self.DEFAULT_CONFIG)
+            config_with_env = copy.deepcopy(original_config)
+            config_with_env, env_overridden_paths = self._apply_env_overrides(config_with_env)
+            
+            # Sync env overrides to disk (no validation in fallback path - defaults + env should be safe)
+            self._sync_env_overrides_to_disk_if_needed(original_config, config_with_env, env_overridden_paths)
+            
+            return config_with_env, env_overridden_paths
         except Exception as e:
             logger.error(f"Unexpected error loading configuration: {e}")
             logger.warning("Falling back to default configuration with environment overrides")
-            config = copy.deepcopy(self.DEFAULT_CONFIG)
-            config, env_overridden_paths = self._apply_env_overrides(config)
-            return config, env_overridden_paths
+            
+            original_config = copy.deepcopy(self.DEFAULT_CONFIG)
+            config_with_env = copy.deepcopy(original_config)
+            config_with_env, env_overridden_paths = self._apply_env_overrides(config_with_env)
+            
+            # Sync env overrides to disk (no validation in fallback path - defaults + env should be safe)
+            self._sync_env_overrides_to_disk_if_needed(original_config, config_with_env, env_overridden_paths)
+            
+            return config_with_env, env_overridden_paths
     
     def _apply_env_overrides(self, config: Dict[str, Any]) -> tuple[Dict[str, Any], Dict[str, str]]:
         """
@@ -278,6 +305,72 @@ class ConfigManager:
             logger.info("Environment override: HEATTRAX_WEB_PASSWORD -> web.auth.password_hash (hashed)")
         
         return config, env_overridden_paths
+    
+    def _get_by_path(self, config: Dict[str, Any], path: str) -> Any:
+        """
+        Retrieve a value from a nested configuration dictionary using a dot-separated path.
+        
+        Args:
+            config: Configuration dictionary
+            path: Dot-separated path (e.g., 'location.latitude')
+            
+        Returns:
+            Value at the specified path, or None if path does not exist
+        """
+        keys = path.split('.')
+        current = config
+        
+        for key in keys:
+            if not isinstance(current, dict) or key not in current:
+                return None
+            current = current[key]
+        
+        return current
+    
+    def _sync_env_overrides_to_disk_if_needed(
+        self,
+        original_config: Dict[str, Any],
+        effective_config: Dict[str, Any],
+        env_overridden_paths: Dict[str, str],
+    ) -> None:
+        """
+        If any env-overridden paths differ between the original on-disk config
+        and the effective config (after env overrides), write the effective config
+        back to config.yaml using atomic write.
+        
+        This synchronizes env-set values into config.yaml while those fields remain
+        env-controlled at runtime until the env var is removed.
+        
+        Args:
+            original_config: Configuration loaded from disk before env overrides
+            effective_config: Configuration after env overrides applied
+            env_overridden_paths: Dict mapping config paths to env var names
+        """
+        # If no env overrides, nothing to sync
+        if not env_overridden_paths:
+            logger.debug("No environment overrides to sync")
+            return
+        
+        # Check if any env-overridden path has changed
+        needs_write = False
+        changed_paths = []
+        
+        for path in env_overridden_paths.keys():
+            original_value = self._get_by_path(original_config, path)
+            effective_value = self._get_by_path(effective_config, path)
+            
+            if original_value != effective_value:
+                needs_write = True
+                changed_paths.append(path)
+                logger.debug(f"Env override changed {path}: {original_value} -> {effective_value}")
+        
+        if needs_write:
+            try:
+                self._write_config_to_disk(effective_config)
+                logger.info(f"Synced {len(changed_paths)} env-overridden value(s) to config.yaml: {', '.join(changed_paths)}")
+            except Exception as e:
+                # Log error but don't crash startup - keep in-memory config
+                logger.error(f"Failed to sync env overrides to disk (continuing with in-memory config): {e}")
     
     def _validate_config(self, config: Dict[str, Any]) -> None:
         """
