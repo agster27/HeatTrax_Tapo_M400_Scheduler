@@ -399,6 +399,70 @@ class ConfigManager:
                     raise ConfigValidationError(f"{field} must be positive")
             except (ValueError, TypeError):
                 raise ConfigValidationError(f"Invalid {field} value")
+        
+        # Validate notifications if present
+        if 'notifications' in config:
+            notifications = config['notifications']
+            if not isinstance(notifications, dict):
+                raise ConfigValidationError("notifications must be a dictionary")
+            
+            # Validate email notifications if enabled
+            if 'email' in notifications:
+                email = notifications['email']
+                if not isinstance(email, dict):
+                    raise ConfigValidationError("notifications.email must be a dictionary")
+                
+                # If email is enabled, validate required fields
+                if email.get('enabled', False):
+                    required_email_fields = ['smtp_host', 'smtp_port', 'smtp_username', 
+                                            'smtp_password', 'from_email', 'to_emails']
+                    
+                    for field in required_email_fields:
+                        if field not in email:
+                            raise ConfigValidationError(
+                                f"notifications.email.{field} is required when email notifications are enabled"
+                            )
+                        
+                        # Validate non-empty values
+                        value = email[field]
+                        if field == 'to_emails':
+                            if not isinstance(value, list) or len(value) == 0:
+                                raise ConfigValidationError(
+                                    "notifications.email.to_emails must be a non-empty list when email is enabled"
+                                )
+                        elif not value:
+                            raise ConfigValidationError(
+                                f"notifications.email.{field} cannot be empty when email notifications are enabled"
+                            )
+                    
+                    # Validate smtp_port is an integer
+                    try:
+                        port = int(email['smtp_port'])
+                        if port < 1 or port > 65535:
+                            raise ConfigValidationError(
+                                f"notifications.email.smtp_port must be between 1 and 65535, got {port}"
+                            )
+                    except (ValueError, TypeError):
+                        raise ConfigValidationError(
+                            f"notifications.email.smtp_port must be an integer"
+                        )
+                    
+                    # Validate use_tls is a boolean if present
+                    if 'use_tls' in email and not isinstance(email['use_tls'], bool):
+                        raise ConfigValidationError("notifications.email.use_tls must be a boolean")
+            
+            # Validate webhook notifications if enabled
+            if 'webhook' in notifications:
+                webhook = notifications['webhook']
+                if not isinstance(webhook, dict):
+                    raise ConfigValidationError("notifications.webhook must be a dictionary")
+                
+                # If webhook is enabled, validate URL
+                if webhook.get('enabled', False):
+                    if 'url' not in webhook or not webhook['url']:
+                        raise ConfigValidationError(
+                            "notifications.webhook.url is required when webhook notifications are enabled"
+                        )
     
     def _write_config_to_disk(self, config: Dict[str, Any]) -> None:
         """
