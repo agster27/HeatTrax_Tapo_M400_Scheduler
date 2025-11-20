@@ -201,6 +201,63 @@ After starting the container:
 - Network access to the smart plug (local network)
 - Internet access for Tapo cloud authentication (required for device control)
 
+## Setup Mode
+
+**New in v1.2**: HeatTrax now includes a "setup mode" that allows the application to start even when Tapo credentials are missing or invalid.
+
+### What is Setup Mode?
+
+When HeatTrax starts without valid Tapo credentials (empty, missing, or placeholder values like `your_tapo_username`), it enters **setup mode**:
+
+- ✅ **Application starts normally** - no crash or exit
+- ✅ **Web UI remains accessible** for configuration
+- ⚠️ **Device control is disabled** - scheduler runs in safe no-op state
+- 🔧 **Easy credential configuration** via Web UI
+
+### How It Works
+
+1. **Missing/Invalid Credentials Detected**: On startup, HeatTrax validates Tapo credentials
+2. **Setup Mode Activated**: If credentials are missing, invalid, or placeholder values, setup mode activates
+3. **Clear Logging**: Console and logs clearly indicate setup mode is active and why
+4. **Device Control Disabled**: No attempts are made to discover or control Tapo devices
+5. **Web UI Available**: Access the web UI to configure credentials
+6. **Restart to Enable**: Once valid credentials are saved, restart the application to enable device control
+
+### Credential Sources (Priority Order)
+
+Credentials are checked in this order:
+
+1. **Environment variables** (highest priority):
+   - `HEATTRAX_TAPO_USERNAME`
+   - `HEATTRAX_TAPO_PASSWORD`
+2. **config.yaml file** (lower priority)
+
+**Important**: Environment variables override `config.yaml` at runtime but **do NOT** automatically update the file. If you remove the environment variables later, the application will fall back to `config.yaml` values.
+
+### Placeholder Detection
+
+These values are treated as invalid and trigger setup mode:
+
+**Usernames:**
+- `your_tapo_email@example.com`
+- `your_tapo_username`
+- `your_username`
+- `your_email@example.com`
+
+**Passwords:**
+- `your_tapo_password`
+- `password`
+
+### Exiting Setup Mode
+
+To exit setup mode and enable device control:
+
+1. **Via Web UI**: Navigate to the Configuration page and update credentials
+2. **Via Environment Variables**: Set `HEATTRAX_TAPO_USERNAME` and `HEATTRAX_TAPO_PASSWORD`
+3. **Via config.yaml**: Edit the file directly and restart
+
+After updating credentials, **restart the application** to apply changes and exit setup mode.
+
 ## Installation
 
 ### Using Docker (Recommended)
@@ -490,6 +547,22 @@ When using environment variables for secrets:
 3. **Restrict file permissions** on any files containing sensitive data
 4. **Rotate credentials regularly** and update environment variables accordingly
 5. **Use separate credentials** for different environments (dev/staging/prod)
+
+### Environment Variable Behavior
+
+**Important**: Environment variables override `config.yaml` values at runtime **but do not automatically persist back to the file**.
+
+- **At startup**: Environment variables take precedence over `config.yaml`
+- **During operation**: The effective values (from env) are used
+- **If env var is removed**: On next restart, the application falls back to `config.yaml` values
+- **Saving via Web UI**: When you save configuration through the Web UI, the currently effective values (including those from environment variables) **will be written to `config.yaml`**
+
+**Example:**
+1. You set `HEATTRAX_TAPO_USERNAME=user@example.com` as an environment variable
+2. Your `config.yaml` has `username: "your_tapo_username"` (placeholder)
+3. Application runs with `user@example.com` (from env var)
+4. If you remove the environment variable and restart, it will use the placeholder from `config.yaml` and enter setup mode
+5. To persist the credentials, save them via the Web UI
 
 ### Using Environment Variables with Docker
 

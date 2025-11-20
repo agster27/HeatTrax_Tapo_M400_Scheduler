@@ -53,15 +53,32 @@ kasa discover
 
 ### 3. Configure the Application
 
-You have two options for configuration:
+**New in v1.2**: HeatTrax supports **Setup Mode** - you can now start the application without Tapo credentials configured! The Web UI will remain accessible, allowing you to configure credentials after the application is running.
 
-#### Option A: Using Environment Variables (Recommended for Docker)
+You have three options for configuration:
+
+#### Option A: Start Without Credentials (Setup Mode) - NEW!
+
+1. Start the application without configuring Tapo credentials (or with placeholder values)
+2. The application will enter **Setup Mode**:
+   - ✅ Application starts normally
+   - ✅ Web UI is accessible
+   - ⚠️ Device control is disabled until credentials are configured
+3. Access the Web UI at `http://localhost:4328` (or your configured host/port)
+4. Configure your Tapo credentials through the Web UI
+5. Save and restart to enable device control
+
+This is the easiest way to get started - you can configure everything through the browser!
+
+#### Option B: Using Environment Variables (Recommended for Docker)
 
 When using Docker or Portainer, you can configure the application entirely through environment variables without creating a `config.yaml` file. See the "Using Environment Variables with Docker" section below for examples.
 
+**Important**: Environment variables override `config.yaml` at runtime but **do not automatically persist to the file**. When you save configuration via the Web UI, the effective values (including those from environment variables) will be written to `config.yaml`.
+
 > **Note**: If you use environment variables and don't have a `config.yaml` file, the application will log `Configuration file not found: config.yaml` as an informational message. This is normal and expected - the application will continue to run using your environment variables.
 
-#### Option B: Using config.yaml
+#### Option C: Using config.yaml
 
 Create your `config.yaml` file:
 
@@ -95,6 +112,22 @@ devices:
 ```
 
 > **Tip**: You can also use a hybrid approach - put non-sensitive settings in `config.yaml` and override sensitive values (like username and password) with environment variables.
+
+#### Important: Placeholder Values
+
+The following credential values are recognized as **placeholders** and will trigger Setup Mode:
+
+**Placeholder Usernames:**
+- `your_tapo_email@example.com`
+- `your_tapo_username`
+- `your_username`
+- `your_email@example.com`
+
+**Placeholder Passwords:**
+- `your_tapo_password`
+- `password`
+
+If you see these values in `config.example.yaml`, make sure to replace them with your actual Tapo credentials. If you leave them as-is, the application will enter Setup Mode.
 
 ### 4. Choose Deployment Method
 
