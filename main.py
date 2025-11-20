@@ -178,7 +178,30 @@ async def main():
         logger.info("=" * 60)
         logger.info(f"Reboot pause configured: {pause_seconds} seconds")
         
-        # Multi-device configuration
+        # Check for setup mode (missing/invalid Tapo credentials)
+        setup_mode, setup_reason = config_manager.is_setup_mode()
+        
+        if setup_mode:
+            logger.warning("=" * 80)
+            logger.warning("RUNNING IN SETUP MODE")
+            logger.warning("=" * 80)
+            logger.warning(f"Reason: {setup_reason}")
+            logger.warning("Tapo device control is DISABLED until valid credentials are configured")
+            logger.warning("Web UI will still be available for configuration")
+            logger.warning("To exit setup mode, configure valid Tapo credentials via:")
+            logger.warning("  1. Web UI (http://<host>:<port>)")
+            logger.warning("  2. Environment variables (HEATTRAX_TAPO_USERNAME, HEATTRAX_TAPO_PASSWORD)")
+            logger.warning("  3. config.yaml (devices.credentials.username and password)")
+            logger.warning("=" * 80)
+        else:
+            logger.info("=" * 80)
+            logger.info("CREDENTIALS VALIDATED")
+            logger.info("=" * 80)
+            logger.info(f"Status: {setup_reason}")
+            logger.info("Tapo device control is ENABLED")
+            logger.info("=" * 80)
+        
+        # Multi-device configuration (show even in setup mode for transparency)
         logger.info("\n" + "=" * 80)
         logger.info("MULTI-DEVICE CONFIGURATION")
         logger.info("=" * 80)
@@ -193,7 +216,10 @@ async def main():
             items = group_cfg.get('items', [])
             logger.info(f"  - {group_name}: {len(items)} devices")
         
-        logger.info("Device connections will be established during initialization")
+        if setup_mode:
+            logger.warning("NOTE: Device control is disabled in setup mode - configure credentials to enable")
+        else:
+            logger.info("Device connections will be established during initialization")
         
         # Check if web UI is enabled
         web_config = config_manager.get_config(include_secrets=False).get('web', {})
@@ -210,7 +236,7 @@ async def main():
             logger.info("Running in scheduler-only mode")
             
             # Run scheduler directly without web UI
-            scheduler = EnhancedScheduler(config)
+            scheduler = EnhancedScheduler(config, setup_mode=setup_mode)
             await scheduler.run()
         else:
             logger.info("=" * 80)
@@ -224,7 +250,7 @@ async def main():
             logger.info(f"Web UI will be available at http://{bind_host}:{port}")
             
             # Create scheduler (will run in separate thread)
-            scheduler = EnhancedScheduler(config)
+            scheduler = EnhancedScheduler(config, setup_mode=setup_mode)
             
             # Create web server
             web_server = WebServer(config_manager, scheduler)

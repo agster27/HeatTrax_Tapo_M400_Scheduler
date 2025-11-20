@@ -28,14 +28,16 @@ class EnhancedScheduler:
     and schedule-based automation.
     """
     
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, setup_mode: bool = False):
         """
         Initialize enhanced scheduler.
         
         Args:
             config: Application configuration
+            setup_mode: If True, device control is disabled (credentials missing/invalid)
         """
         self.config = config
+        self.setup_mode = setup_mode
         self.logger = logging.getLogger(__name__)
         
         # Check if weather is enabled
@@ -50,9 +52,14 @@ class EnhancedScheduler:
         else:
             self.logger.info("Weather-based scheduling DISABLED - using fixed schedule behavior")
         
-        # Initialize device management (multi-device mode only)
-        self.logger.info("Using multi-device group configuration")
-        self.device_manager = DeviceGroupManager(config.devices)
+        # Initialize device management (skip in setup mode)
+        if self.setup_mode:
+            self.logger.warning("Device management DISABLED - running in setup mode")
+            self.logger.warning("Configure valid Tapo credentials to enable device control")
+            self.device_manager = None
+        else:
+            self.logger.info("Using multi-device group configuration")
+            self.device_manager = DeviceGroupManager(config.devices)
         
         # State management per group
         self.states = {}  # group_name -> StateManager
@@ -157,14 +164,26 @@ class EnhancedScheduler:
         
         self.logger.info("=" * 80)
         
-        # Create weather service now that we have notification service
-        if self.weather_enabled:
+        # Create weather service now that we have notification service (skip in setup mode)
+        if self.weather_enabled and not self.setup_mode:
             self.logger.info("Creating resilient weather service...")
             self.weather = WeatherServiceFactory.create_weather_service(
                 self.config._config, 
                 notification_service=self.notification_service
             )
             self.logger.info("Weather-based scheduling ENABLED with resilience layer")
+        elif self.setup_mode:
+            self.logger.warning("Weather service DISABLED - running in setup mode")
+        
+        # Skip device initialization in setup mode
+        if self.setup_mode:
+            self.logger.warning("=" * 80)
+            self.logger.warning("SETUP MODE ACTIVE - Device initialization SKIPPED")
+            self.logger.warning("=" * 80)
+            self.logger.warning("The scheduler will run in a safe no-op state")
+            self.logger.warning("Configure valid Tapo credentials via Web UI to enable device control")
+            self.logger.info("Scheduler initialization completed (setup mode)")
+            return
         
         try:
             await self.device_manager.initialize()
@@ -776,6 +795,31 @@ class EnhancedScheduler:
         self.logger.info(f"Scheduler event loop initialized: {self.loop}")
         
         await self.initialize()
+        
+        # In setup mode, run a minimal idle loop
+        if self.setup_mode:
+            self.logger.warning("=" * 80)
+            self.logger.warning("SCHEDULER RUNNING IN SETUP MODE")
+            self.logger.warning("=" * 80)
+            self.logger.warning("Device control is DISABLED - scheduler will idle")
+            self.logger.warning("Web UI is available for configuration")
+            self.logger.warning("Once credentials are configured, restart the application")
+            self.logger.warning("=" * 80)
+            
+            # Import shutdown event
+            from main import shutdown_event
+            
+            # Idle loop - just wait for shutdown
+            try:
+                while not shutdown_event.is_set():
+                    await asyncio.sleep(10)
+                    # Log periodically to show we're still alive
+                    if int(asyncio.get_event_loop().time()) % 300 == 0:
+                        self.logger.info("Setup mode active - waiting for credential configuration...")
+            finally:
+                self.logger.info("Scheduler shutdown (setup mode)")
+            
+            return
         
         # Start health check service
         await self.health_check.start()
