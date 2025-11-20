@@ -779,6 +779,175 @@ class WebServer:
                     'details': str(e)
                 }), 500
         
+        @self.app.route('/api/weather/forecast', methods=['GET'])
+        def api_weather_forecast():
+            """
+            Get cached weather forecast data.
+            
+            This is a strictly read-only endpoint that returns cached weather data.
+            Does NOT trigger any outbound network calls to weather providers.
+            
+            Returns:
+                JSON: Weather forecast with hourly data, alerts, and metadata
+            """
+            try:
+                if not self.scheduler:
+                    return jsonify({
+                        'status': 'no_data',
+                        'reason': 'Scheduler not available'
+                    }), 200
+                
+                # Check if weather is enabled
+                config = self.config_manager.get_config(include_secrets=False)
+                weather_enabled = config.get('weather_api', {}).get('enabled', True)
+                
+                if not weather_enabled:
+                    return jsonify({
+                        'status': 'no_data',
+                        'reason': 'Weather service is disabled in configuration'
+                    }), 200
+                
+                # Get weather service
+                weather = getattr(self.scheduler, 'weather', None)
+                if not weather:
+                    return jsonify({
+                        'status': 'no_data',
+                        'reason': 'Weather service not initialized'
+                    }), 200
+                
+                # Get cached data
+                cache = getattr(weather, 'cache', None)
+                if not cache or not cache.cache_data:
+                    return jsonify({
+                        'status': 'no_data',
+                        'reason': 'No cached weather data available'
+                    }), 200
+                
+                # Check cache validity
+                cache_age_hours = cache.get_cache_age_hours()
+                cache_valid_hours = config.get('weather_api', {}).get('resilience', {}).get(
+                    'cache_valid_hours', 6.0
+                )
+                
+                # Build response from cached data
+                cache_data = cache.cache_data
+                
+                # Get provider info
+                provider = config.get('weather_api', {}).get('provider', 'open-meteo')
+                
+                # Get timezone from location config
+                timezone = config.get('location', {}).get('timezone', 'auto')
+                
+                # Get last fetch time
+                last_updated = cache_data.get('fetched_at')
+                
+                # Build hourly forecast data
+                hours = []
+                forecast_list = cache_data.get('forecast', [])
+                
+                for entry in forecast_list:
+                    hour_data = {
+                        'time': entry.get('timestamp'),
+                        'temp_f': entry.get('temperature_f'),
+                        'temp_c': round((entry.get('temperature_f', 32) - 32) * 5/9, 1) if entry.get('temperature_f') else None,
+                        'precip_prob': None,  # Not stored in current cache format
+                        'precip_intensity': entry.get('precipitation_mm'),
+                        'precip_type': 'snow' if entry.get('temperature_f', 32) <= 32 and entry.get('precipitation_mm', 0) > 0 else ('rain' if entry.get('precipitation_mm', 0) > 0 else None),
+                        'wind_speed_mph': None,  # Not stored in current cache format
+                        'wind_gust_mph': None,  # Not stored in current cache format
+                        'alerts': [],
+                        'raw': entry
+                    }
+                    hours.append(hour_data)
+                
+                # Get weather state
+                weather_state = None
+                if hasattr(weather, 'state'):
+                    state = weather.state
+                    if hasattr(state, 'value'):
+                        weather_state = state.value
+                    elif hasattr(state, 'name'):
+                        weather_state = state.name
+                    else:
+                        weather_state = str(state)
+                
+                return jsonify({
+                    'status': 'ok',
+                    'last_updated': last_updated,
+                    'provider': provider,
+                    'timezone': timezone,
+                    'cache_age_hours': cache_age_hours,
+                    'cache_valid_hours': cache_valid_hours,
+                    'hours': hours,
+                    'alerts': [],  # Would need additional data source for alerts
+                    'weather_state': weather_state
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to get weather forecast: {e}", exc_info=True)
+                return jsonify({
+                    'status': 'error',
+                    'error': 'Failed to retrieve weather forecast',
+                    'details': str(e)
+                }), 500
+        
+        @self.app.route('/api/weather/mat-forecast', methods=['GET'])
+        def api_weather_mat_forecast():
+            """
+            Get predicted mat ON/OFF windows per group over the configured forecast horizon.
+            
+            This is a strictly read-only endpoint that predicts future mat behavior.
+            Does NOT perform device control or external network calls.
+            
+            Returns:
+                JSON: Per-group predicted ON/OFF windows
+            """
+            try:
+                if not self.scheduler:
+                    return jsonify({
+                        'status': 'no_data',
+                        'reason': 'Scheduler not available'
+                    }), 200
+                
+                # Get configuration
+                config = self.config_manager.get_config(include_secrets=False)
+                
+                # Get forecast horizon from config
+                forecast_hours = config.get('scheduler', {}).get('forecast_hours', 12)
+                
+                # Use 60-minute step as default (hourly granularity)
+                step_minutes = 60
+                
+                # Call scheduler prediction method
+                try:
+                    groups_data = self.scheduler.predict_group_windows(
+                        horizon_hours=forecast_hours,
+                        step_minutes=step_minutes
+                    )
+                except Exception as e:
+                    logger.error(f"Error calling predict_group_windows: {e}", exc_info=True)
+                    return jsonify({
+                        'status': 'error',
+                        'error': 'Failed to predict mat forecast',
+                        'details': str(e)
+                    }), 500
+                
+                return jsonify({
+                    'status': 'ok',
+                    'horizon_hours': forecast_hours,
+                    'step_minutes': step_minutes,
+                    'generated_at': datetime.now().isoformat(),
+                    'groups': groups_data
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to get mat forecast: {e}", exc_info=True)
+                return jsonify({
+                    'status': 'error',
+                    'error': 'Failed to retrieve mat forecast',
+                    'details': str(e)
+                }), 500
+        
         @self.app.route('/web/<path:filename>')
         def serve_web_file(filename):
             """Serve static web files."""
@@ -1297,6 +1466,7 @@ class WebServer:
             <button class="tab" onclick="switchTab('groups')">Groups</button>
             <button class="tab" onclick="switchTab('config')">Configuration</button>
             <button class="tab" onclick="switchTab('health')">Health</button>
+            <button class="tab" onclick="switchTab('weather')">Weather</button>
         </div>
     </div>
 
@@ -1381,6 +1551,33 @@ class WebServer:
         </div>
     </div>
 
+    <div id="weather-tab" class="tab-content">
+        <div class="card">
+            <h2>Weather Summary</h2>
+            <button onclick="refreshWeather()">🔄 Refresh</button>
+            <div id="weather-info" class="status-grid">
+                <div class="status-item">
+                    <label>Loading...</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Weather Forecast</h2>
+            <div id="weather-forecast-table" style="overflow-x: auto;">
+                <p>Loading forecast data...</p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Mat Activity Timeline</h2>
+            <p>Predicted ON/OFF windows for each device group based on weather forecast and schedule.</p>
+            <div id="weather-mat-timelines">
+                <p>Loading mat predictions...</p>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Module-level variables to track the last full config
         let lastAnnotatedConfig = null;
@@ -1432,6 +1629,8 @@ class WebServer:
             } else if (tabName === 'health') {
                 refreshHealth();
                 refreshDeviceControl();
+            } else if (tabName === 'weather') {
+                refreshWeather();
             }
         }
 
@@ -1994,6 +2193,203 @@ class WebServer:
             } catch (e) {
                 console.error('Failed to fetch device status:', e);
                 deviceControlContent.innerHTML = `<div class="device-control-card"><div class="error">Failed to load device control: ${e.message}</div></div>`;
+            }
+        }
+
+        // Refresh weather tab
+        async function refreshWeather() {
+            const weatherInfo = document.getElementById('weather-info');
+            const weatherForecastTable = document.getElementById('weather-forecast-table');
+            const weatherMatTimelines = document.getElementById('weather-mat-timelines');
+            
+            try {
+                // Fetch both weather forecast and mat forecast in parallel
+                const [forecastResponse, matForecastResponse] = await Promise.all([
+                    fetch('/api/weather/forecast'),
+                    fetch('/api/weather/mat-forecast')
+                ]);
+                
+                const forecastData = await forecastResponse.json();
+                const matForecastData = await matForecastResponse.json();
+                
+                // Update weather summary
+                let summaryHtml = '';
+                
+                if (forecastData.status === 'ok') {
+                    const lastUpdated = forecastData.last_updated ? new Date(forecastData.last_updated).toLocaleString() : 'Unknown';
+                    const cacheAge = forecastData.cache_age_hours ? `${forecastData.cache_age_hours.toFixed(1)} hours` : 'N/A';
+                    
+                    summaryHtml = `
+                        <div class="status-item">
+                            <label>Provider</label>
+                            <value>${forecastData.provider || 'Unknown'}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>Last Updated</label>
+                            <value>${lastUpdated}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>Cache Age</label>
+                            <value>${cacheAge}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>Weather State</label>
+                            <value>${forecastData.weather_state || 'Unknown'}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>Forecast Hours</label>
+                            <value>${forecastData.hours ? forecastData.hours.length : 0}</value>
+                        </div>
+                    `;
+                    
+                    if (forecastData.alerts && forecastData.alerts.length > 0) {
+                        summaryHtml += `
+                            <div class="status-item" style="border-left-color: #e74c3c;">
+                                <label>Active Alerts</label>
+                                <value>${forecastData.alerts.length}</value>
+                            </div>
+                        `;
+                    }
+                } else {
+                    summaryHtml = `
+                        <div class="status-item" style="border-left-color: #f39c12;">
+                            <label>Status</label>
+                            <value>${forecastData.status}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>Reason</label>
+                            <value>${forecastData.reason || 'No data available'}</value>
+                        </div>
+                    `;
+                }
+                
+                weatherInfo.innerHTML = summaryHtml;
+                
+                // Update forecast table
+                if (forecastData.status === 'ok' && forecastData.hours && forecastData.hours.length > 0) {
+                    // Build a map of times to mat ON status from mat forecast
+                    const matOnByTime = {};
+                    if (matForecastData.status === 'ok' && matForecastData.groups) {
+                        for (const [groupName, windows] of Object.entries(matForecastData.groups)) {
+                            for (const window of windows) {
+                                if (window.state === 'on') {
+                                    const start = new Date(window.start);
+                                    const end = new Date(window.end);
+                                    
+                                    // Mark all hours in this window as having mats ON
+                                    for (const hour of forecastData.hours) {
+                                        const hourTime = new Date(hour.time);
+                                        if (hourTime >= start && hourTime <= end) {
+                                            matOnByTime[hour.time] = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    let tableHtml = `
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: #f8f9fa; border-bottom: 2px solid #ddd;">
+                                    <th style="padding: 10px; text-align: left;">Time</th>
+                                    <th style="padding: 10px; text-align: left;">Temp (°F)</th>
+                                    <th style="padding: 10px; text-align: left;">Precip (mm)</th>
+                                    <th style="padding: 10px; text-align: left;">Type</th>
+                                    <th style="padding: 10px; text-align: center;">Mats ON?</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    for (const hour of forecastData.hours) {
+                        const time = new Date(hour.time).toLocaleString();
+                        const temp = hour.temp_f !== null ? hour.temp_f.toFixed(1) : 'N/A';
+                        const precip = hour.precip_intensity !== null ? hour.precip_intensity.toFixed(2) : '0.00';
+                        const precipType = hour.precip_type || '-';
+                        const matsOn = matOnByTime[hour.time] ? '✅' : '-';
+                        
+                        tableHtml += `
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 8px;">${time}</td>
+                                <td style="padding: 8px;">${temp}</td>
+                                <td style="padding: 8px;">${precip}</td>
+                                <td style="padding: 8px;">${precipType}</td>
+                                <td style="padding: 8px; text-align: center;">${matsOn}</td>
+                            </tr>
+                        `;
+                    }
+                    
+                    tableHtml += `
+                            </tbody>
+                        </table>
+                    `;
+                    
+                    weatherForecastTable.innerHTML = tableHtml;
+                } else {
+                    weatherForecastTable.innerHTML = `<p>${forecastData.reason || 'No forecast data available'}</p>`;
+                }
+                
+                // Update mat timelines
+                if (matForecastData.status === 'ok' && matForecastData.groups) {
+                    let timelinesHtml = '';
+                    
+                    for (const [groupName, windows] of Object.entries(matForecastData.groups)) {
+                        timelinesHtml += `
+                            <div class="group-card">
+                                <h3>${groupName}</h3>
+                        `;
+                        
+                        if (windows.length === 0) {
+                            timelinesHtml += '<p>No predicted activity in forecast horizon.</p>';
+                        } else {
+                            timelinesHtml += `
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="background: #f8f9fa; border-bottom: 2px solid #ddd;">
+                                            <th style="padding: 8px; text-align: left;">State</th>
+                                            <th style="padding: 8px; text-align: left;">Start</th>
+                                            <th style="padding: 8px; text-align: left;">End</th>
+                                            <th style="padding: 8px; text-align: left;">Reason</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                            `;
+                            
+                            for (const window of windows) {
+                                const stateColor = window.state === 'on' ? '#27ae60' : '#95a5a6';
+                                const stateIcon = window.state === 'on' ? '✅' : '⭕';
+                                
+                                timelinesHtml += `
+                                    <tr style="border-bottom: 1px solid #eee;">
+                                        <td style="padding: 8px; color: ${stateColor}; font-weight: 600;">
+                                            ${stateIcon} ${window.state.toUpperCase()}
+                                        </td>
+                                        <td style="padding: 8px;">${new Date(window.start).toLocaleString()}</td>
+                                        <td style="padding: 8px;">${new Date(window.end).toLocaleString()}</td>
+                                        <td style="padding: 8px;">${window.reason}</td>
+                                    </tr>
+                                `;
+                            }
+                            
+                            timelinesHtml += `
+                                    </tbody>
+                                </table>
+                            `;
+                        }
+                        
+                        timelinesHtml += '</div>';
+                    }
+                    
+                    weatherMatTimelines.innerHTML = timelinesHtml;
+                } else {
+                    weatherMatTimelines.innerHTML = `<p>${matForecastData.reason || 'No mat forecast data available'}</p>`;
+                }
+                
+            } catch (e) {
+                weatherInfo.innerHTML = `<div class="error">Failed to load weather data: ${e.message}</div>`;
+                weatherForecastTable.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+                weatherMatTimelines.innerHTML = `<div class="error">Error: ${e.message}</div>`;
             }
         }
 

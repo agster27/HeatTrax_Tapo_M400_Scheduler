@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from typing import Dict, Any, Tuple
 
 from config_loader import Config
 from weather_factory import WeatherServiceFactory
@@ -791,6 +792,180 @@ class EnhancedScheduler:
             self.logger.error(f"Error getting device expectations: {e}", exc_info=True)
         
         return expectations
+    
+    def predict_group_windows(self, horizon_hours: int, step_minutes: int) -> Dict[str, Any]:
+        """
+        Predict per-group ON/OFF windows over the next horizon_hours, stepping in step_minutes increments.
+        
+        Uses the same decision logic that the live scheduler uses to determine whether mats should be on or off
+        at a given time, including:
+        - Weather-based conditions (forecast temp vs thresholds, precipitation, etc.)
+        - Schedule control (on_time / off_time for groups if schedule_control is enabled)
+        - Morning mode if relevant
+        - Any other automation flags that contribute to "should this group be ON now?"
+        
+        Must NOT talk to devices or external systems.
+        Only uses current config, current in-memory weather state, and scheduler-internal helper methods.
+        
+        Args:
+            horizon_hours: Number of hours ahead to predict
+            step_minutes: Time step in minutes for prediction granularity
+            
+        Returns:
+            Dictionary with per-group windows: {group_name: [window_dict, ...]}
+            Each window has: start, end, state (on/off), reason, details
+        """
+        if not self.device_manager:
+            return {}
+        
+        result = {}
+        now = datetime.now()
+        
+        try:
+            groups = self.device_manager.get_all_groups()
+            
+            for group_name in groups:
+                group_config = self.device_manager.get_group_config(group_name)
+                if not group_config or not group_config.get('enabled', True):
+                    result[group_name] = []
+                    continue
+                
+                windows = []
+                current_window = None
+                
+                # Step through the time horizon
+                for step in range(0, int(horizon_hours * 60 / step_minutes) + 1):
+                    check_time = now + timedelta(minutes=step * step_minutes)
+                    
+                    # Determine if group should be ON at this time
+                    should_be_on, reason = self._predict_group_state_at_time(
+                        group_name, group_config, check_time
+                    )
+                    
+                    state = "on" if should_be_on else "off"
+                    
+                    # Coalesce adjacent steps with same state into windows
+                    if current_window is None:
+                        # Start first window
+                        current_window = {
+                            'start': check_time.isoformat(),
+                            'end': check_time.isoformat(),
+                            'state': state,
+                            'reason': reason,
+                            'details': {}
+                        }
+                    elif current_window['state'] == state and current_window['reason'] == reason:
+                        # Extend current window
+                        current_window['end'] = check_time.isoformat()
+                    else:
+                        # State or reason changed, close current window and start new one
+                        windows.append(current_window)
+                        current_window = {
+                            'start': check_time.isoformat(),
+                            'end': check_time.isoformat(),
+                            'state': state,
+                            'reason': reason,
+                            'details': {}
+                        }
+                
+                # Add final window
+                if current_window is not None:
+                    windows.append(current_window)
+                
+                result[group_name] = windows
+        
+        except Exception as e:
+            self.logger.error(f"Error predicting group windows: {e}", exc_info=True)
+        
+        return result
+    
+    def _predict_group_state_at_time(
+        self, group_name: str, group_config: Dict[str, Any], check_time: datetime
+    ) -> Tuple[bool, str]:
+        """
+        Predict if a group should be ON at a given time (synchronous helper for predictions).
+        
+        Args:
+            group_name: Name of the group
+            group_config: Group configuration dictionary
+            check_time: Time to check
+            
+        Returns:
+            Tuple of (should_be_on, reason_string)
+        """
+        base_automation = group_config.get('automation', {})
+        automation = self.automation_overrides.get_effective_automation(group_name, base_automation)
+        
+        # Schedule-based control check
+        if automation.get('schedule_control', False):
+            schedule = group_config.get('schedule', {})
+            if schedule:
+                on_time_str = schedule.get('on_time')
+                off_time_str = schedule.get('off_time')
+                
+                if on_time_str and off_time_str:
+                    try:
+                        on_time = datetime.strptime(on_time_str, "%H:%M").time()
+                        off_time = datetime.strptime(off_time_str, "%H:%M").time()
+                        check_time_only = check_time.time()
+                        
+                        if on_time <= check_time_only < off_time:
+                            return (True, "schedule")
+                    except ValueError:
+                        pass
+        
+        # Weather-based control check
+        if automation.get('weather_control', False):
+            if not self.weather_enabled:
+                return (False, "weather_disabled")
+            
+            # Morning mode check
+            if automation.get('morning_mode', False):
+                morning_mode = self.config.morning_mode
+                if morning_mode.get('enabled', False):
+                    start_hour = morning_mode.get('start_hour', 6)
+                    end_hour = morning_mode.get('end_hour', 8)
+                    check_hour = check_time.hour
+                    
+                    if start_hour <= check_hour < end_hour:
+                        # Check temperature from cache at this time
+                        try:
+                            if self.weather and hasattr(self.weather, 'cache'):
+                                snapshot = self.weather.cache.get_weather_at(check_time)
+                                if snapshot:
+                                    morning_temp_threshold = morning_mode.get(
+                                        'temperature_f',
+                                        self.config.thresholds['temperature_f']
+                                    )
+                                    if snapshot.temperature_f < morning_temp_threshold:
+                                        return (True, "below_temp_threshold")
+                        except Exception as e:
+                            self.logger.debug(f"Could not get weather at time {check_time}: {e}")
+            
+            # Precipitation control check
+            if automation.get('precipitation_control', False):
+                try:
+                    if self.weather and hasattr(self.weather, 'cache') and self.weather.cache.cache_data:
+                        # Check if there's precipitation forecast around this time
+                        snapshot = self.weather.cache.get_weather_at(check_time)
+                        if snapshot and snapshot.precipitation_mm > 0:
+                            # Check temperature threshold
+                            if snapshot.temperature_f <= self.config.thresholds['temperature_f']:
+                                # Apply lead time
+                                lead_time_minutes = self.config.thresholds.get('lead_time_minutes', 60)
+                                trailing_time_minutes = self.config.thresholds.get('trailing_time_minutes', 60)
+                                
+                                # Turn on if within lead time before or trailing time after precipitation
+                                precip_time = datetime.fromisoformat(snapshot.timestamp)
+                                turn_on_time = precip_time - timedelta(minutes=lead_time_minutes)
+                                turn_off_time = precip_time + timedelta(minutes=trailing_time_minutes)
+                                
+                                if turn_on_time <= check_time <= turn_off_time:
+                                    return (True, "snow_forecast")
+                except Exception as e:
+                    self.logger.debug(f"Error checking precipitation at {check_time}: {e}")
+        
+        return (False, "conditions_not_met")
     
     def run_coro_in_loop(self, coro):
         """
