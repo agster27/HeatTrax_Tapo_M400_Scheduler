@@ -330,6 +330,29 @@ morning_mode:
   enabled: false
 ```
 
+### Configure Timezone
+
+**Important**: The `location.timezone` setting controls how all time-of-day automation rules are interpreted. This includes:
+- **Morning mode hours** (`morning_mode.start_hour` and `end_hour`)
+- **Schedule times** (`schedule.on_time` and `off_time`)
+
+```yaml
+location:
+  timezone: "America/New_York"  # Use your local timezone
+```
+
+**The container's system timezone does not matter** - all time-based rules use `location.timezone`. This ensures your automation works correctly regardless of where the container runs.
+
+**Examples of valid timezones**:
+- `America/New_York` (Eastern Time)
+- `America/Chicago` (Central Time)
+- `America/Denver` (Mountain Time)
+- `America/Los_Angeles` (Pacific Time)
+- `Europe/London` (UK)
+- `Asia/Tokyo` (Japan)
+
+See the [IANA timezone database](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) for a complete list of supported timezones. If an invalid timezone is specified, the scheduler will fall back to UTC and log a warning.
+
 ### Adjust Safety Limits
 
 For different runtime limits:
