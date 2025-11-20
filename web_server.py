@@ -840,6 +840,14 @@ class WebServer:
             border-radius: 8px;
             margin-bottom: 20px;
         }
+        .setup-banner {
+            background: #fff3cd;
+            border: 2px solid #ff9800;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(255, 152, 0, 0.2);
+        }
         .card {
             background: white;
             padding: 20px;
@@ -1269,6 +1277,15 @@ class WebServer:
         <p>Weather-based automation for heated mats and smart devices</p>
     </div>
 
+    <div id="setup-mode-banner" class="warning" style="display: none; background: #fff3cd; border-color: #ff9800;">
+        <strong>🔧 Setup Mode Active</strong><br>
+        <p style="margin: 10px 0 0 0;">
+            <span id="setup-reason"></span><br>
+            <strong>Device control is currently DISABLED.</strong> The scheduler is running in safe mode.
+            Please configure valid Tapo credentials below and restart to enable device control.
+        </p>
+    </div>
+
     <div id="security-warning" class="warning" style="display: none;">
         <strong>⚠️ Security Warning:</strong> Web UI is accessible over the network and authentication is disabled. 
         Do not expose this service directly to the internet.
@@ -1436,6 +1453,26 @@ class WebServer:
             }
         }
 
+        // Check and display setup mode banner
+        async function checkSetupMode() {
+            try {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+                
+                const setupBanner = document.getElementById('setup-mode-banner');
+                const setupReason = document.getElementById('setup-reason');
+                
+                if (status.setup_mode) {
+                    setupReason.textContent = status.setup_reason || 'Tapo credentials are missing or invalid.';
+                    setupBanner.style.display = 'block';
+                } else {
+                    setupBanner.style.display = 'none';
+                }
+            } catch (e) {
+                console.error('Failed to check setup mode:', e);
+            }
+        }
+
         // Refresh status
         async function refreshStatus() {
             const statusContent = document.getElementById('status-content');
@@ -1443,7 +1480,30 @@ class WebServer:
                 const response = await fetch('/api/status');
                 const status = await response.json();
                 
+                // Check for setup mode
+                if (status.setup_mode !== undefined) {
+                    const setupBanner = document.getElementById('setup-mode-banner');
+                    const setupReason = document.getElementById('setup-reason');
+                    
+                    if (status.setup_mode) {
+                        setupReason.textContent = status.setup_reason || 'Tapo credentials are missing or invalid.';
+                        setupBanner.style.display = 'block';
+                    } else {
+                        setupBanner.style.display = 'none';
+                    }
+                }
+                
                 let html = '';
+                
+                // Setup mode status
+                if (status.setup_mode !== undefined) {
+                    html += `
+                        <div class="status-item" style="border-left-color: ${status.setup_mode ? '#ff9800' : '#27ae60'};">
+                            <label>Mode</label>
+                            <value>${status.setup_mode ? '🔧 Setup Mode (Device Control Disabled)' : '✓ Normal Mode (Device Control Enabled)'}</value>
+                        </div>
+                    `;
+                }
                 
                 // Config info
                 if (status.config_path) {
@@ -2049,8 +2109,10 @@ class WebServer:
                 { path: 'weather_api.openweathermap.api_key', label: 'OpenWeatherMap API Key', type: 'password' }
             ],
             'Device Credentials': [
-                { path: 'devices.credentials.username', label: 'Tapo Username', type: 'text' },
-                { path: 'devices.credentials.password', label: 'Tapo Password', type: 'password' }
+                { path: 'devices.credentials.username', label: 'Tapo Username', type: 'text', 
+                  helper: '🔧 Enter your Tapo account email/username. Changes require restart to apply.' },
+                { path: 'devices.credentials.password', label: 'Tapo Password', type: 'password',
+                  helper: '🔧 Enter your Tapo account password. Changes require restart to apply.' }
             ],
             'Thresholds & Scheduler': [
                 { path: 'thresholds.temperature_f', label: 'Threshold Temperature (°F)', type: 'number', step: '0.1' },
@@ -2134,6 +2196,8 @@ class WebServer:
             let helperHtml = '';
             if (isReadonly && envVar) {
                 helperHtml = `<div class="helper-text">Set via env: <code>${envVar}</code></div>`;
+            } else if (fieldDef.helper) {
+                helperHtml = `<div class="helper-text">${fieldDef.helper}</div>`;
             }
             
             return `
@@ -2635,6 +2699,7 @@ class WebServer:
 
         // Initialize on load
         window.addEventListener('load', () => {
+            checkSetupMode();
             checkSecurity();
             refreshStatus();
         });
