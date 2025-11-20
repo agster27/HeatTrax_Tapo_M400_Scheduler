@@ -3,6 +3,7 @@ Integration test demonstrating the timezone fix works correctly.
 This simulates the exact scenario from the bug report.
 """
 import asyncio
+import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from zoneinfo import ZoneInfo
@@ -13,6 +14,7 @@ from scheduler_enhanced import EnhancedScheduler
 from config_loader import Config
 from state_manager import StateManager
 
+@pytest.mark.asyncio
 async def test_bug_scenario():
     """
     Reproduce the exact bug scenario:
