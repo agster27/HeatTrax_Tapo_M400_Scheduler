@@ -5,7 +5,7 @@ import yaml
 import logging
 import threading
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
 import copy
 
@@ -422,12 +422,19 @@ class ConfigManager:
             raise ConfigValidationError("devices must be a dictionary")
         
         if 'credentials' not in devices:
-            raise ConfigValidationError("devices must include credentials section")
+            # Create empty credentials if missing
+            logger.warning("devices.credentials section missing - creating with empty values")
+            devices['credentials'] = {'username': '', 'password': ''}
         
         credentials = devices['credentials']
-        for field in ['username', 'password']:
-            if field not in credentials:
-                raise ConfigValidationError(f"devices.credentials must include {field}")
+        
+        # Ensure username and password keys exist (but allow empty values for setup mode)
+        if 'username' not in credentials:
+            logger.warning("devices.credentials.username missing - using empty string")
+            credentials['username'] = ''
+        if 'password' not in credentials:
+            logger.warning("devices.credentials.password missing - using empty string")
+            credentials['password'] = ''
         
         # Validate device groups
         if 'groups' in devices:
@@ -790,3 +797,21 @@ class ConfigManager:
         """
         with self._lock:
             return copy.deepcopy(self._env_overridden_paths)
+    
+    def is_setup_mode(self) -> Tuple[bool, str]:
+        """
+        Check if system should run in setup mode (credentials missing or invalid).
+        
+        Returns:
+            Tuple of (setup_mode_active, reason):
+                - setup_mode_active: True if credentials are missing/invalid
+                - reason: Human-readable explanation
+        """
+        with self._lock:
+            from credential_validator import check_credentials_for_setup_mode
+            
+            credentials = self._config.get('devices', {}).get('credentials', {})
+            username = credentials.get('username', '')
+            password = credentials.get('password', '')
+            
+            return check_credentials_for_setup_mode(username, password)

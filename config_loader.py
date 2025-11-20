@@ -313,18 +313,31 @@ class Config:
             logger.error(f"Devices must be a dictionary, got: {type(devices)}")
             raise ConfigError(f"Devices configuration must be a dictionary")
         
-        # Validate credentials
+        # Validate credentials section exists (but allow empty/placeholder values)
         if 'credentials' not in devices:
-            logger.error("Devices configuration missing 'credentials' section")
-            raise ConfigError("Devices configuration must include 'credentials' section")
+            logger.warning("Devices configuration missing 'credentials' section - creating empty credentials")
+            devices['credentials'] = {'username': '', 'password': ''}
         
         credentials = devices['credentials']
-        for field in ['username', 'password']:
-            if field not in credentials or not credentials[field]:
-                logger.error(f"Devices credentials missing or empty: {field}")
-                raise ConfigError(f"Devices credentials must include non-empty '{field}'")
         
-        logger.debug(f"Devices credentials validated: Username={credentials['username']}")
+        # Ensure username and password keys exist (but allow empty values)
+        if 'username' not in credentials:
+            logger.warning("Devices credentials missing 'username' field - using empty string")
+            credentials['username'] = ''
+        if 'password' not in credentials:
+            logger.warning("Devices credentials missing 'password' field - using empty string")
+            credentials['password'] = ''
+        
+        # Log credential state (will be checked for setup mode later)
+        from credential_validator import log_credential_state, is_valid_credential
+        log_credential_state(credentials.get('username'), credentials.get('password'), source="config")
+        
+        is_valid, reason = is_valid_credential(credentials.get('username'), credentials.get('password'))
+        if not is_valid:
+            logger.warning(f"Tapo credentials validation: {reason}")
+            logger.warning("Device control will be DISABLED until valid credentials are provided")
+        else:
+            logger.info(f"Tapo credentials validation: {reason}")
         
         # Validate groups
         if 'groups' not in devices or not devices['groups']:

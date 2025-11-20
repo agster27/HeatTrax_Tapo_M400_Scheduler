@@ -260,6 +260,82 @@ class WebServer:
                     'message': f'Failed to update configuration: {str(e)}'
                 }), 500
         
+        @self.app.route('/api/credentials', methods=['POST'])
+        def api_credentials_update():
+            """
+            Update Tapo credentials.
+            
+            This endpoint specifically handles updating Tapo username and password.
+            When credentials are updated via the Web UI, they will be persisted to config.yaml.
+            
+            Expects:
+                JSON: {"username": "user@example.com", "password": "password123"}
+                
+            Returns:
+                JSON: Update result with status and restart_required flag
+            """
+            try:
+                if not request.is_json:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Request must be JSON'
+                    }), 400
+                
+                data = request.get_json()
+                
+                if 'username' not in data or 'password' not in data:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Both username and password are required'
+                    }), 400
+                
+                username = data['username']
+                password = data['password']
+                
+                # Validate credentials using the validator
+                from credential_validator import is_valid_credential
+                is_valid, reason = is_valid_credential(username, password)
+                
+                if not is_valid:
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'Invalid credentials: {reason}'
+                    }), 400
+                
+                # Get current config
+                current_config = self.config_manager.get_config(include_secrets=True)
+                
+                # Update credentials section
+                if 'devices' not in current_config:
+                    current_config['devices'] = {}
+                if 'credentials' not in current_config['devices']:
+                    current_config['devices']['credentials'] = {}
+                
+                current_config['devices']['credentials']['username'] = username
+                current_config['devices']['credentials']['password'] = password
+                
+                # Update configuration (will persist to config.yaml)
+                result = self.config_manager.update_config(current_config, preserve_secrets=False)
+                
+                if result['status'] == 'ok':
+                    logger.info("Tapo credentials updated successfully via Web UI")
+                    logger.info("Credentials have been written to config.yaml")
+                    
+                    # Always require restart after credential changes
+                    result['restart_required'] = 'true'
+                    result['message'] = 'Credentials updated successfully and saved to config.yaml. Restart required to enable device control.'
+                    
+                    return jsonify(result)
+                else:
+                    return jsonify(result), 400
+                    
+            except Exception as e:
+                logger.error(f"Failed to update credentials: {e}", exc_info=True)
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to update credentials: {str(e)}'
+                }), 500
+        
         @self.app.route('/api/restart', methods=['POST'])
         def api_restart():
             """
@@ -2574,6 +2650,11 @@ class WebServer:
             Dictionary with system status
         """
         status = {}
+        
+        # Add setup mode status
+        setup_mode, setup_reason = self.config_manager.is_setup_mode()
+        status['setup_mode'] = setup_mode
+        status['setup_reason'] = setup_reason
         
         # Add config metadata
         config_status = self.config_manager.get_status()
