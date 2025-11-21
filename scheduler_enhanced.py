@@ -774,19 +774,47 @@ class EnhancedScheduler:
                 # Add expectation for each device in the group
                 items = group_config.get('items', [])
                 for item in items:
-                    device_expectation = {
-                        'group': group_name,
-                        'device_name': item.get('name', 'Unknown'),
-                        'ip_address': item.get('ip_address', 'N/A'),
-                        'outlet': item.get('outlet', 0),
-                        'current_state': current_state,
-                        'expected_state': expected_state,
-                        'expected_on_from': expected_on_from,
-                        'expected_off_at': expected_off_at,
-                        'last_state_change': last_state_change,
-                        'last_error': None  # Could be enhanced to track device errors
-                    }
-                    expectations.append(device_expectation)
+                    # Check if device has multiple outlets
+                    outlets = item.get('outlets')
+                    
+                    if outlets and isinstance(outlets, list):
+                        # Create an expectation for each outlet
+                        for outlet_index in outlets:
+                            # Validate outlet index is a non-negative integer
+                            if not isinstance(outlet_index, int) or outlet_index < 0:
+                                self.logger.warning(
+                                    f"Skipping invalid outlet index {outlet_index} for device "
+                                    f"{item.get('name', 'Unknown')} in group {group_name}"
+                                )
+                                continue
+                            device_expectation = {
+                                'group': group_name,
+                                'device_name': item.get('name', 'Unknown'),
+                                'ip_address': item.get('ip_address', 'N/A'),
+                                'outlet': outlet_index,
+                                'current_state': current_state,
+                                'expected_state': expected_state,
+                                'expected_on_from': expected_on_from,
+                                'expected_off_at': expected_off_at,
+                                'last_state_change': last_state_change,
+                                'last_error': None  # Could be enhanced to track device errors
+                            }
+                            expectations.append(device_expectation)
+                    else:
+                        # Single outlet or entire device
+                        device_expectation = {
+                            'group': group_name,
+                            'device_name': item.get('name', 'Unknown'),
+                            'ip_address': item.get('ip_address', 'N/A'),
+                            'outlet': item.get('outlet', 0),
+                            'current_state': current_state,
+                            'expected_state': expected_state,
+                            'expected_on_from': expected_on_from,
+                            'expected_off_at': expected_off_at,
+                            'last_state_change': last_state_change,
+                            'last_error': None  # Could be enhanced to track device errors
+                        }
+                        expectations.append(device_expectation)
         
         except Exception as e:
             self.logger.error(f"Error getting device expectations: {e}", exc_info=True)
