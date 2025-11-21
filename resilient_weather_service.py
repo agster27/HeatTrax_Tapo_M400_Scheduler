@@ -61,7 +61,7 @@ class ResilientWeatherService:
             forecast_notifier: ForecastNotifier instance for forecast summaries (optional)
         """
         self.weather_service = weather_service
-        self.cache = WeatherCache(cache_file)
+        self.cache = WeatherCache(cache_file, timezone=weather_service.timezone)
         self.cache_valid_hours = cache_valid_hours
         self.forecast_horizon_hours = forecast_horizon_hours
         self.refresh_interval_minutes = refresh_interval_minutes
