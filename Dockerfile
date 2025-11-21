@@ -17,6 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY *.py .
 
+# Copy web UI files
+COPY web/ ./web/
+
 # Create directories for logs and state
 RUN mkdir -p /app/logs /app/state
 
