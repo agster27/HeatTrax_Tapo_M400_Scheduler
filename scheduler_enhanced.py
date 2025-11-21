@@ -4,6 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from typing import Dict, Any, Tuple
 
 from config_loader import Config
@@ -109,6 +110,15 @@ class EnhancedScheduler:
         # for python-kasa device operations. All kasa device I/O must run on the same loop
         # to prevent "Timeout context manager should be used inside a task" errors.
         self.loop = None
+        
+        # Timezone for local time calculations
+        try:
+            tz_name = config.location.get('timezone', 'UTC')
+            self.timezone = ZoneInfo(tz_name)
+            self.logger.info(f"Using timezone: {tz_name}")
+        except Exception as e:
+            self.logger.warning(f"Invalid timezone '{config.location.get('timezone')}', defaulting to UTC: {e}")
+            self.timezone = ZoneInfo('UTC')
     
     async def initialize(self):
         """Initialize the scheduler and device connections."""
@@ -270,6 +280,15 @@ class EnhancedScheduler:
         except Exception as e:
             self.logger.warning(f"Failed to send weather mode notification: {e}")
     
+    def _get_local_now(self) -> datetime:
+        """
+        Get current time in the configured timezone.
+        
+        Returns:
+            datetime: Current time in the configured timezone
+        """
+        return datetime.now(self.timezone)
+    
     def validate_schedule(self, schedule: dict) -> tuple[bool, str, str]:
         """
         Validate schedule configuration.
@@ -332,6 +351,15 @@ class EnhancedScheduler:
         base_automation = group_config.get('automation', {})
         automation = self.automation_overrides.get_effective_automation(group_name, base_automation)
         
+        # Get local time for schedule/morning mode checks
+        now_local = self._get_local_now()
+        
+        # Log effective automation and local time
+        self.logger.info(
+            f"Group '{group_name}': effective automation={automation}, "
+            f"now_local={now_local.isoformat()} ({self.timezone})"
+        )
+        
         # Check if in cooldown
         if state.is_in_cooldown(self.config.safety['cooldown_minutes']):
             self.logger.info(f"Group '{group_name}' in cooldown period")
@@ -346,7 +374,7 @@ class EnhancedScheduler:
             
             # Morning mode (black ice protection)
             if automation.get('morning_mode', False):
-                current_hour = datetime.now().hour
+                current_hour = now_local.hour
                 morning_mode = self.config.morning_mode
                 
                 if morning_mode.get('enabled', False):
@@ -354,7 +382,10 @@ class EnhancedScheduler:
                     end_hour = morning_mode.get('end_hour', 8)
                     
                     if start_hour <= current_hour < end_hour:
-                        self.logger.info(f"Group '{group_name}': Morning mode active")
+                        self.logger.info(
+                            f"Group '{group_name}': Morning mode active "
+                            f"(local hour {current_hour} in window {start_hour}-{end_hour})"
+                        )
                         try:
                             conditions = await self.weather.get_current_conditions()
                             if conditions is None:
@@ -417,7 +448,7 @@ class EnhancedScheduler:
         if automation.get('schedule_control', False):
             schedule = group_config.get('schedule', {})
             if schedule:
-                current_time = datetime.now().time()
+                current_time = now_local.time()
                 
                 # Parse on_time and off_time
                 on_time_str = schedule.get('on_time')
@@ -432,7 +463,7 @@ class EnhancedScheduler:
                         if on_time <= current_time < off_time:
                             self.logger.info(
                                 f"Group '{group_name}': Within schedule window "
-                                f"({on_time_str} - {off_time_str})"
+                                f"({on_time_str} - {off_time_str}), local time {current_time.strftime('%H:%M')}"
                             )
                             return True
                     except ValueError as e:
@@ -461,6 +492,9 @@ class EnhancedScheduler:
         base_automation = group_config.get('automation', {})
         automation = self.automation_overrides.get_effective_automation(group_name, base_automation)
         
+        # Get local time for schedule/morning mode checks
+        now_local = self._get_local_now()
+        
         # Check if exceeded max runtime
         if state.exceeded_max_runtime(self.config.safety['max_runtime_hours']):
             self.logger.warning(f"Group '{group_name}': Maximum runtime exceeded")
@@ -475,7 +509,7 @@ class EnhancedScheduler:
             
             # Check if still in morning mode hours
             if automation.get('morning_mode', False):
-                current_hour = datetime.now().hour
+                current_hour = now_local.hour
                 morning_mode = self.config.morning_mode
                 
                 if morning_mode.get('enabled', False):
@@ -519,7 +553,7 @@ class EnhancedScheduler:
         if automation.get('schedule_control', False):
             schedule = group_config.get('schedule', {})
             if schedule:
-                current_time = datetime.now().time()
+                current_time = now_local.time()
                 
                 # Parse off_time
                 off_time_str = schedule.get('off_time')
@@ -534,7 +568,7 @@ class EnhancedScheduler:
                         if not (on_time <= current_time < off_time):
                             self.logger.info(
                                 f"Group '{group_name}': Outside schedule window "
-                                f"({on_time_str} - {off_time_str})"
+                                f"({on_time_str} - {off_time_str}), local time {current_time.strftime('%H:%M')}"
                             )
                             return True
                     except ValueError as e:
@@ -688,18 +722,18 @@ class EnhancedScheduler:
                         
                         if on_time_str and off_time_str:
                             try:
-                                # Build datetime objects for today
-                                today = datetime.now().date()
+                                # Build datetime objects for today in local timezone
+                                now_local = self._get_local_now()
+                                today = now_local.date()
                                 on_time = datetime.combine(today, datetime.strptime(on_time_str, "%H:%M").time())
                                 off_time = datetime.combine(today, datetime.strptime(off_time_str, "%H:%M").time())
                                 
                                 # If we're past the on time today, schedule is for today
                                 # If we're before the on time, it's also for today
-                                now = datetime.now()
-                                if now.time() < on_time.time():
+                                if now_local.time() < on_time.time():
                                     expected_on_from = on_time.isoformat()
                                     expected_off_at = off_time.isoformat()
-                                elif on_time.time() <= now.time() < off_time.time():
+                                elif on_time.time() <= now_local.time() < off_time.time():
                                     expected_on_from = on_time.isoformat()
                                     expected_off_at = off_time.isoformat()
                                 else:

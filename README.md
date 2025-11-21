@@ -398,6 +398,21 @@ devices:
 - **Group Actions**: Turn entire groups on/off together
 - **Independent State**: Each group tracks its own runtime and cooldown
 
+### ⏰ Timezone Handling
+
+**Important**: The `location.timezone` setting controls how all time-of-day based automation rules are interpreted:
+
+- **Morning Mode**: `morning_mode.start_hour` and `end_hour` are in the configured timezone
+- **Schedule Control**: `schedule.on_time` and `off_time` are in the configured timezone
+- **Container Timezone**: Does not matter - all times are evaluated in `location.timezone`
+
+**Example**: With `timezone: "America/New_York"` and `morning_mode.start_hour: 6` / `end_hour: 11`:
+- Morning mode is active between 06:00 and 11:00 **Eastern Time**
+- Even if the container is running in UTC, the scheduler correctly uses Eastern Time
+- This ensures your automation rules work as expected regardless of where the container runs
+
+**Supported Timezones**: Any valid timezone from the IANA timezone database (e.g., `America/New_York`, `Europe/London`, `Asia/Tokyo`). If an invalid timezone is specified, the scheduler will fall back to UTC and log a warning.
+
 ### Single Device Deployments
 
 For simple deployments with just one device, use the same format with a single group:
