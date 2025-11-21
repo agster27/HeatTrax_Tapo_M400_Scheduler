@@ -1,0 +1,1520 @@
+        // Module-level variables to track the last full config
+        let lastAnnotatedConfig = null;
+        let lastRawConfig = null;
+
+        // Deep merge helper function
+        // Recursively merges source into target, replacing arrays entirely
+        function deepMerge(target, source) {
+            const result = {};
+            
+            // Copy all properties from target
+            for (const key in target) {
+                if (target.hasOwnProperty(key)) {
+                    result[key] = target[key];
+                }
+            }
+            
+            // Merge properties from source
+            for (const key in source) {
+                if (source.hasOwnProperty(key)) {
+                    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key]) &&
+                        result[key] && typeof result[key] === 'object' && !Array.isArray(result[key])) {
+                        // Recursively merge nested objects
+                        result[key] = deepMerge(result[key], source[key]);
+                    } else {
+                        // Replace value (including arrays)
+                        result[key] = source[key];
+                    }
+                }
+            }
+            
+            return result;
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            
+            if (tabName === 'status') {
+                refreshStatus();
+            } else if (tabName === 'groups') {
+                refreshGroups();
+            } else if (tabName === 'config') {
+                loadConfig();
+            } else if (tabName === 'health') {
+                refreshHealth();
+                refreshDeviceControl();
+            } else if (tabName === 'weather') {
+                refreshWeather();
+            }
+        }
+
+        // Check for security warning
+        async function checkSecurity() {
+            try {
+                const response = await fetch('/api/config');
+                const annotatedConfig = await response.json();
+                const config = extractConfigValues(annotatedConfig);
+                
+                if (config.web && config.web.bind_host && config.web.bind_host.value !== '127.0.0.1' && config.web.bind_host.value !== 'localhost') {
+                    const bindHost = config.web.bind_host.value || config.web.bind_host;
+                    if (bindHost !== '127.0.0.1' && bindHost !== 'localhost') {
+                        document.getElementById('security-warning').style.display = 'block';
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to check security:', e);
+            }
+        }
+
+        // Check and display setup mode banner
+        async function checkSetupMode() {
+            try {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+                
+                const setupBanner = document.getElementById('setup-mode-banner');
+                const setupReason = document.getElementById('setup-reason');
+                
+                if (status.setup_mode) {
+                    setupReason.textContent = status.setup_reason || 'Tapo credentials are missing or invalid.';
+                    setupBanner.style.display = 'block';
+                } else {
+                    setupBanner.style.display = 'none';
+                }
+            } catch (e) {
+                console.error('Failed to check setup mode:', e);
+            }
+        }
+
+        // Refresh status
+        async function refreshStatus() {
+            const statusContent = document.getElementById('status-content');
+            try {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+                
+                // Check for setup mode
+                if (status.setup_mode !== undefined) {
+                    const setupBanner = document.getElementById('setup-mode-banner');
+                    const setupReason = document.getElementById('setup-reason');
+                    
+                    if (status.setup_mode) {
+                        setupReason.textContent = status.setup_reason || 'Tapo credentials are missing or invalid.';
+                        setupBanner.style.display = 'block';
+                    } else {
+                        setupBanner.style.display = 'none';
+                    }
+                }
+                
+                let html = '';
+                
+                // Setup mode status
+                if (status.setup_mode !== undefined) {
+                    html += `
+                        <div class="status-item" style="border-left-color: ${status.setup_mode ? '#ff9800' : '#27ae60'};">
+                            <label>Mode</label>
+                            <value>${status.setup_mode ? '🔧 Setup Mode (Device Control Disabled)' : '✓ Normal Mode (Device Control Enabled)'}</value>
+                        </div>
+                    `;
+                }
+                
+                // Config info
+                if (status.config_path) {
+                    html += `
+                        <div class="status-item">
+                            <label>Config Path</label>
+                            <value>${status.config_path}</value>
+                        </div>
+                    `;
+                }
+                
+                if (status.config_last_modified) {
+                    html += `
+                        <div class="status-item">
+                            <label>Config Last Modified</label>
+                            <value>${new Date(status.config_last_modified).toLocaleString()}</value>
+                        </div>
+                    `;
+                }
+                
+                // Weather info
+                if (status.weather_enabled !== undefined) {
+                    html += `
+                        <div class="status-item">
+                            <label>Weather Mode</label>
+                            <value>${status.weather_enabled ? 'Enabled' : 'Disabled'}</value>
+                        </div>
+                    `;
+                }
+                
+                if (status.last_weather_fetch) {
+                    html += `
+                        <div class="status-item">
+                            <label>Last Weather Fetch</label>
+                            <value>${new Date(status.last_weather_fetch).toLocaleString()}</value>
+                        </div>
+                    `;
+                }
+                
+                // Device info
+                if (status.device_groups) {
+                    for (const [groupName, groupInfo] of Object.entries(status.device_groups)) {
+                        html += `
+                            <div class="status-item">
+                                <label>Group: ${groupName}</label>
+                                <value>Devices: ${groupInfo.device_count || 0}</value>
+                            </div>
+                        `;
+                    }
+                }
+                
+                // Last error
+                if (status.last_error) {
+                    html += `
+                        <div class="status-item" style="border-left-color: #e74c3c;">
+                            <label>Last Error</label>
+                            <value>${status.last_error}</value>
+                        </div>
+                    `;
+                }
+                
+                statusContent.innerHTML = html || '<div class="status-item"><label>No status information available</label></div>';
+                
+            } catch (e) {
+                statusContent.innerHTML = `<div class="error">Failed to load status: ${e.message}</div>`;
+            }
+        }
+
+        // Refresh groups and automation controls
+        async function refreshGroups() {
+            const groupsContent = document.getElementById('groups-content');
+            
+            try {
+                // Fetch config to get list of groups
+                const configResponse = await fetch('/api/config');
+                const annotatedConfig = await configResponse.json();
+                const config = extractConfigValues(annotatedConfig);
+                
+                const groups = config.devices?.groups;
+                if (!groups || Object.keys(groups).length === 0) {
+                    groupsContent.innerHTML = '<p>No device groups configured.</p>';
+                    return;
+                }
+                
+                let html = '';
+                
+                for (const [groupName, groupConfig] of Object.entries(groups)) {
+                    // Fetch automation data for this group
+                    try {
+                        const automationResponse = await fetch(`/api/groups/${groupName}/automation`);
+                        const automationData = await automationResponse.json();
+                        
+                        if (automationData.error) {
+                            html += `<div class="group-card">
+                                <h3>${groupName}</h3>
+                                <p class="error">${automationData.error}</p>
+                            </div>`;
+                            continue;
+                        }
+                        
+                        const base = automationData.base || {};
+                        const overrides = automationData.overrides || {};
+                        const effective = automationData.effective || {};
+                        const schedule = automationData.schedule || {};
+                        
+                        html += `<div class="group-card">
+                            <h3>${groupName}</h3>
+                            <div class="automation-panel">
+                                ${createAutomationToggle('weather_control', 'Weather Control', groupName, effective.weather_control, base.weather_control, overrides.weather_control !== undefined)}
+                                ${createAutomationToggle('precipitation_control', 'Precipitation Control', groupName, effective.precipitation_control, base.precipitation_control, overrides.precipitation_control !== undefined)}
+                                ${createAutomationToggle('morning_mode', 'Morning Mode', groupName, effective.morning_mode, base.morning_mode, overrides.morning_mode !== undefined)}
+                                ${createAutomationToggle('schedule_control', 'Schedule Control', groupName, effective.schedule_control, base.schedule_control, overrides.schedule_control !== undefined)}
+                            </div>`;
+                        
+                        // Show schedule info if available
+                        if (schedule.valid) {
+                            html += `<div class="schedule-info">
+                                <strong>📅 Schedule (from config.yaml):</strong>
+                                <code>${schedule.on_time} → ${schedule.off_time}</code>
+                            </div>`;
+                        } else if (effective.schedule_control) {
+                            html += `<div class="schedule-info" style="background: #fff3cd;">
+                                <strong>⚠️ Schedule Control Enabled</strong>
+                                <p>No valid schedule configured in config.yaml. Add <code>schedule.on_time</code> and <code>schedule.off_time</code> to enable schedule-based control.</p>
+                            </div>`;
+                        }
+                        
+                        html += '</div>';
+                        
+                    } catch (e) {
+                        html += `<div class="group-card">
+                            <h3>${groupName}</h3>
+                            <p class="error">Failed to load automation: ${e.message}</p>
+                        </div>`;
+                    }
+                }
+                
+                groupsContent.innerHTML = html;
+                
+            } catch (e) {
+                groupsContent.innerHTML = `<div class="error">Failed to load groups: ${e.message}</div>`;
+            }
+        }
+
+        function createAutomationToggle(flagName, displayName, groupName, effectiveValue, baseValue, isOverridden) {
+            const toggleId = `toggle-${groupName}-${flagName}`;
+            const checked = effectiveValue ? 'checked' : '';
+            const overrideBadge = isOverridden ? '<span class="override-badge">overridden</span>' : '';
+            
+            return `<div class="automation-row">
+                <div class="automation-label">
+                    ${displayName}
+                    ${overrideBadge}
+                </div>
+                <label class="automation-toggle">
+                    <input type="checkbox" id="${toggleId}" ${checked} 
+                           onchange="toggleAutomation('${groupName}', '${flagName}', this.checked)">
+                    <span class="automation-slider"></span>
+                </label>
+            </div>`;
+        }
+
+        async function toggleAutomation(groupName, flagName, value) {
+            try {
+                const payload = {};
+                payload[flagName] = value;
+                
+                const response = await fetch(`/api/groups/${groupName}/automation`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert(`Failed to update automation: ${error.error || 'Unknown error'}`);
+                    // Revert the toggle
+                    document.getElementById(`toggle-${groupName}-${flagName}`).checked = !value;
+                    return;
+                }
+                
+                // Refresh groups to update override badges
+                await refreshGroups();
+                
+            } catch (e) {
+                alert(`Failed to update automation: ${e.message}`);
+                // Revert the toggle
+                document.getElementById(`toggle-${groupName}-${flagName}`).checked = !value;
+            }
+        }
+
+        // Refresh health information
+        async function refreshHealth() {
+            const healthSummary = document.getElementById('health-summary');
+            const healthChecksContent = document.getElementById('health-checks-content');
+            const deviceHealthContent = document.getElementById('device-health-content');
+            
+            try {
+                // Fetch health and status data in parallel
+                const [healthResponse, statusResponse] = await Promise.all([
+                    fetch('/api/health'),
+                    fetch('/api/status')
+                ]);
+                
+                const health = await healthResponse.json();
+                const status = await statusResponse.json();
+                
+                // Update health summary
+                let summaryHtml = `
+                    <div class="health-summary-item">
+                        <div class="value">${health.status === 'ok' ? '✅' : '❌'}</div>
+                        <div class="label">System Health</div>
+                    </div>
+                    <div class="health-summary-item">
+                        <div class="value">${health.config_loaded ? 'Yes' : 'No'}</div>
+                        <div class="label">Config Loaded</div>
+                    </div>
+                `;
+                
+                // Add device group counts if available
+                if (status.device_groups) {
+                    const enabledGroups = Object.values(status.device_groups).filter(g => g.enabled).length;
+                    const totalGroups = Object.keys(status.device_groups).length;
+                    summaryHtml += `
+                        <div class="health-summary-item">
+                            <div class="value">${enabledGroups}/${totalGroups}</div>
+                            <div class="label">Active Groups</div>
+                        </div>
+                    `;
+                }
+                
+                // Add weather fetch time if available
+                if (status.last_weather_fetch) {
+                    const lastFetch = new Date(status.last_weather_fetch);
+                    const now = new Date();
+                    const minutesAgo = Math.floor((now - lastFetch) / 60000);
+                    summaryHtml += `
+                        <div class="health-summary-item">
+                            <div class="value">${minutesAgo}m ago</div>
+                            <div class="label">Last Weather Fetch</div>
+                        </div>
+                    `;
+                }
+                
+                healthSummary.innerHTML = summaryHtml;
+                
+                // Update health checks card
+                let healthChecksHtml = '<div class="status-grid">';
+                healthChecksHtml += `
+                    <div class="status-item">
+                        <label>Status</label>
+                        <value>${health.status}</value>
+                    </div>
+                    <div class="status-item">
+                        <label>Timestamp</label>
+                        <value>${new Date(health.timestamp).toLocaleString()}</value>
+                    </div>
+                    <div class="status-item">
+                        <label>Config Loaded</label>
+                        <value>${health.config_loaded ? 'Yes' : 'No'}</value>
+                    </div>
+                `;
+                healthChecksHtml += '</div>';
+                healthChecksContent.innerHTML = healthChecksHtml;
+                
+                // Update device health
+                if (status.device_expectations && status.device_expectations.length > 0) {
+                    let deviceHtml = '';
+                    
+                    for (const device of status.device_expectations) {
+                        const isMatch = device.current_state === device.expected_state;
+                        const cssClass = isMatch ? 'match' : 'mismatch';
+                        
+                        deviceHtml += `
+                            <div class="device-health-item ${cssClass}">
+                                <div class="device-name">${device.device_name || 'Unknown Device'}</div>
+                                <div class="device-detail">
+                                    <label>Group:</label> ${device.group || 'N/A'}
+                                </div>
+                                <div class="device-detail">
+                                    <label>IP:</label> ${device.ip_address || 'N/A'}
+                                </div>
+                                <div class="device-detail">
+                                    <label>Outlet:</label> ${device.outlet !== undefined ? device.outlet : 'N/A'}
+                                </div>
+                                <div class="device-detail">
+                                    <label>Current State:</label> ${device.current_state || 'unknown'}
+                                </div>
+                                <div class="device-detail">
+                                    <label>Expected State:</label> ${device.expected_state || 'unknown'}
+                                </div>
+                        `;
+                        
+                        if (device.expected_on_from) {
+                            deviceHtml += `
+                                <div class="device-detail">
+                                    <label>Expected ON from:</label> ${new Date(device.expected_on_from).toLocaleString()}
+                                </div>
+                            `;
+                        }
+                        
+                        if (device.expected_off_at) {
+                            deviceHtml += `
+                                <div class="device-detail">
+                                    <label>Expected OFF at:</label> ${new Date(device.expected_off_at).toLocaleString()}
+                                </div>
+                            `;
+                        }
+                        
+                        if (device.last_state_change) {
+                            deviceHtml += `
+                                <div class="device-detail">
+                                    <label>Last State Change:</label> ${new Date(device.last_state_change).toLocaleString()}
+                                </div>
+                            `;
+                        }
+                        
+                        if (device.last_error) {
+                            deviceHtml += `
+                                <div class="device-detail" style="color: #e74c3c;">
+                                    <label>Last Error:</label> ${device.last_error}
+                                </div>
+                            `;
+                        }
+                        
+                        deviceHtml += '</div>';
+                    }
+                    
+                    deviceHealthContent.innerHTML = deviceHtml;
+                } else {
+                    // Check if we have initialization summary to show more helpful message
+                    if (status.device_groups) {
+                        let totalConfigured = 0;
+                        for (const groupInfo of Object.values(status.device_groups)) {
+                            totalConfigured += groupInfo.device_count || 0;
+                        }
+                        if (totalConfigured > 0) {
+                            deviceHealthContent.innerHTML = `
+                                <div class="device-health-item" style="border-left-color: #f39c12;">
+                                    <div class="device-name">⚠️ No Device Status Available</div>
+                                    <div class="device-detail">
+                                        ${totalConfigured} device(s) configured, but device status/expectations not available.
+                                        This may indicate devices failed to initialize or scheduler not fully started.
+                                        Check Device Control tab and logs for details.
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            deviceHealthContent.innerHTML = '<div class="status-item"><label>No devices configured</label></div>';
+                        }
+                    } else {
+                        deviceHealthContent.innerHTML = '<div class="status-item"><label>No device expectations available</label></div>';
+                    }
+                }
+                
+            } catch (e) {
+                healthSummary.innerHTML = '<div class="error">Failed to load health data</div>';
+                healthChecksContent.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+                deviceHealthContent.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+            }
+        }
+
+        // Refresh device control information
+        async function refreshDeviceControl() {
+            const deviceControlContent = document.getElementById('device-control-content');
+            
+            try {
+                const response = await fetch('/api/devices/status');
+                const data = await response.json();
+                
+                // Check for initialization failures
+                let initWarningHtml = '';
+                if (data.initialization_summary) {
+                    const summary = data.initialization_summary.overall;
+                    if (summary.failed_devices > 0) {
+                        initWarningHtml = `
+                            <div class="device-control-card" style="border-left-color: #f39c12; background: #fff8e1;">
+                                <div class="device-control-header">
+                                    <h3>⚠️ Device Initialization Warning</h3>
+                                </div>
+                                <div class="device-info">
+                                    <p><strong>${summary.failed_devices} out of ${summary.configured_devices} configured device(s) failed to initialize.</strong></p>
+                                    <p>These devices will appear as offline/unreachable below. Common causes:</p>
+                                    <ul style="margin: 10px 0; padding-left: 20px;">
+                                        <li>Device is unreachable on the network</li>
+                                        <li>Device IP address is incorrect</li>
+                                        <li>Device is slow to respond (timeout during discovery)</li>
+                                        <li>Network connectivity issues</li>
+                                    </ul>
+                                    <p style="margin-top: 10px; font-size: 13px; color: #666;">
+                                        Check the container logs for detailed error messages. If devices are reachable but slow,
+                                        consider adding <code>discovery_timeout_seconds: 60</code> to the device configuration.
+                                    </p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                if (data.status !== 'ok' || !data.devices || data.devices.length === 0) {
+                    // Check if devices are configured but none initialized
+                    if (data.initialization_summary && data.initialization_summary.overall.configured_devices > 0) {
+                        deviceControlContent.innerHTML = initWarningHtml + '<div class="device-control-card"><p><strong>No devices successfully initialized.</strong><br>All configured devices failed to connect. Check logs for details.</p></div>';
+                    } else {
+                        deviceControlContent.innerHTML = '<div class="device-control-card"><p>No devices configured or available.</p></div>';
+                    }
+                    return;
+                }
+                
+                let html = initWarningHtml;
+                
+                for (const device of data.devices) {
+                    const isReachable = device.reachable;
+                    const isInitialized = device.initialized !== false; // Default true for backward compatibility
+                    const cardClass = isReachable ? '' : 'unreachable';
+                    const statusBadgeClass = isReachable ? 'online' : 'offline';
+                    const statusText = isReachable ? '● Online' : (isInitialized ? '● Offline' : '● Not Initialized');
+                    
+                    html += `
+                        <div class="device-control-card ${cardClass}">
+                            <div class="device-control-header">
+                                <h3>${device.name}</h3>
+                                <span class="device-status-badge ${statusBadgeClass}">${statusText}</span>
+                            </div>
+                            <div class="device-info">
+                                <div><strong>Group:</strong> ${device.group}</div>
+                                <div><strong>IP:</strong> ${device.ip_address}</div>
+                    `;
+                    
+                    // Show initialization error first if present
+                    if (!isInitialized && device.initialization_error) {
+                        html += `<div style="color: #e74c3c; margin-top: 8px; padding: 10px; background: #fff5f5; border-radius: 4px;">
+                            <strong>Initialization Failed:</strong><br>
+                            ${device.initialization_error}
+                        </div>`;
+                    } else if (device.error) {
+                        html += `<div style="color: #e74c3c; margin-top: 8px;"><strong>Error:</strong> ${device.error}</div>`;
+                        // Add helper note for kasa/tapo library errors
+                        if (device.error.includes('INTERNAL_QUERY_ERROR')) {
+                            html += `<div style="color: #e74c3c; margin-top: 4px; font-size: 12px; font-style: italic;">Note: This error is reported by the underlying python-kasa/Tapo library, not the scheduler itself.</div>`;
+                        }
+                    }
+                    
+                    html += '</div>';
+                    
+                    // Add outlet controls
+                    if (device.outlets && device.outlets.length > 0) {
+                        html += '<div class="outlet-controls">';
+                        
+                        for (const outlet of device.outlets) {
+                            const outletState = outlet.is_on ? 'on' : 'off';
+                            const outletStateText = outlet.is_on ? 'ON' : 'OFF';
+                            const outletLabel = outlet.alias || (outlet.index !== null ? `Outlet ${outlet.index}` : device.name);
+                            
+                            html += `
+                                <div class="outlet-row">
+                                    <div class="outlet-info">
+                                        <span class="outlet-name">${outletLabel}</span>
+                                        <span class="outlet-state ${outletState}">${outletStateText}</span>
+                                    </div>
+                                    <div class="outlet-buttons">
+                                        <button class="btn-control btn-on" 
+                                                onclick="controlOutlet('${device.group}', '${device.name}', ${outlet.index}, 'on')"
+                                                ${!isReachable || outlet.is_on ? 'disabled' : ''}>
+                                            Turn ON
+                                        </button>
+                                        <button class="btn-control btn-off" 
+                                                onclick="controlOutlet('${device.group}', '${device.name}', ${outlet.index}, 'off')"
+                                                ${!isReachable || !outlet.is_on ? 'disabled' : ''}>
+                                            Turn OFF
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
+                        html += '</div>';
+                    }
+                    
+                    html += '<div id="control-message-' + device.name.replace(/[^a-zA-Z0-9]/g, '-') + '" class="control-message" style="display: none;"></div>';
+                    html += '</div>';
+                }
+                
+                deviceControlContent.innerHTML = html;
+                
+            } catch (e) {
+                console.error('Failed to fetch device status:', e);
+                deviceControlContent.innerHTML = `<div class="device-control-card"><div class="error">Failed to load device control: ${e.message}</div></div>`;
+            }
+        }
+
+        // Refresh weather tab
+        async function refreshWeather() {
+            const weatherInfo = document.getElementById('weather-info');
+            const weatherForecastTable = document.getElementById('weather-forecast-table');
+            const weatherMatTimelines = document.getElementById('weather-mat-timelines');
+            
+            try {
+                // Fetch both weather forecast and mat forecast in parallel
+                const [forecastResponse, matForecastResponse] = await Promise.all([
+                    fetch('/api/weather/forecast'),
+                    fetch('/api/weather/mat-forecast')
+                ]);
+                
+                const forecastData = await forecastResponse.json();
+                const matForecastData = await matForecastResponse.json();
+                
+                // Update weather summary
+                let summaryHtml = '';
+                
+                if (forecastData.status === 'ok') {
+                    const lastUpdated = forecastData.last_updated ? new Date(forecastData.last_updated).toLocaleString() : 'Unknown';
+                    const cacheAge = forecastData.cache_age_hours ? `${forecastData.cache_age_hours.toFixed(1)} hours` : 'N/A';
+                    
+                    summaryHtml = `
+                        <div class="status-item">
+                            <label>Provider</label>
+                            <value>${forecastData.provider || 'Unknown'}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>Last Updated</label>
+                            <value>${lastUpdated}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>Cache Age</label>
+                            <value>${cacheAge}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>Weather State</label>
+                            <value>${forecastData.weather_state || 'Unknown'}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>Forecast Hours</label>
+                            <value>${forecastData.hours ? forecastData.hours.length : 0}</value>
+                        </div>
+                    `;
+                    
+                    if (forecastData.alerts && forecastData.alerts.length > 0) {
+                        summaryHtml += `
+                            <div class="status-item" style="border-left-color: #e74c3c;">
+                                <label>Active Alerts</label>
+                                <value>${forecastData.alerts.length}</value>
+                            </div>
+                        `;
+                    }
+                } else {
+                    summaryHtml = `
+                        <div class="status-item" style="border-left-color: #f39c12;">
+                            <label>Status</label>
+                            <value>${forecastData.status}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>Reason</label>
+                            <value>${forecastData.reason || 'No data available'}</value>
+                        </div>
+                    `;
+                }
+                
+                weatherInfo.innerHTML = summaryHtml;
+                
+                // Update forecast table
+                if (forecastData.status === 'ok' && forecastData.hours && forecastData.hours.length > 0) {
+                    // Build a map of times to mat ON status from mat forecast
+                    const matOnByTime = {};
+                    if (matForecastData.status === 'ok' && matForecastData.groups) {
+                        for (const [groupName, windows] of Object.entries(matForecastData.groups)) {
+                            for (const window of windows) {
+                                if (window.state === 'on') {
+                                    const start = new Date(window.start);
+                                    const end = new Date(window.end);
+                                    
+                                    // Mark all hours in this window as having mats ON
+                                    for (const hour of forecastData.hours) {
+                                        const hourTime = new Date(hour.time);
+                                        if (hourTime >= start && hourTime <= end) {
+                                            matOnByTime[hour.time] = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    let tableHtml = `
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: #f8f9fa; border-bottom: 2px solid #ddd;">
+                                    <th style="padding: 10px; text-align: left;">Time</th>
+                                    <th style="padding: 10px; text-align: left;">Temp (°F)</th>
+                                    <th style="padding: 10px; text-align: left;">Precip (mm)</th>
+                                    <th style="padding: 10px; text-align: left;">Type</th>
+                                    <th style="padding: 10px; text-align: center;">Mats ON?</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    for (const hour of forecastData.hours) {
+                        const time = new Date(hour.time).toLocaleString();
+                        const temp = hour.temp_f !== null ? hour.temp_f.toFixed(1) : 'N/A';
+                        const precip = hour.precip_intensity !== null ? hour.precip_intensity.toFixed(2) : '0.00';
+                        const precipType = hour.precip_type || '-';
+                        const matsOn = matOnByTime[hour.time] ? '✅' : '-';
+                        
+                        tableHtml += `
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 8px;">${time}</td>
+                                <td style="padding: 8px;">${temp}</td>
+                                <td style="padding: 8px;">${precip}</td>
+                                <td style="padding: 8px;">${precipType}</td>
+                                <td style="padding: 8px; text-align: center;">${matsOn}</td>
+                            </tr>
+                        `;
+                    }
+                    
+                    tableHtml += `
+                            </tbody>
+                        </table>
+                    `;
+                    
+                    weatherForecastTable.innerHTML = tableHtml;
+                } else {
+                    weatherForecastTable.innerHTML = `<p>${forecastData.reason || 'No forecast data available'}</p>`;
+                }
+                
+                // Update mat timelines
+                if (matForecastData.status === 'ok' && matForecastData.groups) {
+                    let timelinesHtml = '';
+                    
+                    for (const [groupName, windows] of Object.entries(matForecastData.groups)) {
+                        timelinesHtml += `
+                            <div class="group-card">
+                                <h3>${groupName}</h3>
+                        `;
+                        
+                        if (windows.length === 0) {
+                            timelinesHtml += '<p>No predicted activity in forecast horizon.</p>';
+                        } else {
+                            timelinesHtml += `
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="background: #f8f9fa; border-bottom: 2px solid #ddd;">
+                                            <th style="padding: 8px; text-align: left;">State</th>
+                                            <th style="padding: 8px; text-align: left;">Start</th>
+                                            <th style="padding: 8px; text-align: left;">End</th>
+                                            <th style="padding: 8px; text-align: left;">Reason</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                            `;
+                            
+                            for (const window of windows) {
+                                const stateColor = window.state === 'on' ? '#27ae60' : '#95a5a6';
+                                const stateIcon = window.state === 'on' ? '✅' : '⭕';
+                                
+                                timelinesHtml += `
+                                    <tr style="border-bottom: 1px solid #eee;">
+                                        <td style="padding: 8px; color: ${stateColor}; font-weight: 600;">
+                                            ${stateIcon} ${window.state.toUpperCase()}
+                                        </td>
+                                        <td style="padding: 8px;">${new Date(window.start).toLocaleString()}</td>
+                                        <td style="padding: 8px;">${new Date(window.end).toLocaleString()}</td>
+                                        <td style="padding: 8px;">${window.reason}</td>
+                                    </tr>
+                                `;
+                            }
+                            
+                            timelinesHtml += `
+                                    </tbody>
+                                </table>
+                            `;
+                        }
+                        
+                        timelinesHtml += '</div>';
+                    }
+                    
+                    weatherMatTimelines.innerHTML = timelinesHtml;
+                } else {
+                    weatherMatTimelines.innerHTML = `<p>${matForecastData.reason || 'No mat forecast data available'}</p>`;
+                }
+                
+            } catch (e) {
+                weatherInfo.innerHTML = `<div class="error">Failed to load weather data: ${e.message}</div>`;
+                weatherForecastTable.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+                weatherMatTimelines.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+            }
+        }
+
+        // Control a device outlet
+        async function controlOutlet(group, deviceName, outletIndex, action) {
+            const messageId = 'control-message-' + deviceName.replace(/[^a-zA-Z0-9]/g, '-');
+            const messageDiv = document.getElementById(messageId);
+            
+            if (!messageDiv) {
+                console.error('Message div not found');
+                return;
+            }
+            
+            // Show loading message
+            messageDiv.className = 'control-message';
+            messageDiv.style.display = 'block';
+            messageDiv.textContent = `Sending ${action.toUpperCase()} command...`;
+            
+            try {
+                const response = await fetch('/api/devices/control', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        group: group,
+                        device: deviceName,
+                        outlet: outletIndex,
+                        action: action
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    messageDiv.className = 'control-message success';
+                    const outletText = outletIndex !== null ? ` outlet ${outletIndex}` : '';
+                    messageDiv.textContent = `✓ Successfully turned ${action.toUpperCase()}${outletText}`;
+                    
+                    // Refresh device status after 1 second
+                    setTimeout(() => {
+                        refreshDeviceControl();
+                    }, 1000);
+                } else {
+                    messageDiv.className = 'control-message error';
+                    messageDiv.textContent = `✗ Failed: ${result.error || 'Unknown error'}`;
+                }
+                
+                // Hide message after 5 seconds
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 5000);
+                
+            } catch (e) {
+                console.error('Control request failed:', e);
+                messageDiv.className = 'control-message error';
+                messageDiv.textContent = `✗ Error: ${e.message}`;
+                
+                // Hide message after 5 seconds
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        // Extract plain config values from annotated config (recursively)
+        function extractConfigValues(annotated) {
+            if (!annotated || typeof annotated !== 'object') {
+                return annotated;
+            }
+            
+            // Check if this is a field with metadata
+            if (annotated.hasOwnProperty('value') && annotated.hasOwnProperty('source')) {
+                return annotated.value;
+            }
+            
+            // Recursively process nested objects
+            const result = {};
+            for (const [key, value] of Object.entries(annotated)) {
+                result[key] = extractConfigValues(value);
+            }
+            return result;
+        }
+        
+        // Get field metadata from annotated config
+        function getFieldMetadata(annotated, path) {
+            const parts = path.split('.');
+            let current = annotated;
+            
+            for (const part of parts) {
+                if (!current || typeof current !== 'object') {
+                    return null;
+                }
+                current = current[part];
+            }
+            
+            if (current && current.hasOwnProperty('value') && current.hasOwnProperty('source')) {
+                return current;
+            }
+            return null;
+        }
+
+        // Form field definitions with labels and types
+        const FORM_FIELDS = {
+            'Location': [
+                { path: 'location.latitude', label: 'Latitude', type: 'number', step: 'any' },
+                { path: 'location.longitude', label: 'Longitude', type: 'number', step: 'any' },
+                { path: 'location.timezone', label: 'Timezone', type: 'text' }
+            ],
+            'Weather': [
+                { path: 'weather_api.enabled', label: 'Weather Enabled', type: 'checkbox' },
+                { path: 'weather_api.provider', label: 'Weather Provider', type: 'select', options: ['open-meteo', 'openweathermap'] },
+                { path: 'weather_api.openweathermap.api_key', label: 'OpenWeatherMap API Key', type: 'password' }
+            ],
+            'Device Credentials': [
+                { path: 'devices.credentials.username', label: 'Tapo Username', type: 'text', 
+                  helper: '🔧 Enter your Tapo account email/username. Changes require restart to apply.' },
+                { path: 'devices.credentials.password', label: 'Tapo Password', type: 'password',
+                  helper: '🔧 Enter your Tapo account password. Changes require restart to apply.' }
+            ],
+            'Thresholds & Scheduler': [
+                { path: 'thresholds.temperature_f', label: 'Threshold Temperature (°F)', type: 'number', step: '0.1' },
+                { path: 'thresholds.lead_time_minutes', label: 'Lead Time (minutes)', type: 'number' },
+                { path: 'thresholds.trailing_time_minutes', label: 'Trailing Time (minutes)', type: 'number' },
+                { path: 'scheduler.check_interval_minutes', label: 'Check Interval (minutes)', type: 'number' },
+                { path: 'scheduler.forecast_hours', label: 'Forecast Hours', type: 'number' }
+            ],
+            'Safety & Morning Mode': [
+                { path: 'safety.max_runtime_hours', label: 'Max Runtime (hours)', type: 'number', step: '0.1' },
+                { path: 'safety.cooldown_minutes', label: 'Cooldown (minutes)', type: 'number' },
+                { path: 'morning_mode.enabled', label: 'Morning Mode Enabled', type: 'checkbox' },
+                { path: 'morning_mode.start_hour', label: 'Morning Mode Start Hour', type: 'number', min: '0', max: '23' },
+                { path: 'morning_mode.end_hour', label: 'Morning Mode End Hour', type: 'number', min: '0', max: '23' }
+            ],
+            'Logging': [
+                { path: 'logging.level', label: 'Log Level', type: 'select', options: ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] }
+            ],
+            'Health & Reboot': [
+                { path: 'health_check.interval_hours', label: 'Health Check Interval (hours)', type: 'number', step: '0.1' },
+                { path: 'health_check.max_consecutive_failures', label: 'Max Consecutive Failures', type: 'number' },
+                { path: 'reboot.pause_seconds', label: 'Reboot Pause (seconds)', type: 'number' },
+                { path: 'health_server.enabled', label: 'Enable Health Check API', type: 'checkbox' },
+                { path: 'health_server.host', label: 'Health Check API Host', type: 'text' },
+                { path: 'health_server.port', label: 'Health Check API Port (default: 4329)', type: 'number' }
+            ],
+            'Notifications - Global': [
+                { path: 'notifications.required', label: 'Notifications Required', type: 'checkbox' },
+                { path: 'notifications.test_on_startup', label: 'Test Notifications on Startup', type: 'checkbox' }
+            ],
+            'Notifications - Email': [
+                { path: 'notifications.email.enabled', label: 'Email Enabled', type: 'checkbox' },
+                { path: 'notifications.email.smtp_host', label: 'SMTP Host', type: 'text' },
+                { path: 'notifications.email.smtp_port', label: 'SMTP Port', type: 'number' },
+                { path: 'notifications.email.smtp_username', label: 'SMTP Username', type: 'text' },
+                { path: 'notifications.email.smtp_password', label: 'SMTP Password', type: 'password' },
+                { path: 'notifications.email.from_email', label: 'From Email', type: 'email' },
+                { path: 'notifications.email.to_emails', label: 'To Emails (comma-separated)', type: 'text' },
+                { path: 'notifications.email.use_tls', label: 'Use TLS', type: 'checkbox' }
+            ],
+            'Notifications - Webhook': [
+                { path: 'notifications.webhook.enabled', label: 'Webhook Enabled', type: 'checkbox' },
+                { path: 'notifications.webhook.url', label: 'Webhook URL', type: 'url' }
+            ],
+            'Web UI': [
+                { path: 'web.bind_host', label: 'Bind Host', type: 'text' },
+                { path: 'web.port', label: 'Port', type: 'number' }
+            ]
+        };
+
+        // Create a form field
+        function createFormField(fieldDef, metadata, value) {
+            const isReadonly = metadata && metadata.readonly;
+            const envVar = metadata && metadata.env_var;
+            
+            let inputHtml = '';
+            const fieldId = 'field-' + fieldDef.path.replace(/\./g, '-');
+            
+            if (fieldDef.type === 'checkbox') {
+                const checked = value ? 'checked' : '';
+                const disabled = isReadonly ? 'disabled' : '';
+                inputHtml = `<input type="checkbox" id="${fieldId}" ${checked} ${disabled}>`;
+            } else if (fieldDef.type === 'select') {
+                const disabled = isReadonly ? 'disabled' : '';
+                inputHtml = `<select id="${fieldId}" ${disabled}>`;
+                for (const option of fieldDef.options) {
+                    const selected = value === option ? 'selected' : '';
+                    inputHtml += `<option value="${option}" ${selected}>${option}</option>`;
+                }
+                inputHtml += '</select>';
+            } else {
+                const type = fieldDef.type;
+                const disabled = isReadonly ? 'disabled' : '';
+                const step = fieldDef.step ? `step="${fieldDef.step}"` : '';
+                const min = fieldDef.min ? `min="${fieldDef.min}"` : '';
+                const max = fieldDef.max ? `max="${fieldDef.max}"` : '';
+                const displayValue = (type === 'password' && value) ? '********' : (value || '');
+                inputHtml = `<input type="${type}" id="${fieldId}" value="${displayValue}" ${disabled} ${step} ${min} ${max}>`;
+            }
+            
+            let helperHtml = '';
+            if (isReadonly && envVar) {
+                helperHtml = `<div class="helper-text">Set via env: <code>${envVar}</code></div>`;
+            } else if (fieldDef.helper) {
+                helperHtml = `<div class="helper-text">${fieldDef.helper}</div>`;
+            }
+            
+            return `
+                <div class="form-group">
+                    <label for="${fieldId}">${fieldDef.label}</label>
+                    ${inputHtml}
+                    ${helperHtml}
+                </div>
+            `;
+        }
+
+        // Build Device Groups section
+        function buildDeviceGroupsSection(config) {
+            const groups = config.devices?.groups || {};
+            let html = '<h3>Device Groups</h3>';
+            html += '<div id="device-groups-container">';
+            
+            // Render each group
+            for (const [groupKey, groupConfig] of Object.entries(groups)) {
+                html += buildDeviceGroupCard(groupKey, groupConfig);
+            }
+            
+            html += '</div>';
+            html += '<div style="margin-top: 15px;"><button type="button" onclick="addDeviceGroup()" style="background: #27ae60;">➕ Add Group</button></div>';
+            
+            return html;
+        }
+        
+        // Build a single device group card
+        function buildDeviceGroupCard(groupKey, groupConfig) {
+            const groupId = `group-${groupKey.replace(/[^a-zA-Z0-9]/g, '-')}`;
+            const enabled = groupConfig.enabled !== false;  // Default true
+            const items = groupConfig.items || [];
+            
+            let html = `<div class="device-group-card" id="${groupId}" data-group-key="${groupKey}" style="background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; border: 2px solid #ddd;">`;
+            
+            // Header with group name and enabled checkbox
+            html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px;">';
+            html += '<div style="flex: 1;">';
+            html += `<label style="font-weight: 600; margin-right: 10px;">Group Name:</label>`;
+            html += `<input type="text" class="group-name-input" value="${groupKey}" style="padding: 8px; font-size: 16px; font-weight: 600; border: 1px solid #ddd; border-radius: 4px; min-width: 250px;" onchange="updateGroupKey('${groupKey}', this.value)">`;
+            html += '</div>';
+            html += '<div>';
+            html += `<label style="margin-right: 10px;"><input type="checkbox" class="group-enabled-input" ${enabled ? 'checked' : ''}> Enabled</label>`;
+            html += `<button type="button" onclick="deleteDeviceGroup('${groupKey}')" style="background: #e74c3c; margin-left: 10px;">🗑️ Delete Group</button>`;
+            html += '</div>';
+            html += '</div>';
+            
+            // Items table
+            html += '<div class="group-items-container">';
+            html += '<table style="width: 100%; border-collapse: collapse;">';
+            html += '<thead><tr style="background: #ecf0f1;">';
+            html += '<th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Device Name</th>';
+            html += '<th style="padding: 10px; text-align: left; border: 1px solid #ddd;">IP Address</th>';
+            html += '<th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Outlets (CSV)</th>';
+            html += '<th style="padding: 10px; text-align: center; border: 1px solid #ddd; width: 100px;">Actions</th>';
+            html += '</tr></thead>';
+            html += '<tbody class="group-items-tbody">';
+            
+            items.forEach((item, idx) => {
+                html += buildDeviceItemRow(groupKey, item, idx);
+            });
+            
+            html += '</tbody>';
+            html += '</table>';
+            html += `<div style="margin-top: 10px;"><button type="button" onclick="addDeviceItem('${groupKey}')" style="background: #3498db;">➕ Add Device</button></div>`;
+            html += '</div>';
+            
+            html += '</div>';
+            return html;
+        }
+        
+        // Build a single device item row
+        function buildDeviceItemRow(groupKey, item, idx) {
+            const outlets = item.outlets ? item.outlets.join(', ') : '';
+            const rowId = `item-${groupKey}-${idx}`;
+            
+            let html = `<tr id="${rowId}" class="device-item-row" data-group-key="${groupKey}">`;
+            html += `<td style="padding: 10px; border: 1px solid #ddd;"><input type="text" class="item-name-input" value="${item.name || ''}" placeholder="Device Name (required)" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 3px;"></td>`;
+            html += `<td style="padding: 10px; border: 1px solid #ddd;"><input type="text" class="item-ip-input" value="${item.ip_address || ''}" placeholder="192.168.1.100 (required)" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 3px;"></td>`;
+            html += `<td style="padding: 10px; border: 1px solid #ddd;"><input type="text" class="item-outlets-input" value="${outlets}" placeholder="0, 1 (optional)" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 3px;"></td>`;
+            html += `<td style="padding: 10px; border: 1px solid #ddd; text-align: center;"><button type="button" onclick="deleteDeviceItem('${groupKey}', ${idx})" style="background: #e74c3c; padding: 5px 10px;">🗑️</button></td>`;
+            html += '</tr>';
+            return html;
+        }
+        
+        // Add a new device group
+        function addDeviceGroup() {
+            const newGroupName = prompt('Enter a name for the new device group:');
+            if (!newGroupName || newGroupName.trim() === '') {
+                return;
+            }
+            
+            // Normalize group name (replace spaces with underscores, lowercase)
+            const normalizedName = newGroupName.trim().toLowerCase().replace(/\\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+            
+            // Check if group already exists
+            const container = document.getElementById('device-groups-container');
+            const existingGroups = container.querySelectorAll('.device-group-card');
+            for (const card of existingGroups) {
+                if (card.dataset.groupKey === normalizedName) {
+                    alert(`A group named "${normalizedName}" already exists!`);
+                    return;
+                }
+            }
+            
+            // Create new group card
+            const newGroupConfig = {
+                enabled: true,
+                items: []
+            };
+            
+            const newCardHtml = buildDeviceGroupCard(normalizedName, newGroupConfig);
+            container.insertAdjacentHTML('beforeend', newCardHtml);
+        }
+        
+        // Delete a device group
+        function deleteDeviceGroup(groupKey) {
+            if (!confirm(`Are you sure you want to delete group '${groupKey}'?`)) {
+                return;
+            }
+            
+            const groupCard = document.querySelector(`.device-group-card[data-group-key="${groupKey}"]`);
+            if (groupCard) {
+                groupCard.remove();
+            }
+        }
+        
+        // Add a device item to a group
+        function addDeviceItem(groupKey) {
+            const groupCard = document.querySelector(`.device-group-card[data-group-key="${groupKey}"]`);
+            if (!groupCard) return;
+            
+            const tbody = groupCard.querySelector('.group-items-tbody');
+            const currentItems = tbody.querySelectorAll('.device-item-row').length;
+            
+            const newItem = {
+                name: '',
+                ip_address: '',
+                outlets: []
+            };
+            
+            const newRowHtml = buildDeviceItemRow(groupKey, newItem, currentItems);
+            tbody.insertAdjacentHTML('beforeend', newRowHtml);
+        }
+        
+        // Delete a device item
+        function deleteDeviceItem(groupKey, itemIdx) {
+            const groupCard = document.querySelector(`.device-group-card[data-group-key="${groupKey}"]`);
+            if (!groupCard) return;
+            
+            const rows = groupCard.querySelectorAll('.device-item-row');
+            if (rows[itemIdx]) {
+                rows[itemIdx].remove();
+            }
+        }
+        
+        // Update group key when group name is changed
+        function updateGroupKey(oldKey, newKey) {
+            if (!newKey || newKey.trim() === '') {
+                alert('Group name cannot be empty!');
+                // Restore old value
+                const groupCard = document.querySelector(`.device-group-card[data-group-key="${oldKey}"]`);
+                if (groupCard) {
+                    const input = groupCard.querySelector('.group-name-input');
+                    if (input) input.value = oldKey;
+                }
+                return;
+            }
+            
+            // Normalize new key
+            const normalizedKey = newKey.trim().toLowerCase().replace(/\\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+            
+            // Check if already exists
+            if (normalizedKey !== oldKey) {
+                const existingCard = document.querySelector(`.device-group-card[data-group-key="${normalizedKey}"]`);
+                if (existingCard) {
+                    alert(`A group named "${normalizedKey}" already exists!`);
+                    // Restore old value
+                    const groupCard = document.querySelector(`.device-group-card[data-group-key="${oldKey}"]`);
+                    if (groupCard) {
+                        const input = groupCard.querySelector('.group-name-input');
+                        if (input) input.value = oldKey;
+                    }
+                    return;
+                }
+            }
+            
+            // Update the card's data attribute
+            const groupCard = document.querySelector(`.device-group-card[data-group-key="${oldKey}"]`);
+            if (groupCard) {
+                groupCard.dataset.groupKey = normalizedKey;
+                // Update input value to normalized version
+                const input = groupCard.querySelector('.group-name-input');
+                if (input) input.value = normalizedKey;
+            }
+        }
+
+        // Build the form from annotated config
+        function buildConfigForm(annotatedConfig) {
+            const config = extractConfigValues(annotatedConfig);
+            const form = document.getElementById('config-form');
+            let html = '';
+            
+            for (const [sectionName, fields] of Object.entries(FORM_FIELDS)) {
+                html += `<h3>${sectionName}</h3>`;
+                
+                for (const fieldDef of fields) {
+                    const metadata = getFieldMetadata(annotatedConfig, fieldDef.path);
+                    const value = getValueByPath(config, fieldDef.path);
+                    
+                    // Special handling for to_emails (array to comma-separated string)
+                    let displayValue = value;
+                    if (fieldDef.path === 'notifications.email.to_emails' && Array.isArray(value)) {
+                        displayValue = value.join(', ');
+                    }
+                    
+                    html += createFormField(fieldDef, metadata, displayValue);
+                }
+            }
+            
+            // Add Device Groups section after Device Credentials
+            html += buildDeviceGroupsSection(config);
+            
+            form.innerHTML = html;
+            
+            // Show environment overrides info if any
+            showEnvOverridesInfo(annotatedConfig);
+        }
+
+        // Get value by dot-separated path
+        function getValueByPath(obj, path) {
+            const parts = path.split('.');
+            let current = obj;
+            
+            for (const part of parts) {
+                if (current && typeof current === 'object' && part in current) {
+                    current = current[part];
+                } else {
+                    return undefined;
+                }
+            }
+            
+            return current;
+        }
+
+        // Set value by dot-separated path
+        function setValueByPath(obj, path, value) {
+            const parts = path.split('.');
+            let current = obj;
+            
+            for (let i = 0; i < parts.length - 1; i++) {
+                const part = parts[i];
+                if (!(part in current)) {
+                    current[part] = {};
+                }
+                current = current[part];
+            }
+            
+            current[parts[parts.length - 1]] = value;
+        }
+
+        // Collect form values into config object
+        function collectFormValues() {
+            const config = {};
+            
+            for (const [sectionName, fields] of Object.entries(FORM_FIELDS)) {
+                for (const fieldDef of fields) {
+                    const fieldId = 'field-' + fieldDef.path.replace(/\./g, '-');
+                    const element = document.getElementById(fieldId);
+                    
+                    if (!element) continue;
+                    
+                    let value;
+                    if (fieldDef.type === 'checkbox') {
+                        value = element.checked;
+                    } else if (fieldDef.type === 'number') {
+                        value = element.value ? parseFloat(element.value) : 0;
+                    } else {
+                        value = element.value;
+                    }
+                    
+                    // Special handling for to_emails (comma-separated string to array)
+                    if (fieldDef.path === 'notifications.email.to_emails' && typeof value === 'string') {
+                        value = value.split(',').map(e => e.trim()).filter(e => e.length > 0);
+                    }
+                    
+                    setValueByPath(config, fieldDef.path, value);
+                }
+            }
+            
+            // Collect device groups
+            config.devices = config.devices || {};
+            config.devices.groups = collectDeviceGroups();
+            
+            return config;
+        }
+        
+        // Collect device groups from the UI
+        function collectDeviceGroups() {
+            const groups = {};
+            const groupCards = document.querySelectorAll('.device-group-card');
+            
+            groupCards.forEach(card => {
+                const groupKey = card.dataset.groupKey;
+                const enabledInput = card.querySelector('.group-enabled-input');
+                const enabled = enabledInput ? enabledInput.checked : true;
+                
+                // Collect items
+                const items = [];
+                const itemRows = card.querySelectorAll('.device-item-row');
+                
+                itemRows.forEach(row => {
+                    const nameInput = row.querySelector('.item-name-input');
+                    const ipInput = row.querySelector('.item-ip-input');
+                    const outletsInput = row.querySelector('.item-outlets-input');
+                    
+                    const name = nameInput ? nameInput.value.trim() : '';
+                    const ip_address = ipInput ? ipInput.value.trim() : '';
+                    const outletsStr = outletsInput ? outletsInput.value.trim() : '';
+                    
+                    // Only include items with both name and IP
+                    if (name && ip_address) {
+                        const item = {
+                            name: name,
+                            ip_address: ip_address
+                        };
+                        
+                        // Parse outlets if provided
+                        if (outletsStr) {
+                            const outlets = outletsStr.split(',')
+                                .map(s => parseInt(s.trim()))
+                                .filter(n => !isNaN(n) && n >= 0);
+                            
+                            if (outlets.length > 0) {
+                                item.outlets = outlets;
+                            }
+                        }
+                        
+                        items.push(item);
+                    }
+                });
+                
+                groups[groupKey] = {
+                    enabled: enabled,
+                    items: items
+                };
+            });
+            
+            return groups;
+        }
+
+        // Show environment overrides info
+        function showEnvOverridesInfo(annotatedConfig) {
+            const container = document.getElementById('env-overrides-info');
+            const overrides = collectEnvOverrides(annotatedConfig);
+            
+            if (overrides.length > 0) {
+                let html = '<div class="card" style="background: #e8f4f8; border-left: 4px solid #17a2b8;">';
+                html += '<h3 style="margin-top: 0;">🔒 Environment Variable Overrides</h3>';
+                html += '<p style="margin-bottom: 15px;">The following settings are overridden by environment variables and are read-only in this form:</p>';
+                html += '<div class="status-grid">';
+                
+                for (const override of overrides) {
+                    let displayValue = override.value;
+                    // Mask sensitive values
+                    if (override.path.includes('password') || override.path.includes('api_key')) {
+                        displayValue = '********';
+                    }
+                    
+                    html += `
+                        <div class="status-item" style="border-left-color: #17a2b8;">
+                            <label>${override.path}</label>
+                            <value><code>${override.env_var}</code> = ${displayValue}</value>
+                        </div>
+                    `;
+                }
+                
+                html += '</div></div>';
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = '';
+            }
+        }
+
+        // Collect environment overrides from annotated config
+        function collectEnvOverrides(annotated, path = '') {
+            const overrides = [];
+            
+            if (!annotated || typeof annotated !== 'object') {
+                return overrides;
+            }
+            
+            // Check if this is a field with env override
+            if (annotated.source === 'env' && annotated.env_var) {
+                overrides.push({
+                    path: path,
+                    env_var: annotated.env_var,
+                    value: annotated.value
+                });
+                return overrides;
+            }
+            
+            // Recursively process nested objects
+            for (const [key, value] of Object.entries(annotated)) {
+                const newPath = path ? `${path}.${key}` : key;
+                overrides.push(...collectEnvOverrides(value, newPath));
+            }
+            
+            return overrides;
+        }
+
+        // Load configuration
+        async function loadConfig() {
+            const message = document.getElementById('config-message');
+            message.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/config');
+                const annotatedConfig = await response.json();
+                
+                // Store the last full config for merging during save
+                lastAnnotatedConfig = annotatedConfig;
+                lastRawConfig = extractConfigValues(annotatedConfig);
+                
+                // Build the form
+                buildConfigForm(annotatedConfig);
+                
+            } catch (e) {
+                message.innerHTML = `<div class="error">Failed to load configuration: ${e.message}</div>`;
+            }
+        }
+
+        // Save configuration
+        async function saveConfig() {
+            const message = document.getElementById('config-message');
+            message.innerHTML = '';
+            
+            try {
+                // Ensure we have a baseline config to merge into
+                if (!lastRawConfig) {
+                    // If for some reason we don't have lastRawConfig, fetch it now
+                    try {
+                        const response = await fetch('/api/config');
+                        const annotatedConfig = await response.json();
+                        lastAnnotatedConfig = annotatedConfig;
+                        lastRawConfig = extractConfigValues(annotatedConfig);
+                    } catch (fetchError) {
+                        message.innerHTML = '<div class="error">❌ Error: Could not load current configuration. Please reload the page and try again.</div>';
+                        return;
+                    }
+                }
+                
+                // Collect form values (these are the edited values)
+                const formConfig = collectFormValues();
+                
+                // Merge form values into the last raw config to ensure all required sections are present
+                // Use structuredClone to avoid modifying lastRawConfig
+                const fullConfig = deepMerge(structuredClone(lastRawConfig), formConfig);
+                
+                // Send the full merged config to API
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(fullConfig)
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'ok') {
+                    // Update lastRawConfig with the successfully saved config
+                    lastRawConfig = fullConfig;
+                    
+                    message.innerHTML = '<div class="success">✅ Configuration saved successfully! Restarting...</div>';
+                    
+                    // Trigger restart after a short delay to let the message render
+                    setTimeout(async () => {
+                        try {
+                            await fetch('/api/restart', {
+                                method: 'POST'
+                            });
+                            // After restart is triggered, show additional message
+                            message.innerHTML = '<div class="success">✅ Configuration saved! Application is restarting. This page will become unavailable temporarily.</div>';
+                        } catch (e) {
+                            // Connection will be lost when the process exits, this is expected
+                            message.innerHTML = '<div class="success">✅ Configuration saved! Application is restarting. Please wait a moment and refresh the page.</div>';
+                        }
+                    }, 500);
+                } else {
+                    message.innerHTML = `<div class="error">❌ Failed to save: ${result.message}</div>`;
+                }
+                
+            } catch (e) {
+                message.innerHTML = `<div class="error">❌ Error: ${e.message}</div>`;
+            }
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            checkSetupMode();
+            checkSecurity();
+            refreshStatus();
+        });
