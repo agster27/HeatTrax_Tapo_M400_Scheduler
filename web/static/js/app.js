@@ -1264,15 +1264,33 @@ function setValueByPath(obj, path, value) {
     const parts = path.split('.');
     let current = obj;
     
+    // Guard against prototype pollution
+    const dangerousKeys = ['__proto__', 'constructor', 'prototype'];
+    
     for (let i = 0; i < parts.length - 1; i++) {
         const part = parts[i];
+        
+        // Prevent prototype pollution
+        if (dangerousKeys.includes(part)) {
+            console.error('Attempt to set dangerous property:', part);
+            return;
+        }
+        
         if (!(part in current)) {
             current[part] = {};
         }
         current = current[part];
     }
     
-    current[parts[parts.length - 1]] = value;
+    const finalPart = parts[parts.length - 1];
+    
+    // Prevent prototype pollution on final key
+    if (dangerousKeys.includes(finalPart)) {
+        console.error('Attempt to set dangerous property:', finalPart);
+        return;
+    }
+    
+    current[finalPart] = value;
 }
 
 // Collect form values into config object
