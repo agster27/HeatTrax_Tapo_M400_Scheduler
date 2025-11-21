@@ -395,12 +395,16 @@ class ResilientWeatherService:
         
         try:
             forecast = self.cache.cache_data['forecast']
-            now = datetime.now()
+            # Use timezone-aware datetime from cache
+            now = datetime.now(self.cache.tz)
             cutoff_time = now + timedelta(hours=hours_ahead)
             
             for entry in forecast:
                 try:
                     forecast_time = datetime.fromisoformat(entry['timestamp'])
+                    # Ensure forecast_time is timezone-aware
+                    if forecast_time.tzinfo is None:
+                        forecast_time = forecast_time.replace(tzinfo=self.cache.tz)
                     
                     if forecast_time > cutoff_time:
                         break
