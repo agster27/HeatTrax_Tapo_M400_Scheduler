@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
+from zoneinfo import ZoneInfo
 
 
 logger = logging.getLogger(__name__)
@@ -36,14 +37,23 @@ class WeatherCache:
     to retrieve weather snapshots within the cache validity horizon.
     """
     
-    def __init__(self, cache_file: str = "weather_cache.json"):
+    def __init__(self, cache_file: str = "weather_cache.json", timezone: str = "UTC"):
         """
         Initialize weather cache.
         
         Args:
             cache_file: Path to cache file
+            timezone: Timezone for forecast data (e.g., "America/New_York", "UTC")
         """
         self.cache_file = Path(cache_file)
+        self.timezone = timezone
+        try:
+            self.tz = ZoneInfo(timezone)
+        except Exception as e:
+            logger.warning(f"Invalid timezone '{timezone}', falling back to UTC: {e}")
+            self.timezone = "UTC"
+            self.tz = ZoneInfo("UTC")
+        
         self.cache_data: Optional[Dict[str, Any]] = None
         self._load_cache()
     
@@ -67,9 +77,11 @@ class WeatherCache:
             self.cache_data = data
             logger.info(f"Loaded weather cache from {self.cache_file}")
             
-            # Log cache age
+            # Log cache age (use timezone-aware comparison)
             fetched_at = datetime.fromisoformat(data['fetched_at'])
-            age_hours = (datetime.now() - fetched_at).total_seconds() / 3600
+            if fetched_at.tzinfo is None:
+                fetched_at = fetched_at.replace(tzinfo=self.tz)
+            age_hours = (datetime.now(self.tz) - fetched_at).total_seconds() / 3600
             logger.info(f"Cache age: {age_hours:.1f} hours")
             
         except (json.JSONDecodeError, IOError, KeyError) as e:
@@ -145,19 +157,26 @@ class WeatherCache:
                 logger.error("Missing data in forecast")
                 return False
             
-            # Build forecast list
+            # Build forecast list with timezone-aware comparisons
             forecast_list = []
-            now = datetime.now()
+            now = datetime.now(self.tz)
             cutoff = now + timedelta(hours=forecast_hours)
+            
+            logger.debug(f"Filtering forecast entries: now={now} (timezone: {self.timezone}), cutoff={cutoff}")
             
             for i, time_str in enumerate(times):
                 try:
-                    # Parse timestamp
+                    # Parse timestamp - API returns times in local timezone without timezone info
+                    # Example: "2025-11-20T23:00" is already in the configured timezone
                     forecast_time = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
-                    forecast_time = forecast_time.replace(tzinfo=None)
+                    
+                    # If the timestamp has no timezone info, interpret it as being in the configured timezone
+                    if forecast_time.tzinfo is None:
+                        forecast_time = forecast_time.replace(tzinfo=self.tz)
                     
                     # Only store future forecasts within horizon
                     if forecast_time < now or forecast_time > cutoff:
+                        logger.debug(f"Skipping entry {i}: time={forecast_time}, outside range [{now}, {cutoff}]")
                         continue
                     
                     snapshot = WeatherSnapshot(
@@ -172,12 +191,18 @@ class WeatherCache:
                     continue
             
             if not forecast_list:
-                logger.error("No valid forecast entries to cache")
+                logger.error(
+                    f"No valid forecast entries to cache. "
+                    f"Total entries processed: {len(times)}, "
+                    f"timezone: {self.timezone}, "
+                    f"now: {now}, "
+                    f"cutoff: {cutoff}"
+                )
                 return False
             
             # Build cache structure
             cache_data = {
-                'fetched_at': datetime.now().isoformat(),
+                'fetched_at': datetime.now(self.tz).isoformat(),
                 'location': {
                     'latitude': latitude,
                     'longitude': longitude
@@ -210,7 +235,9 @@ class WeatherCache:
         
         try:
             fetched_at = datetime.fromisoformat(self.cache_data['fetched_at'])
-            age = datetime.now() - fetched_at
+            if fetched_at.tzinfo is None:
+                fetched_at = fetched_at.replace(tzinfo=self.tz)
+            age = datetime.now(self.tz) - fetched_at
             return age.total_seconds() / 3600
         except (KeyError, ValueError) as e:
             logger.error(f"Error calculating cache age: {e}")
@@ -268,7 +295,7 @@ class WeatherCache:
         Finds the cached forecast entry closest to the target time.
         
         Args:
-            target_time: Time to get weather for
+            target_time: Time to get weather for (can be naive or aware)
             
         Returns:
             WeatherSnapshot if found, None otherwise
@@ -281,12 +308,20 @@ class WeatherCache:
             if not forecast:
                 return None
             
+            # Ensure target_time is timezone-aware
+            if target_time.tzinfo is None:
+                target_time = target_time.replace(tzinfo=self.tz)
+            
             # Find closest forecast entry
             closest_entry = None
             min_diff = None
             
             for entry in forecast:
                 entry_time = datetime.fromisoformat(entry['timestamp'])
+                # Ensure entry_time is timezone-aware
+                if entry_time.tzinfo is None:
+                    entry_time = entry_time.replace(tzinfo=self.tz)
+                
                 time_diff = abs((entry_time - target_time).total_seconds())
                 
                 if min_diff is None or time_diff < min_diff:
@@ -309,7 +344,7 @@ class WeatherCache:
         Returns:
             Tuple of (temperature_f, precipitation_mm) or None
         """
-        snapshot = self.get_weather_at(datetime.now())
+        snapshot = self.get_weather_at(datetime.now(self.tz))
         if snapshot:
             return (snapshot.temperature_f, snapshot.precipitation_mm)
         return None
