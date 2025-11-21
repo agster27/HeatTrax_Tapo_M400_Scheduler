@@ -4,7 +4,7 @@ import logging
 import os
 from datetime import datetime
 from typing import Dict, Any, Optional
-from flask import Flask, request, jsonify, send_from_directory, render_template
+from flask import Flask, request, jsonify, send_from_directory, render_template, abort
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -963,18 +963,19 @@ class WebServer:
         Returns:
             File content or 404
         """
-        # Use Flask's render_template for index.html
+        # Use Flask's render_template for index.html to support Jinja2 templating
+        # (e.g., url_for() for static assets)
         if filename == 'index.html':
             return render_template('index.html')
         
-        # For other files, serve from web directory
+        # For other files, serve directly from web directory
         web_dir = Path(__file__).parent / 'web'
         file_path = web_dir / filename
         
         if file_path.exists() and file_path.is_file():
             return send_from_directory(web_dir, filename)
         
-        return "File not found", 404
+        abort(404)
     
     def _get_system_status(self) -> Dict[str, Any]:
         """
