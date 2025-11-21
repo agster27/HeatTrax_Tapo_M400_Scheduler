@@ -780,6 +780,13 @@ class EnhancedScheduler:
                     if outlets and isinstance(outlets, list):
                         # Create an expectation for each outlet
                         for outlet_index in outlets:
+                            # Validate outlet index is a non-negative integer
+                            if not isinstance(outlet_index, int) or outlet_index < 0:
+                                self.logger.warning(
+                                    f"Skipping invalid outlet index {outlet_index} for device "
+                                    f"{item.get('name', 'Unknown')} in group {group_name}"
+                                )
+                                continue
                             device_expectation = {
                                 'group': group_name,
                                 'device_name': item.get('name', 'Unknown'),
