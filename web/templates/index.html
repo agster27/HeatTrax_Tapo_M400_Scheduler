@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HeatTrax Scheduler</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="header">
+        <h1>🔥 HeatTrax Scheduler</h1>
+        <p>Weather-based automation for heated mats and smart devices</p>
+    </div>
+
+    <div id="setup-mode-banner" class="warning" style="display: none; background: #fff3cd; border-color: #ff9800;">
+        <strong>🔧 Setup Mode Active</strong><br>
+        <p style="margin: 10px 0 0 0;">
+            <span id="setup-reason"></span><br>
+            <strong>Device control is currently DISABLED.</strong> The scheduler is running in safe mode.
+            Please configure valid Tapo credentials below and restart to enable device control.
+        </p>
+    </div>
+
+    <div id="security-warning" class="warning" style="display: none;">
+        <strong>⚠️ Security Warning:</strong> Web UI is accessible over the network and authentication is disabled. 
+        Do not expose this service directly to the internet.
+    </div>
+
+    <div class="tab-container">
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('status')">Status</button>
+            <button class="tab" onclick="switchTab('groups')">Groups</button>
+            <button class="tab" onclick="switchTab('config')">Configuration</button>
+            <button class="tab" onclick="switchTab('health')">Health</button>
+            <button class="tab" onclick="switchTab('weather')">Weather</button>
+        </div>
+    </div>
+
+    <div id="status-tab" class="tab-content active">
+        <div class="card">
+            <h2>System Status</h2>
+            <button onclick="refreshStatus()">🔄 Refresh</button>
+            <div id="status-content" class="status-grid">
+                <div class="status-item">
+                    <label>Loading...</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="groups-tab" class="tab-content">
+        <div class="card">
+            <h2>Device Groups</h2>
+            <p>Control automation settings for each device group. Changes apply immediately and override config.yaml values until cleared.</p>
+            <button onclick="refreshGroups()">🔄 Refresh</button>
+            <div id="groups-content">
+                <p>Loading groups...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="config-tab" class="tab-content">
+        <div id="env-overrides-info"></div>
+        <div class="card">
+            <h2>Configuration Editor</h2>
+            <p>Configure your HeatTrax Scheduler settings below. Fields marked as read-only are controlled by environment variables.</p>
+            <form id="config-form">
+                <!-- Form sections will be populated here -->
+            </form>
+            <div class="button-group">
+                <button onclick="loadConfig()">🔄 Reload</button>
+                <button onclick="saveConfig()">💾 Save Configuration</button>
+            </div>
+            <div id="config-message"></div>
+        </div>
+    </div>
+
+    <div id="health-tab" class="tab-content">
+        <div class="card">
+            <h2>Health Summary</h2>
+            <button onclick="refreshHealth()">🔄 Refresh</button>
+            <div id="health-summary" class="health-summary">
+                <div class="health-summary-item">
+                    <div class="value">-</div>
+                    <div class="label">System Status</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Health Checks</h2>
+            <div id="health-checks-content">
+                <p>Loading health information...</p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Device Health</h2>
+            <div id="device-health-content" class="device-health-grid">
+                <div class="device-health-item">
+                    <div class="device-name">Loading...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Device Control</h2>
+            <p>Manually control device outlets. Changes take effect immediately and override scheduled behavior until the next scheduled action.</p>
+            <button onclick="refreshDeviceControl()">🔄 Refresh</button>
+            <div id="device-control-content" class="device-control-grid">
+                <div class="device-control-card">
+                    <div class="device-control-header">
+                        <h3>Loading...</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="weather-tab" class="tab-content">
+        <div class="card">
+            <h2>Weather Summary</h2>
+            <button onclick="refreshWeather()">🔄 Refresh</button>
+            <div id="weather-info" class="status-grid">
+                <div class="status-item">
+                    <label>Loading...</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Weather Forecast</h2>
+            <div id="weather-forecast-table" style="overflow-x: auto;">
+                <p>Loading forecast data...</p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Mat Activity Timeline</h2>
+            <p>Predicted ON/OFF windows for each device group based on weather forecast and schedule.</p>
+            <div id="weather-mat-timelines">
+                <p>Loading mat predictions...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
