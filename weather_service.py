@@ -54,7 +54,7 @@ class WeatherService:
             'hourly': 'temperature_2m,precipitation',
             'temperature_unit': 'fahrenheit',
             'timezone': self.timezone,
-            'forecast_days': max(1, (hours_ahead // 24) + 1)
+            'forecast_days': max(2, ((hours_ahead + 23) // 24))
         }
         
         logger.info(f"Requesting weather forecast for {hours_ahead} hours ahead")
