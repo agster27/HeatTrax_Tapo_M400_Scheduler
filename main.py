@@ -14,12 +14,15 @@ from src.config import Config, ConfigError, ConfigManager
 from src.health import run_startup_checks
 from src.scheduler import EnhancedScheduler
 from src.web import WebServer
+from src.notifications import NotificationManager
+from src.web_notifications_routes import register_notification_routes
 from version import __version__
 
 
 # Global flag for graceful shutdown
 shutdown_event = asyncio.Event()
 scheduler_thread = None
+notification_manager = None
 
 
 def pause_before_restart(pause_seconds: int, reason: str):
@@ -254,6 +257,34 @@ async def main():
             # Create web server
             web_server = WebServer(config_manager, scheduler)
             
+            # Initialize and start notification manager
+            global notification_manager
+            notifications_cfg = config_manager.get_config(include_secrets=True).get('notifications', {})
+            notification_manager = NotificationManager(notifications_cfg)
+            notification_manager.start()
+            logger.info("NotificationManager started")
+            
+            # Register notification routes with web server
+            register_notification_routes(web_server.app, notification_manager)
+            
+            # Queue startup test if configured
+            if notifications_cfg.get('test_on_startup', False):
+                def delayed_startup_test():
+                    """Send startup test notification after delay."""
+                    time.sleep(5)  # Wait 5 seconds for services to stabilize
+                    notification_manager.send_test_notification(
+                        subject="HeatTrax startup test",
+                        body="Startup test from HeatTrax scheduler"
+                    )
+                
+                test_thread = threading.Thread(
+                    target=delayed_startup_test,
+                    name="StartupTestThread",
+                    daemon=True
+                )
+                test_thread.start()
+                logger.info("Startup test notification queued (5s delay)")
+            
             # Start scheduler in a separate thread
             global scheduler_thread
             scheduler_thread = threading.Thread(
@@ -276,6 +307,12 @@ async def main():
                 logger.info("Waiting for scheduler thread to complete...")
                 if scheduler_thread:
                     scheduler_thread.join(timeout=10)
+                
+                # Stop notification manager
+                if notification_manager:
+                    logger.info("Stopping notification manager...")
+                    notification_manager.stop()
+                
                 logger.info("Shutdown complete")
         
     except ConfigError as e:

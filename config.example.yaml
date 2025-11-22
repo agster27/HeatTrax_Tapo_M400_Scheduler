@@ -213,6 +213,9 @@ notifications:
   test_on_startup: false  # ENV: HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP (true/false)
                           # If true, send test notification on successful startup
   
+  check_interval_seconds: 60  # ENV: HEATTRAX_NOTIFICATIONS_CHECK_INTERVAL_SECONDS
+                              # Background validation check interval for notification providers
+  
   # Email provider configuration
   email:
     enabled: false  # ENV: HEATTRAX_NOTIFICATION_EMAIL_ENABLED (true/false)
