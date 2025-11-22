@@ -12,7 +12,7 @@ import socket
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import requests
 
 logger = logging.getLogger(__name__)
@@ -221,9 +221,13 @@ class NotificationManager:
             
         except Exception as e:
             with self._status_lock:
-                status.health = ProviderHealth.DEGRADED
-                status.last_error = f"{type(e).__name__}: {str(e)}"
                 status.consecutive_failures += 1
+                # Mark as FAILED after multiple consecutive failures, otherwise DEGRADED
+                if status.consecutive_failures >= 3:
+                    status.health = ProviderHealth.FAILED
+                else:
+                    status.health = ProviderHealth.DEGRADED
+                status.last_error = f"{type(e).__name__}: {str(e)}"
             
             logger.warning(f"Email provider validation failed: {e}")
     
@@ -262,9 +266,13 @@ class NotificationManager:
             
         except Exception as e:
             with self._status_lock:
-                status.health = ProviderHealth.DEGRADED
-                status.last_error = f"{type(e).__name__}: {str(e)}"
                 status.consecutive_failures += 1
+                # Mark as FAILED after multiple consecutive failures, otherwise DEGRADED
+                if status.consecutive_failures >= 3:
+                    status.health = ProviderHealth.FAILED
+                else:
+                    status.health = ProviderHealth.DEGRADED
+                status.last_error = f"{type(e).__name__}: {str(e)}"
             
             logger.warning(f"Webhook provider validation failed: {e}")
     
