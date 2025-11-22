@@ -105,10 +105,15 @@ function renderNotificationProviders(providers) {
         const errorText = status.last_error || 'None';
         const failureCount = status.consecutive_failures || 0;
         
+        // Escape provider name for safe display and use in attributes
+        const escapedName = escapeHtml(name);
+        // For onclick, we need to escape quotes for JavaScript string context
+        const jsEscapedName = name.replace(/'/g, "\\'").replace(/"/g, '\\"');
+        
         return `
             <div class="status-item" style="border-left-color: ${getHealthColor(status.health)};">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <label style="margin: 0; font-size: 16px; text-transform: capitalize;">${name}</label>
+                    <label style="margin: 0; font-size: 16px; text-transform: capitalize;">${escapedName}</label>
                     ${healthBadge}
                 </div>
                 
@@ -138,10 +143,10 @@ function renderNotificationProviders(providers) {
                 
                 ${status.enabled ? `
                     <button 
-                        onclick="testNotificationProvider('${name}')" 
+                        onclick="testNotificationProvider('${jsEscapedName}')" 
                         style="margin-top: 10px; width: 100%; padding: 6px; font-size: 13px;"
                     >
-                        📧 Test ${name}
+                        📧 Test ${escapedName}
                     </button>
                 ` : ''}
             </div>
