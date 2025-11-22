@@ -96,10 +96,20 @@
         
         <div class="card">
             <h2>Device Health</h2>
-            <div id="device-health-content" class="device-health-grid">
-                <div class="device-health-item">
-                    <div class="device-name">Loading...</div>
-                </div>
+            
+            <div class="view-toggle-container">
+                <span class="view-toggle-label">View:</span>
+                <label class="view-toggle-switch">
+                    <input type="checkbox" id="health-view-toggle" onchange="switchHealthView(this.checked ? 'group' : 'device')">
+                    <span class="view-toggle-slider">
+                        <span class="view-toggle-text left">Device</span>
+                        <span class="view-toggle-text right">Group</span>
+                    </span>
+                </label>
+            </div>
+            
+            <div id="device-health-content">
+                <div class="info-text empty">Loading...</div>
             </div>
         </div>
         

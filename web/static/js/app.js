@@ -315,11 +315,325 @@ async function toggleAutomation(groupName, flagName, value) {
     }
 }
 
+// Store expanded state of accordions
+let expandedAccordions = new Set();
+
+// Get current health view preference
+function getHealthViewPreference() {
+    return localStorage.getItem('healthViewPreference') || 'device';
+}
+
+// Set health view preference
+function setHealthViewPreference(view) {
+    localStorage.setItem('healthViewPreference', view);
+}
+
+// Toggle accordion
+function toggleAccordion(accordionId) {
+    const content = document.getElementById(`accordion-content-${accordionId}`);
+    const toggle = document.getElementById(`accordion-toggle-${accordionId}`);
+    
+    if (!content || !toggle) return;
+    
+    const isExpanded = content.classList.contains('expanded');
+    
+    if (isExpanded) {
+        content.classList.remove('expanded');
+        toggle.classList.remove('expanded');
+        expandedAccordions.delete(accordionId);
+    } else {
+        content.classList.add('expanded');
+        toggle.classList.add('expanded');
+        expandedAccordions.add(accordionId);
+    }
+}
+
+// Switch health view
+function switchHealthView(view) {
+    setHealthViewPreference(view);
+    const checkbox = document.getElementById('health-view-toggle');
+    if (checkbox) {
+        checkbox.checked = (view === 'group');
+    }
+    renderHealthView();
+}
+
+// Render health view based on preference
+async function renderHealthView() {
+    const view = getHealthViewPreference();
+    const deviceHealthContent = document.getElementById('device-health-content');
+    
+    if (!deviceHealthContent) return;
+    
+    try {
+        // Fetch status data
+        const statusResponse = await fetch('/api/status');
+        const status = await statusResponse.json();
+        
+        if (!status.device_expectations || status.device_expectations.length === 0) {
+            // Show empty state
+            deviceHealthContent.innerHTML = renderEmptyState(status);
+            return;
+        }
+        
+        if (view === 'device') {
+            deviceHealthContent.innerHTML = renderDeviceView(status.device_expectations);
+        } else {
+            deviceHealthContent.innerHTML = renderGroupView(status.device_expectations);
+        }
+        
+        // Restore expanded state
+        for (const accordionId of expandedAccordions) {
+            const content = document.getElementById(`accordion-content-${accordionId}`);
+            const toggle = document.getElementById(`accordion-toggle-${accordionId}`);
+            if (content && toggle) {
+                content.classList.add('expanded');
+                toggle.classList.add('expanded');
+            }
+        }
+        
+    } catch (e) {
+        deviceHealthContent.innerHTML = `<div class="error">Error loading health view: ${e.message}</div>`;
+    }
+}
+
+// Render empty state
+function renderEmptyState(status) {
+    if (status.device_groups) {
+        let totalConfigured = 0;
+        for (const groupInfo of Object.values(status.device_groups)) {
+            totalConfigured += groupInfo.device_count || 0;
+        }
+        if (totalConfigured > 0) {
+            return `
+                <div class="info-text empty">
+                    <strong>⚠️ No Device Status Available</strong><br><br>
+                    ${totalConfigured} device(s) configured, but device status/expectations not available.
+                    This may indicate devices failed to initialize or scheduler not fully started.
+                    Check Device Control tab and logs for details.
+                </div>
+            `;
+        }
+    }
+    return '<div class="info-text empty">No devices configured</div>';
+}
+
+// Get overall health status for a device
+function getDeviceHealthStatus(outlets) {
+    let hasError = false;
+    let hasWarning = false;
+    let allHealthy = true;
+    
+    for (const outlet of outlets) {
+        if (outlet.current_state !== outlet.expected_state) {
+            hasWarning = true;
+            allHealthy = false;
+        }
+        if (outlet.last_error) {
+            hasError = true;
+            allHealthy = false;
+        }
+    }
+    
+    if (hasError) return { status: 'error', icon: '❌', text: 'Error' };
+    if (hasWarning) return { status: 'warning', icon: '⚠️', text: 'Warning' };
+    return { status: 'healthy', icon: '✓', text: 'Healthy' };
+}
+
+// Render device view
+function renderDeviceView(expectations) {
+    // Group by device
+    const deviceMap = new Map();
+    
+    for (const exp of expectations) {
+        const deviceKey = `${exp.device_name}-${exp.ip_address}`;
+        if (!deviceMap.has(deviceKey)) {
+            deviceMap.set(deviceKey, {
+                name: exp.device_name,
+                ip: exp.ip_address,
+                groups: new Set(),
+                outlets: []
+            });
+        }
+        
+        const device = deviceMap.get(deviceKey);
+        device.groups.add(exp.group);
+        device.outlets.push(exp);
+    }
+    
+    let html = '';
+    
+    for (const [deviceKey, device] of deviceMap) {
+        const healthStatus = getDeviceHealthStatus(device.outlets);
+        const accordionId = deviceKey.replace(/[^a-zA-Z0-9]/g, '-');
+        
+        html += `
+            <div class="accordion-card ${healthStatus.status}">
+                <div class="accordion-header" onclick="toggleAccordion('${accordionId}')">
+                    <div class="accordion-header-left">
+                        <div>
+                            <div class="accordion-header-title">${device.name}</div>
+                            <div class="accordion-header-subtitle">${device.ip}</div>
+                            <div class="group-tags">
+                                ${Array.from(device.groups).map(g => `<span class="group-tag">${g}</span>`).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-header-right">
+                        <span class="status-badge ${healthStatus.status}">${healthStatus.icon} ${healthStatus.text}</span>
+                        <span class="accordion-toggle" id="accordion-toggle-${accordionId}">▼</span>
+                    </div>
+                </div>
+                <div class="accordion-content" id="accordion-content-${accordionId}">
+                    <div class="accordion-body">
+                        <div class="outlet-details-grid">
+                            ${device.outlets.map(outlet => renderOutletDetail(outlet)).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    return html;
+}
+
+// Render group view
+function renderGroupView(expectations) {
+    // Group by group name
+    const groupMap = new Map();
+    
+    for (const exp of expectations) {
+        if (!groupMap.has(exp.group)) {
+            groupMap.set(exp.group, []);
+        }
+        groupMap.get(exp.group).push(exp);
+    }
+    
+    let html = '';
+    
+    for (const [groupName, outlets] of groupMap) {
+        const healthStatus = getDeviceHealthStatus(outlets);
+        const accordionId = `group-${groupName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+        
+        html += `
+            <div class="accordion-card ${healthStatus.status}">
+                <div class="accordion-header" onclick="toggleAccordion('${accordionId}')">
+                    <div class="accordion-header-left">
+                        <div>
+                            <div class="accordion-header-title">${groupName}</div>
+                            <div class="accordion-header-subtitle">${outlets.length} outlet(s)</div>
+                        </div>
+                    </div>
+                    <div class="accordion-header-right">
+                        <span class="status-badge ${healthStatus.status}">${healthStatus.icon} ${healthStatus.text}</span>
+                        <span class="accordion-toggle" id="accordion-toggle-${accordionId}">▼</span>
+                    </div>
+                </div>
+                <div class="accordion-content" id="accordion-content-${accordionId}">
+                    <div class="accordion-body">
+                        <div class="outlet-details-grid">
+                            ${outlets.map(outlet => renderOutletDetailWithDevice(outlet)).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    return html;
+}
+
+// Render outlet detail card
+function renderOutletDetail(outlet) {
+    const isMatch = outlet.current_state === outlet.expected_state;
+    const matchClass = isMatch ? 'match' : 'mismatch';
+    const stateIcon = isMatch ? '✓' : '⚠️';
+    
+    return `
+        <div class="outlet-detail-card ${matchClass}">
+            <div class="outlet-detail-header">
+                <span>Outlet ${outlet.outlet}</span>
+                <span class="state-indicator ${matchClass}">${stateIcon}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Group:</span>
+                <span class="outlet-detail-value">${outlet.group}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Current State:</span>
+                <span class="outlet-detail-value">${outlet.current_state.toUpperCase()}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Expected State:</span>
+                <span class="outlet-detail-value">${outlet.expected_state.toUpperCase()}</span>
+            </div>
+            ${outlet.expected_on_from ? `
+                <div class="outlet-detail-row">
+                    <span class="outlet-detail-label">Expected ON from:</span>
+                    <span class="outlet-detail-value">${new Date(outlet.expected_on_from).toLocaleString()}</span>
+                </div>
+            ` : ''}
+            ${outlet.expected_off_at ? `
+                <div class="outlet-detail-row">
+                    <span class="outlet-detail-label">Expected OFF at:</span>
+                    <span class="outlet-detail-value">${new Date(outlet.expected_off_at).toLocaleString()}</span>
+                </div>
+            ` : ''}
+            ${outlet.last_state_change ? `
+                <div class="timestamp-display">Last change: ${new Date(outlet.last_state_change).toLocaleString()}</div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Render outlet detail with device info (for group view)
+function renderOutletDetailWithDevice(outlet) {
+    const isMatch = outlet.current_state === outlet.expected_state;
+    const matchClass = isMatch ? 'match' : 'mismatch';
+    const stateIcon = isMatch ? '✓' : '⚠️';
+    
+    return `
+        <div class="outlet-detail-card ${matchClass}">
+            <div class="outlet-detail-header">
+                <span>${outlet.device_name} - Outlet ${outlet.outlet}</span>
+                <span class="state-indicator ${matchClass}">${stateIcon}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">IP Address:</span>
+                <span class="outlet-detail-value">${outlet.ip_address}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Current State:</span>
+                <span class="outlet-detail-value">${outlet.current_state.toUpperCase()}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Expected State:</span>
+                <span class="outlet-detail-value">${outlet.expected_state.toUpperCase()}</span>
+            </div>
+            ${outlet.expected_on_from ? `
+                <div class="outlet-detail-row">
+                    <span class="outlet-detail-label">Expected ON from:</span>
+                    <span class="outlet-detail-value">${new Date(outlet.expected_on_from).toLocaleString()}</span>
+                </div>
+            ` : ''}
+            ${outlet.expected_off_at ? `
+                <div class="outlet-detail-row">
+                    <span class="outlet-detail-label">Expected OFF at:</span>
+                    <span class="outlet-detail-value">${new Date(outlet.expected_off_at).toLocaleString()}</span>
+                </div>
+            ` : ''}
+            ${outlet.last_state_change ? `
+                <div class="timestamp-display">Last change: ${new Date(outlet.last_state_change).toLocaleString()}</div>
+            ` : ''}
+        </div>
+    `;
+}
+
 // Refresh health information
 async function refreshHealth() {
     const healthSummary = document.getElementById('health-summary');
     const healthChecksContent = document.getElementById('health-checks-content');
-    const deviceHealthContent = document.getElementById('device-health-content');
     
     try {
         // Fetch health and status data in parallel
@@ -389,100 +703,16 @@ async function refreshHealth() {
         healthChecksHtml += '</div>';
         healthChecksContent.innerHTML = healthChecksHtml;
         
-        // Update device health
-        if (status.device_expectations && status.device_expectations.length > 0) {
-            let deviceHtml = '';
-            
-            for (const device of status.device_expectations) {
-                const isMatch = device.current_state === device.expected_state;
-                const cssClass = isMatch ? 'match' : 'mismatch';
-                
-                deviceHtml += `
-                    <div class="device-health-item ${cssClass}">
-                        <div class="device-name">${device.device_name || 'Unknown Device'}</div>
-                        <div class="device-detail">
-                            <label>Group:</label> ${device.group || 'N/A'}
-                        </div>
-                        <div class="device-detail">
-                            <label>IP:</label> ${device.ip_address || 'N/A'}
-                        </div>
-                        <div class="device-detail">
-                            <label>Outlet:</label> ${device.outlet !== undefined ? device.outlet : 'N/A'}
-                        </div>
-                        <div class="device-detail">
-                            <label>Current State:</label> ${device.current_state || 'unknown'}
-                        </div>
-                        <div class="device-detail">
-                            <label>Expected State:</label> ${device.expected_state || 'unknown'}
-                        </div>
-                `;
-                
-                if (device.expected_on_from) {
-                    deviceHtml += `
-                        <div class="device-detail">
-                            <label>Expected ON from:</label> ${new Date(device.expected_on_from).toLocaleString()}
-                        </div>
-                    `;
-                }
-                
-                if (device.expected_off_at) {
-                    deviceHtml += `
-                        <div class="device-detail">
-                            <label>Expected OFF at:</label> ${new Date(device.expected_off_at).toLocaleString()}
-                        </div>
-                    `;
-                }
-                
-                if (device.last_state_change) {
-                    deviceHtml += `
-                        <div class="device-detail">
-                            <label>Last State Change:</label> ${new Date(device.last_state_change).toLocaleString()}
-                        </div>
-                    `;
-                }
-                
-                if (device.last_error) {
-                    deviceHtml += `
-                        <div class="device-detail" style="color: #e74c3c;">
-                            <label>Last Error:</label> ${device.last_error}
-                        </div>
-                    `;
-                }
-                
-                deviceHtml += '</div>';
-            }
-            
-            deviceHealthContent.innerHTML = deviceHtml;
-        } else {
-            // Check if we have initialization summary to show more helpful message
-            if (status.device_groups) {
-                let totalConfigured = 0;
-                for (const groupInfo of Object.values(status.device_groups)) {
-                    totalConfigured += groupInfo.device_count || 0;
-                }
-                if (totalConfigured > 0) {
-                    deviceHealthContent.innerHTML = `
-                        <div class="device-health-item" style="border-left-color: #f39c12;">
-                            <div class="device-name">⚠️ No Device Status Available</div>
-                            <div class="device-detail">
-                                ${totalConfigured} device(s) configured, but device status/expectations not available.
-                                This may indicate devices failed to initialize or scheduler not fully started.
-                                Check Device Control tab and logs for details.
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    deviceHealthContent.innerHTML = '<div class="status-item"><label>No devices configured</label></div>';
-                }
-            } else {
-                deviceHealthContent.innerHTML = '<div class="status-item"><label>No device expectations available</label></div>';
-            }
-        }
+        // Render the device health view
+        await renderHealthView();
         
     } catch (e) {
         healthSummary.innerHTML = '<div class="error">Failed to load health data</div>';
         healthChecksContent.innerHTML = `<div class="error">Error: ${e.message}</div>`;
-        deviceHealthContent.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+        const deviceHealthContent = document.getElementById('device-health-content');
+        if (deviceHealthContent) {
+            deviceHealthContent.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+        }
     }
 }
 
@@ -1535,4 +1765,11 @@ window.addEventListener('load', () => {
     checkSetupMode();
     checkSecurity();
     refreshStatus();
+    
+    // Initialize health view toggle based on saved preference
+    const healthViewToggle = document.getElementById('health-view-toggle');
+    if (healthViewToggle) {
+        const currentView = getHealthViewPreference();
+        healthViewToggle.checked = (currentView === 'group');
+    }
 });
