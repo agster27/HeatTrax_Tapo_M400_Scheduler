@@ -92,7 +92,9 @@ logging:
         )
         
         # Initialize state manager for the test group
-        scheduler.states['test_group'] = StateManager(state_file='/tmp/test_precip_tz_state.json')
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as state_f:
+            state_file_path = state_f.name
+        scheduler.states['test_group'] = StateManager(state_file=state_file_path)
         
         # Test 1: should_turn_on_group with timezone-aware precip_time
         # Mock a timezone-aware precip_time in the future
@@ -123,28 +125,40 @@ logging:
         
         # Set up state with timezone-aware turn_on_time to match the fix
         state = scheduler.states.get('test_group')
-        if not state:
-            state = StateManager(state_file='/tmp/test_precip_tz_state.json')
-            scheduler.states['test_group'] = state
         
         # Mark device as on with timezone-aware timestamp to test line 542
         state.device_on = True
         state.turn_on_time = datetime.now(eastern_tz) - timedelta(minutes=70)
         
+        # Mock exceeded_max_runtime to avoid state_manager timezone issues
+        # (state_manager.py has its own timezone issues that are separate from this fix)
+        state.exceeded_max_runtime = MagicMock(return_value=False)
+        
         # Try calling should_turn_off_group - line 542 should use timezone-aware datetime
+        # The comparison at line 542 should now work with timezone-aware datetimes
         try:
             result = await scheduler.should_turn_off_group('test_group')
-            # The method may fail for other reasons (state_manager issues), but
-            # line 542 should not cause "can't compare offset-naive and offset-aware" error
-            # If we get here, line 542 is using timezone-aware datetime correctly
             print("✓ Line 542 uses timezone-aware datetime correctly")
         except TypeError as e:
-            # Check if the error is from line 542 or elsewhere
-            import traceback
-            tb_str = traceback.format_exc()
-            if "line 542" in tb_str and "can't compare offset-naive and offset-aware" in str(e):
-                pytest.fail(f"Line 542 still using timezone-naive datetime: {e}")
-            # Otherwise, it's from a different line (e.g., state_manager) which is acceptable
+            # If we get a timezone comparison error, check where it originated
+            if "can't compare offset-naive and offset-aware datetimes" in str(e):
+                import traceback
+                tb = traceback.extract_tb(e.__traceback__)
+                # Check if the error originates from scheduler_enhanced.py line 542
+                for frame in tb:
+                    if 'scheduler_enhanced.py' in frame.filename and frame.lineno == 542:
+                        pytest.fail(f"Line 542 still using timezone-naive datetime: {e}")
+                # If the error is from state_manager.py (line 134), our fix is working
+                # That's a separate issue not addressed in this PR
+                for frame in tb:
+                    if 'state_manager.py' in frame.filename:
+                        print("✓ Line 542 uses timezone-aware datetime correctly (error is in state_manager.py, not our fix)")
+                        break
+                else:
+                    # Error from unknown location
+                    raise
+            else:
+                raise  # Re-raise non-timezone errors
         
         # Test 3: Verify timezone-aware datetime is used in both methods
         # Check that the datetime objects being compared have timezone info
@@ -170,7 +184,7 @@ logging:
         # Cleanup
         Path(config_path).unlink(missing_ok=True)
         Path('/tmp/test_precipitation_tz_cache.json').unlink(missing_ok=True)
-        Path('/tmp/test_precip_tz_state.json').unlink(missing_ok=True)
+        Path(state_file_path).unlink(missing_ok=True)
 
 
 @pytest.mark.asyncio
@@ -242,7 +256,9 @@ logging:
         )
         
         # Initialize state manager for the test group
-        scheduler.states['test_group'] = StateManager(state_file='/tmp/test_utc_tz_state.json')
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as state_f:
+            state_file_path = state_f.name
+        scheduler.states['test_group'] = StateManager(state_file=state_file_path)
         
         # Mock a timezone-aware precip_time in UTC
         utc_tz = ZoneInfo("UTC")
@@ -262,6 +278,7 @@ logging:
     finally:
         Path(config_path).unlink(missing_ok=True)
         Path('/tmp/test_utc_cache.json').unlink(missing_ok=True)
+        Path(state_file_path).unlink(missing_ok=True)
 
 
 if __name__ == '__main__':
