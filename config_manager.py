@@ -58,7 +58,46 @@ class ConfigManager:
                 'username': '',
                 'password': ''
             },
-            'groups': {}
+            'groups': {
+                # Weather-based automation example (heated mats)
+                'heated_mats': {
+                    'enabled': True,
+                    'automation': {
+                        'weather_control': True,
+                        'precipitation_control': True,
+                        'morning_mode': True,
+                        'schedule_control': False
+                    },
+                    'items': [
+                        {
+                            'name': 'Front Walkway Mat',
+                            'ip_address': '192.168.1.100',
+                            'outlets': [0, 1]
+                        }
+                    ]
+                },
+                # Schedule-based automation example (christmas lights)
+                'christmas_lights': {
+                    'enabled': True,
+                    'automation': {
+                        'weather_control': False,
+                        'precipitation_control': False,
+                        'morning_mode': False,
+                        'schedule_control': True
+                    },
+                    'schedule': {
+                        'on_time': '17:00',
+                        'off_time': '23:00'
+                    },
+                    'items': [
+                        {
+                            'name': 'Deck Lights',
+                            'ip_address': '192.168.1.110',
+                            'outlets': [0]
+                        }
+                    ]
+                }
+            }
         },
         'weather_api': {
             'enabled': True,
