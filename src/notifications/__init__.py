@@ -8,6 +8,7 @@ from .notification_service import (
     create_notification_service_from_config,
 )
 from .forecast_notifier import ForecastNotifier
+from .notification_manager import NotificationManager, ProviderStatus, ProviderHealth
 
 __all__ = [
     'NotificationService',
@@ -16,4 +17,7 @@ __all__ = [
     'validate_and_test_notifications',
     'create_notification_service_from_config',
     'ForecastNotifier',
+    'NotificationManager',
+    'ProviderStatus',
+    'ProviderHealth',
 ]
