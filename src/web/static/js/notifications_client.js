@@ -15,14 +15,17 @@ function initNotificationPolling() {
     // Initial fetch
     refreshNotificationStatus();
     
-    // Poll every 10 seconds when the status tab is visible
-    if (!notificationPollingInterval) {
-        notificationPollingInterval = setInterval(() => {
-            if (notificationPollingActive) {
-                refreshNotificationStatus();
-            }
-        }, 10000); // 10 seconds
+    // Clear any existing interval to prevent memory leaks
+    if (notificationPollingInterval) {
+        clearInterval(notificationPollingInterval);
     }
+    
+    // Poll every 10 seconds when the status tab is visible
+    notificationPollingInterval = setInterval(() => {
+        if (notificationPollingActive) {
+            refreshNotificationStatus();
+        }
+    }, 10000); // 10 seconds
 }
 
 /**
@@ -178,6 +181,12 @@ function formatTimestamp(isoString) {
     
     try {
         const date = new Date(isoString);
+        
+        // Validate that the date is valid
+        if (isNaN(date.getTime())) {
+            return isoString;
+        }
+        
         const now = new Date();
         const diffMs = now - date;
         const diffSec = Math.floor(diffMs / 1000);
@@ -340,9 +349,10 @@ function startAggressivePolling(durationMs) {
     const aggressivePoll = setInterval(() => {
         elapsed += pollInterval;
         
-        if (elapsed >= durationMs) {
+        // Stop polling if duration elapsed OR if polling is no longer active
+        if (elapsed >= durationMs || !notificationPollingActive) {
             clearInterval(aggressivePoll);
-        } else if (notificationPollingActive) {
+        } else {
             refreshNotificationStatus();
         }
     }, pollInterval);
