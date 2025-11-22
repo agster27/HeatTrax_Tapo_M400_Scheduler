@@ -853,7 +853,7 @@ class EnhancedScheduler:
             return {}
         
         result = {}
-        now = datetime.now()
+        now = datetime.now(self.timezone)
         
         try:
             groups = self.device_manager.get_all_groups()
@@ -995,6 +995,10 @@ class EnhancedScheduler:
                                 if precip_time.tzinfo is None:
                                     # Convert naive datetime to timezone-aware using scheduler's timezone
                                     precip_time = precip_time.replace(tzinfo=self.timezone)
+                                
+                                # Also ensure check_time is timezone-aware
+                                if check_time.tzinfo is None:
+                                    check_time = check_time.replace(tzinfo=self.timezone)
                                 
                                 turn_on_time = precip_time - timedelta(minutes=lead_time_minutes)
                                 turn_off_time = precip_time + timedelta(minutes=trailing_time_minutes)
