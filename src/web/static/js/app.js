@@ -39,8 +39,17 @@ function switchTab(tabName) {
     document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
     document.getElementById(`${tabName}-tab`).classList.add('active');
     
+    // Stop notification polling when leaving status tab
+    if (typeof stopNotificationPolling === 'function') {
+        stopNotificationPolling();
+    }
+    
     if (tabName === 'status') {
         refreshStatus();
+        // Start notification polling when entering status tab
+        if (typeof startNotificationPolling === 'function') {
+            startNotificationPolling();
+        }
     } else if (tabName === 'groups') {
         refreshGroups();
     } else if (tabName === 'config') {
@@ -2005,6 +2014,11 @@ window.addEventListener('load', () => {
     checkSetupMode();
     checkSecurity();
     refreshStatus();
+    
+    // Start notification polling since Status tab is active by default
+    if (typeof startNotificationPolling === 'function') {
+        startNotificationPolling();
+    }
     
     // Initialize health view toggle based on saved preference
     const healthViewToggle = document.getElementById('health-view-toggle');
