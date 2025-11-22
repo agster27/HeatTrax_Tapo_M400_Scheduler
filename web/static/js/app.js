@@ -47,7 +47,6 @@ function switchTab(tabName) {
         loadConfig();
     } else if (tabName === 'health') {
         refreshHealth();
-        refreshDeviceControl();
     } else if (tabName === 'weather') {
         refreshWeather();
     }
@@ -367,9 +366,14 @@ async function renderHealthView() {
     if (!deviceHealthContent) return;
     
     try {
-        // Fetch status data
-        const statusResponse = await fetch('/api/status');
+        // Fetch both status data and device control data in parallel
+        const [statusResponse, deviceControlResponse] = await Promise.all([
+            fetch('/api/status'),
+            fetch('/api/devices/status')
+        ]);
+        
         const status = await statusResponse.json();
+        const deviceControlData = await deviceControlResponse.json();
         
         if (!status.device_expectations || status.device_expectations.length === 0) {
             // Show empty state
@@ -378,9 +382,9 @@ async function renderHealthView() {
         }
         
         if (view === 'device') {
-            deviceHealthContent.innerHTML = renderDeviceView(status.device_expectations);
+            deviceHealthContent.innerHTML = renderDeviceView(status.device_expectations, deviceControlData);
         } else {
-            deviceHealthContent.innerHTML = renderGroupView(status.device_expectations);
+            deviceHealthContent.innerHTML = renderGroupView(status.device_expectations, deviceControlData);
         }
         
         // Restore expanded state
@@ -448,7 +452,7 @@ function getDeviceHealthStatus(outlets) {
 }
 
 // Render device view
-function renderDeviceView(expectations) {
+function renderDeviceView(expectations, deviceControlData) {
     // Group by device
     const deviceMap = new Map();
     
@@ -468,11 +472,27 @@ function renderDeviceView(expectations) {
         device.outlets.push(exp);
     }
     
+    // Create a map of device control data by device name and IP
+    const deviceControlMap = new Map();
+    if (deviceControlData && deviceControlData.devices) {
+        for (const controlDevice of deviceControlData.devices) {
+            const key = `${controlDevice.name}-${controlDevice.ip_address}`;
+            deviceControlMap.set(key, controlDevice);
+        }
+    }
+    
     let html = '';
     
     for (const [deviceKey, device] of deviceMap) {
         const healthStatus = getDeviceHealthStatus(device.outlets);
         const accordionId = generateAccordionId(deviceKey);
+        const controlDevice = deviceControlMap.get(deviceKey);
+        
+        // Determine online/offline status from control data
+        const isReachable = controlDevice ? controlDevice.reachable : false;
+        const isInitialized = controlDevice ? (controlDevice.initialized !== false) : true;
+        const statusBadgeClass = isReachable ? 'online' : 'offline';
+        const statusText = isReachable ? '● Online' : (isInitialized ? '● Offline' : '● Not Initialized');
         
         html += `
             <div class="accordion-card ${healthStatus.status}">
@@ -487,6 +507,7 @@ function renderDeviceView(expectations) {
                         </div>
                     </div>
                     <div class="accordion-header-right">
+                        <span class="device-status-badge ${statusBadgeClass}">${statusText}</span>
                         <span class="status-badge ${healthStatus.status}">${healthStatus.icon} ${healthStatus.text}</span>
                         <span class="accordion-toggle" id="accordion-toggle-${accordionId}">▼</span>
                     </div>
@@ -496,6 +517,49 @@ function renderDeviceView(expectations) {
                         <div class="outlet-details-grid">
                             ${device.outlets.map(outlet => renderOutletDetail(outlet)).join('')}
                         </div>
+        `;
+        
+        // Add device controls if available
+        if (controlDevice && controlDevice.outlets && controlDevice.outlets.length > 0) {
+            html += `
+                        <div class="outlet-controls" style="margin-top: 20px;">
+                            <h4 style="margin-bottom: 10px; color: #2c3e50;">Device Controls</h4>
+            `;
+            
+            for (const outlet of controlDevice.outlets) {
+                const outletState = outlet.is_on ? 'on' : 'off';
+                const outletStateText = outlet.is_on ? 'ON' : 'OFF';
+                const outletLabel = outlet.alias || (outlet.index !== null ? `Outlet ${outlet.index}` : device.name);
+                
+                html += `
+                            <div class="outlet-row">
+                                <div class="outlet-info">
+                                    <span class="outlet-name">${outletLabel}</span>
+                                    <span class="outlet-state ${outletState}">${outletStateText}</span>
+                                </div>
+                                <div class="outlet-buttons">
+                                    <button class="btn-control btn-on" 
+                                            onclick="controlOutlet('${controlDevice.group}', '${controlDevice.name}', ${outlet.index}, 'on')"
+                                            ${!isReachable || outlet.is_on ? 'disabled' : ''}>
+                                        Turn ON
+                                    </button>
+                                    <button class="btn-control btn-off" 
+                                            onclick="controlOutlet('${controlDevice.group}', '${controlDevice.name}', ${outlet.index}, 'off')"
+                                            ${!isReachable || !outlet.is_on ? 'disabled' : ''}>
+                                        Turn OFF
+                                    </button>
+                                </div>
+                            </div>
+                `;
+            }
+            
+            html += `
+                        </div>
+                        <div id="control-message-${device.name.replace(/[^a-zA-Z0-9]/g, '-')}" class="control-message" style="display: none;"></div>
+            `;
+        }
+        
+        html += `
                     </div>
                 </div>
             </div>
@@ -506,7 +570,7 @@ function renderDeviceView(expectations) {
 }
 
 // Render group view
-function renderGroupView(expectations) {
+function renderGroupView(expectations, deviceControlData) {
     // Group by group name
     const groupMap = new Map();
     
@@ -515,6 +579,15 @@ function renderGroupView(expectations) {
             groupMap.set(exp.group, []);
         }
         groupMap.get(exp.group).push(exp);
+    }
+    
+    // Create a map of device control data by device name and group
+    const deviceControlMap = new Map();
+    if (deviceControlData && deviceControlData.devices) {
+        for (const controlDevice of deviceControlData.devices) {
+            const key = `${controlDevice.group}-${controlDevice.name}`;
+            deviceControlMap.set(key, controlDevice);
+        }
     }
     
     let html = '';
@@ -542,6 +615,61 @@ function renderGroupView(expectations) {
                         <div class="outlet-details-grid">
                             ${outlets.map(outlet => renderOutletDetailWithDevice(outlet)).join('')}
                         </div>
+        `;
+        
+        // Add device controls for this group
+        if (deviceControlData && deviceControlData.devices) {
+            const groupDevices = deviceControlData.devices.filter(d => d.group === groupName);
+            
+            if (groupDevices.length > 0) {
+                html += `
+                        <div class="outlet-controls" style="margin-top: 20px;">
+                            <h4 style="margin-bottom: 10px; color: #2c3e50;">Device Controls</h4>
+                `;
+                
+                for (const controlDevice of groupDevices) {
+                    const isReachable = controlDevice.reachable;
+                    const isInitialized = controlDevice.initialized !== false;
+                    
+                    if (controlDevice.outlets && controlDevice.outlets.length > 0) {
+                        for (const outlet of controlDevice.outlets) {
+                            const outletState = outlet.is_on ? 'on' : 'off';
+                            const outletStateText = outlet.is_on ? 'ON' : 'OFF';
+                            const outletLabel = outlet.alias || (outlet.index !== null ? `${controlDevice.name} - Outlet ${outlet.index}` : controlDevice.name);
+                            
+                            html += `
+                            <div class="outlet-row">
+                                <div class="outlet-info">
+                                    <span class="outlet-name">${outletLabel}</span>
+                                    <span class="outlet-state ${outletState}">${outletStateText}</span>
+                                </div>
+                                <div class="outlet-buttons">
+                                    <button class="btn-control btn-on" 
+                                            onclick="controlOutlet('${controlDevice.group}', '${controlDevice.name}', ${outlet.index}, 'on')"
+                                            ${!isReachable || outlet.is_on ? 'disabled' : ''}>
+                                        Turn ON
+                                    </button>
+                                    <button class="btn-control btn-off" 
+                                            onclick="controlOutlet('${controlDevice.group}', '${controlDevice.name}', ${outlet.index}, 'off')"
+                                            ${!isReachable || !outlet.is_on ? 'disabled' : ''}>
+                                        Turn OFF
+                                    </button>
+                                </div>
+                            </div>
+                            `;
+                        }
+                        
+                        html += `<div id="control-message-${controlDevice.name.replace(/[^a-zA-Z0-9]/g, '-')}" class="control-message" style="display: none;"></div>`;
+                    }
+                }
+                
+                html += `
+                        </div>
+                `;
+            }
+        }
+        
+        html += `
                     </div>
                 </div>
             </div>
@@ -1085,9 +1213,9 @@ async function controlOutlet(group, deviceName, outletIndex, action) {
             const outletText = outletIndex !== null ? ` outlet ${outletIndex}` : '';
             messageDiv.textContent = `✓ Successfully turned ${action.toUpperCase()}${outletText}`;
             
-            // Refresh device status after 1 second
+            // Refresh health view after 1 second
             setTimeout(() => {
-                refreshDeviceControl();
+                renderHealthView();
             }, 1000);
         } else {
             messageDiv.className = 'control-message error';
