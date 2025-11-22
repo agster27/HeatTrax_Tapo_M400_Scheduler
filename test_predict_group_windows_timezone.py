@@ -37,8 +37,6 @@ location:
 weather_api:
   enabled: true
   provider: "open-meteo"
-  resilience:
-    cache_file: "/tmp/test_predict_windows_tz_cache.json"
 
 devices:
   credentials:
@@ -146,7 +144,6 @@ logging:
     finally:
         # Cleanup
         Path(config_path).unlink(missing_ok=True)
-        Path('/tmp/test_predict_windows_tz_cache.json').unlink(missing_ok=True)
 
 
 def test_predict_group_windows_check_time_timezone():
