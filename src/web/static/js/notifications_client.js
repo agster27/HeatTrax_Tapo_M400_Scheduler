@@ -7,6 +7,7 @@
 // Track polling state
 let notificationPollingInterval = null;
 let notificationPollingActive = false;
+let aggressivePollingInterval = null;
 
 /**
  * Initialize notification status polling
@@ -14,18 +15,6 @@ let notificationPollingActive = false;
 function initNotificationPolling() {
     // Initial fetch
     refreshNotificationStatus();
-    
-    // Clear any existing interval to prevent memory leaks
-    if (notificationPollingInterval) {
-        clearInterval(notificationPollingInterval);
-    }
-    
-    // Poll every 10 seconds when the status tab is visible
-    notificationPollingInterval = setInterval(() => {
-        if (notificationPollingActive) {
-            refreshNotificationStatus();
-        }
-    }, 10000); // 10 seconds
 }
 
 /**
@@ -34,6 +23,16 @@ function initNotificationPolling() {
 function startNotificationPolling() {
     notificationPollingActive = true;
     refreshNotificationStatus();
+    
+    // Clear any existing interval to prevent memory leaks
+    if (notificationPollingInterval) {
+        clearInterval(notificationPollingInterval);
+    }
+    
+    // Start polling every 10 seconds while active
+    notificationPollingInterval = setInterval(() => {
+        refreshNotificationStatus();
+    }, 10000); // 10 seconds
 }
 
 /**
@@ -41,6 +40,18 @@ function startNotificationPolling() {
  */
 function stopNotificationPolling() {
     notificationPollingActive = false;
+    
+    // Clear the polling interval
+    if (notificationPollingInterval) {
+        clearInterval(notificationPollingInterval);
+        notificationPollingInterval = null;
+    }
+    
+    // Clear aggressive polling if active
+    if (aggressivePollingInterval) {
+        clearInterval(aggressivePollingInterval);
+        aggressivePollingInterval = null;
+    }
 }
 
 /**
@@ -346,12 +357,18 @@ function startAggressivePolling(durationMs) {
     const pollInterval = 2000; // Poll every 2 seconds
     let elapsed = 0;
     
-    const aggressivePoll = setInterval(() => {
+    // Clear any existing aggressive polling to prevent multiple intervals
+    if (aggressivePollingInterval) {
+        clearInterval(aggressivePollingInterval);
+    }
+    
+    aggressivePollingInterval = setInterval(() => {
         elapsed += pollInterval;
         
         // Stop polling if duration elapsed OR if polling is no longer active
         if (elapsed >= durationMs || !notificationPollingActive) {
-            clearInterval(aggressivePoll);
+            clearInterval(aggressivePollingInterval);
+            aggressivePollingInterval = null;
         } else {
             refreshNotificationStatus();
         }
