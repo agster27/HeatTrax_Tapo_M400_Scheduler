@@ -295,7 +295,7 @@ class WebServer:
                 password = data['password']
                 
                 # Validate credentials using the validator
-                from credential_validator import is_valid_credential
+                from src.config.credential_validator import is_valid_credential
                 is_valid, reason = is_valid_credential(username, password)
                 
                 if not is_valid:
