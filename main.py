@@ -10,11 +10,10 @@ import threading
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from config_loader import Config, ConfigError
-from config_manager import ConfigManager
-from startup_checks import run_startup_checks
-from scheduler_enhanced import EnhancedScheduler
-from web_server import WebServer
+from src.config import Config, ConfigError, ConfigManager
+from src.health import run_startup_checks
+from src.scheduler import EnhancedScheduler
+from src.web import WebServer
 from version import __version__
 
 
