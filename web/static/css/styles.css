@@ -607,6 +607,8 @@ button:hover {
 }
 
 .accordion-content.expanded {
+    /* 2000px accommodates typical device with 4+ outlets worth of content.
+       Using max-height transition instead of height:auto for smooth animation. */
     max-height: 2000px;
 }
 

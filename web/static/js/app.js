@@ -316,6 +316,7 @@ async function toggleAutomation(groupName, flagName, value) {
 }
 
 // Store expanded state of accordions
+// Contains sanitized accordion IDs to persist expand/collapse state across view changes
 let expandedAccordions = new Set();
 
 // Get current health view preference
@@ -418,6 +419,12 @@ function renderEmptyState(status) {
     return '<div class="info-text empty">No devices configured</div>';
 }
 
+// Generate sanitized accordion ID from key
+function generateAccordionId(key, prefix = '') {
+    const sanitized = key.replace(/[^a-zA-Z0-9]/g, '-');
+    return prefix ? `${prefix}-${sanitized}` : sanitized;
+}
+
 // Get overall health status for a device
 function getDeviceHealthStatus(outlets) {
     let hasError = false;
@@ -465,7 +472,7 @@ function renderDeviceView(expectations) {
     
     for (const [deviceKey, device] of deviceMap) {
         const healthStatus = getDeviceHealthStatus(device.outlets);
-        const accordionId = deviceKey.replace(/[^a-zA-Z0-9]/g, '-');
+        const accordionId = generateAccordionId(deviceKey);
         
         html += `
             <div class="accordion-card ${healthStatus.status}">
@@ -514,7 +521,7 @@ function renderGroupView(expectations) {
     
     for (const [groupName, outlets] of groupMap) {
         const healthStatus = getDeviceHealthStatus(outlets);
-        const accordionId = `group-${groupName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+        const accordionId = generateAccordionId(groupName, 'group');
         
         html += `
             <div class="accordion-card ${healthStatus.status}">
