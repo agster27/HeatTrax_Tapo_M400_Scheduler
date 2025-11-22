@@ -1,0 +1,20 @@
+<!-- Notification Provider Status Panel -->
+<div class="card">
+    <h2>🔔 Notification Providers</h2>
+    <p>Monitor notification provider health and send test notifications.</p>
+    
+    <div class="button-group" style="margin-bottom: 15px;">
+        <button onclick="refreshNotificationStatus()">🔄 Refresh</button>
+        <button onclick="testAllNotifications()">📧 Test All</button>
+    </div>
+    
+    <div id="notification-providers-grid" class="status-grid">
+        <div class="status-item">
+            <label>Loading notification providers...</label>
+        </div>
+    </div>
+    
+    <div id="notification-message" style="margin-top: 15px;"></div>
+</div>
+
+<script src="{{ url_for('static', filename='js/notifications_client.js') }}"></script>
