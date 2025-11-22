@@ -428,7 +428,7 @@ class EnhancedScheduler:
                         if has_precip and precip_time:
                             lead_time = timedelta(minutes=self.config.thresholds['lead_time_minutes'])
                             turn_on_time = precip_time - lead_time
-                            now = datetime.now()
+                            now = datetime.now(self.timezone)
                             
                             if now >= turn_on_time:
                                 self.logger.info(
@@ -539,7 +539,7 @@ class EnhancedScheduler:
                             minutes=self.config.thresholds['trailing_time_minutes']
                         )
                         if state.device_on and state.turn_on_time:
-                            time_on = datetime.now() - state.turn_on_time
+                            time_on = datetime.now(self.timezone) - state.turn_on_time
                             if time_on >= trailing_time:
                                 self.logger.info(
                                     f"Group '{group_name}': No precipitation expected and "
