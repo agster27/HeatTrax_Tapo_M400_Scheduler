@@ -433,7 +433,7 @@ class WebServer:
                         'error': 'Scheduler not available'
                     }), 503
                 
-                if not hasattr(self.scheduler, 'device_manager') or self.scheduler.device_manager is None:
+                if self.scheduler.device_manager is None:
                     return jsonify({
                         'error': 'Device manager not available',
                         'setup_mode': True,
@@ -523,7 +523,7 @@ class WebServer:
                         'error': 'Scheduler not available'
                     }), 503
                 
-                if not hasattr(self.scheduler, 'device_manager') or self.scheduler.device_manager is None:
+                if self.scheduler.device_manager is None:
                     return jsonify({
                         'success': False,
                         'error': 'Device manager not available',
