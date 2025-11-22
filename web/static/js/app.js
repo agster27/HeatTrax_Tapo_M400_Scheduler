@@ -373,8 +373,11 @@ async function renderHealthView() {
         ]);
         
         // Check response status
-        if (!statusResponse.ok || !deviceControlResponse.ok) {
-            throw new Error(`API error: status ${statusResponse.status}, devices ${deviceControlResponse.status}`);
+        if (!statusResponse.ok) {
+            throw new Error(`Failed to fetch status data (HTTP ${statusResponse.status})`);
+        }
+        if (!deviceControlResponse.ok) {
+            throw new Error(`Failed to fetch device control data (HTTP ${deviceControlResponse.status})`);
         }
         
         const status = await statusResponse.json();
