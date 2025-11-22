@@ -588,6 +588,11 @@ class EnhancedScheduler:
         self.logger.info("Starting multi-device scheduler cycle")
         self.logger.info("=" * 60)
         
+        # Skip in setup mode
+        if not self.device_manager:
+            self.logger.warning("Device manager not available (setup mode) - skipping cycle")
+            return
+        
         for group_name in self.device_manager.get_all_groups():
             try:
                 self.logger.info(f"Processing group: {group_name}")
@@ -682,6 +687,10 @@ class EnhancedScheduler:
             List of dicts with device expectation data
         """
         expectations = []
+        
+        # Return empty list in setup mode
+        if not self.device_manager:
+            return expectations
         
         try:
             for group_name in self.device_manager.get_all_groups():
