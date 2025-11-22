@@ -433,9 +433,11 @@ class WebServer:
                         'error': 'Scheduler not available'
                     }), 503
                 
-                if not hasattr(self.scheduler, 'device_manager'):
+                if self.scheduler.device_manager is None:
                     return jsonify({
-                        'error': 'Device manager not available'
+                        'error': 'Device manager not available',
+                        'setup_mode': True,
+                        'message': 'Configure valid Tapo credentials to enable device control'
                     }), 503
                 
                 # Check if scheduler has the run_coro_in_loop method (for thread-safe async execution)
@@ -521,10 +523,12 @@ class WebServer:
                         'error': 'Scheduler not available'
                     }), 503
                 
-                if not hasattr(self.scheduler, 'device_manager'):
+                if self.scheduler.device_manager is None:
                     return jsonify({
                         'success': False,
-                        'error': 'Device manager not available'
+                        'error': 'Device manager not available',
+                        'setup_mode': True,
+                        'message': 'Configure valid Tapo credentials to enable device control'
                     }), 503
                 
                 if not request.is_json:
