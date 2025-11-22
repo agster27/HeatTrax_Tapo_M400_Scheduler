@@ -609,6 +609,179 @@ class WebServer:
                     'details': str(e)
                 }), 500
         
+        @self.app.route('/api/groups/<group_name>/control', methods=['POST'])
+        def api_groups_control(group_name):
+            """
+            Control all outlets in a device group simultaneously.
+            
+            This endpoint allows turning all outlets in a group ON or OFF at once.
+            This provides a convenient way to control multiple devices with a single action.
+            Manual control overrides scheduled behavior temporarily until the next scheduled action.
+            
+            Expects JSON:
+                {
+                    "action": "on" or "off"
+                }
+            
+            Returns:
+                JSON: Control operation result
+                {
+                    "success": true/false,
+                    "group": "group_name",
+                    "action": "on" or "off",
+                    "results": [
+                        {
+                            "device": "device_name",
+                            "outlet": outlet_index,
+                            "success": true/false,
+                            "error": null or error message
+                        }
+                    ],
+                    "total": number,
+                    "successful": number,
+                    "failed": number,
+                    "error": null or error message if complete failure
+                }
+            """
+            try:
+                if not self.scheduler:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Scheduler not available'
+                    }), 503
+                
+                if self.scheduler.device_manager is None:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Device manager not available',
+                        'setup_mode': True,
+                        'message': 'Configure valid Tapo credentials to enable device control'
+                    }), 503
+                
+                if not request.is_json:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Request must be JSON'
+                    }), 400
+                
+                data = request.get_json()
+                
+                # Validate required fields
+                if 'action' not in data:
+                    return jsonify({
+                        'success': False,
+                        'error': "Missing required field: action"
+                    }), 400
+                
+                action = data['action']
+                
+                # Validate action
+                if action not in ['on', 'off']:
+                    return jsonify({
+                        'success': False,
+                        'error': f"Invalid action: {action}. Must be 'on' or 'off'"
+                    }), 400
+                
+                # Get group config
+                config = self.config_manager.get_config(include_secrets=False)
+                groups = config.get('devices', {}).get('groups', {})
+                
+                if group_name not in groups:
+                    return jsonify({
+                        'success': False,
+                        'error': f"Group '{group_name}' not found"
+                    }), 404
+                
+                group_config = groups[group_name]
+                items = group_config.get('items', [])
+                
+                if not items:
+                    return jsonify({
+                        'success': False,
+                        'error': f"Group '{group_name}' has no configured devices"
+                    }), 400
+                
+                # Control each outlet in the group
+                results = []
+                successful = 0
+                failed = 0
+                
+                for item in items:
+                    device_name = item.get('name')
+                    outlets = item.get('outlets', [])
+                    
+                    # If no outlets specified, control the entire device (outlet=None)
+                    if not outlets:
+                        outlets = [None]
+                    
+                    for outlet_index in outlets:
+                        try:
+                            # Control the device asynchronously using scheduler's event loop
+                            if hasattr(self.scheduler, 'run_coro_in_loop'):
+                                result = self.scheduler.run_coro_in_loop(
+                                    self.scheduler.device_manager.control_device_outlet(
+                                        group_name, device_name, outlet_index, action
+                                    )
+                                )
+                            else:
+                                # Fallback for backward compatibility
+                                import asyncio
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
+                                try:
+                                    result = loop.run_until_complete(
+                                        self.scheduler.device_manager.control_device_outlet(
+                                            group_name, device_name, outlet_index, action
+                                        )
+                                    )
+                                finally:
+                                    loop.close()
+                            
+                            results.append({
+                                'device': device_name,
+                                'outlet': outlet_index,
+                                'success': result.get('success', False),
+                                'error': result.get('error')
+                            })
+                            
+                            if result.get('success'):
+                                successful += 1
+                            else:
+                                failed += 1
+                                
+                        except Exception as e:
+                            logger.error(f"Failed to control {device_name} outlet {outlet_index}: {e}")
+                            results.append({
+                                'device': device_name,
+                                'outlet': outlet_index,
+                                'success': False,
+                                'error': str(e)
+                            })
+                            failed += 1
+                
+                logger.info(
+                    f"Group control via WebUI: {action.upper()} group '{group_name}' "
+                    f"({successful} successful, {failed} failed)"
+                )
+                
+                return jsonify({
+                    'success': successful > 0,
+                    'group': group_name,
+                    'action': action,
+                    'results': results,
+                    'total': len(results),
+                    'successful': successful,
+                    'failed': failed
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to control group: {e}", exc_info=True)
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to control group',
+                    'details': str(e)
+                }), 500
+        
         @self.app.route('/api/groups/<group_name>/automation', methods=['GET'])
         def api_get_group_automation(group_name):
             """
