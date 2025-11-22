@@ -539,7 +539,13 @@ class EnhancedScheduler:
                             minutes=self.config.thresholds['trailing_time_minutes']
                         )
                         if state.device_on and state.turn_on_time:
-                            time_on = datetime.now(self.timezone) - state.turn_on_time
+                            # Ensure turn_on_time is timezone-aware for comparison
+                            turn_on_time = state.turn_on_time
+                            if turn_on_time.tzinfo is None:
+                                # Convert naive datetime to timezone-aware using scheduler's timezone
+                                turn_on_time = turn_on_time.replace(tzinfo=self.timezone)
+                            
+                            time_on = datetime.now(self.timezone) - turn_on_time
                             if time_on >= trailing_time:
                                 self.logger.info(
                                     f"Group '{group_name}': No precipitation expected and "
@@ -985,6 +991,11 @@ class EnhancedScheduler:
                                 
                                 # Turn on if within lead time before or trailing time after precipitation
                                 precip_time = datetime.fromisoformat(snapshot.timestamp)
+                                # Ensure precip_time is timezone-aware for comparison
+                                if precip_time.tzinfo is None:
+                                    # Convert naive datetime to timezone-aware using scheduler's timezone
+                                    precip_time = precip_time.replace(tzinfo=self.timezone)
+                                
                                 turn_on_time = precip_time - timedelta(minutes=lead_time_minutes)
                                 turn_off_time = precip_time + timedelta(minutes=trailing_time_minutes)
                                 
