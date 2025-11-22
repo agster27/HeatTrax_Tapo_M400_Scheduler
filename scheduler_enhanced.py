@@ -996,14 +996,13 @@ class EnhancedScheduler:
                                     # Convert naive datetime to timezone-aware using scheduler's timezone
                                     precip_time = precip_time.replace(tzinfo=self.timezone)
                                 
-                                # Also ensure check_time is timezone-aware
-                                if check_time.tzinfo is None:
-                                    check_time = check_time.replace(tzinfo=self.timezone)
+                                # Also ensure check_time is timezone-aware (use local copy to avoid modifying input)
+                                check_time_aware = check_time.replace(tzinfo=self.timezone) if check_time.tzinfo is None else check_time
                                 
                                 turn_on_time = precip_time - timedelta(minutes=lead_time_minutes)
                                 turn_off_time = precip_time + timedelta(minutes=trailing_time_minutes)
                                 
-                                if turn_on_time <= check_time <= turn_off_time:
+                                if turn_on_time <= check_time_aware <= turn_off_time:
                                     return (True, "snow_forecast")
                 except Exception as e:
                     self.logger.debug(f"Error checking precipitation at {check_time}: {e}")
