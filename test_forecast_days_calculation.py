@@ -29,6 +29,25 @@ class TestForecastDaysCalculation(unittest.TestCase):
             timezone="America/New_York"
         )
     
+    def _mock_http_session(self):
+        """Helper to create mock HTTP session for testing."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={'hourly': {'time': [], 'temperature_2m': [], 'precipitation': []}})
+        
+        mock_context = MagicMock()
+        mock_context.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_context.__aexit__ = AsyncMock(return_value=None)
+        
+        mock_get = MagicMock(return_value=mock_context)
+        
+        mock_session_instance = MagicMock()
+        mock_session_instance.get = mock_get
+        mock_session_instance.__aenter__ = AsyncMock(return_value=mock_session_instance)
+        mock_session_instance.__aexit__ = AsyncMock(return_value=None)
+        
+        return mock_session_instance, mock_get
+    
     def test_forecast_days_calculation_12_hours(self):
         """Test forecast_days calculation for 12 hours ahead."""
         # For 12 hours: max(2, ((12 + 23) // 24)) = max(2, 35 // 24) = max(2, 1) = 2
@@ -36,29 +55,12 @@ class TestForecastDaysCalculation(unittest.TestCase):
         expected_days = 2
         
         with patch('aiohttp.ClientSession') as mock_session:
-            # Mock the HTTP response
-            mock_response = AsyncMock()
-            mock_response.status = 200
-            mock_response.json = AsyncMock(return_value={'hourly': {'time': [], 'temperature_2m': [], 'precipitation': []}})
-            
-            mock_context = MagicMock()
-            mock_context.__aenter__ = AsyncMock(return_value=mock_response)
-            mock_context.__aexit__ = AsyncMock(return_value=None)
-            
-            mock_get = MagicMock(return_value=mock_context)
-            
-            mock_session_instance = MagicMock()
-            mock_session_instance.get = mock_get
-            mock_session_instance.__aenter__ = AsyncMock(return_value=mock_session_instance)
-            mock_session_instance.__aexit__ = AsyncMock(return_value=None)
-            
+            mock_session_instance, mock_get = self._mock_http_session()
             mock_session.return_value = mock_session_instance
             
-            # Run the async function
             import asyncio
             asyncio.run(self.service.get_forecast(hours_ahead))
             
-            # Verify the API was called with correct forecast_days
             call_args = mock_get.call_args
             params = call_args[1]['params']
             
@@ -72,21 +74,7 @@ class TestForecastDaysCalculation(unittest.TestCase):
         expected_days = 2
         
         with patch('aiohttp.ClientSession') as mock_session:
-            mock_response = AsyncMock()
-            mock_response.status = 200
-            mock_response.json = AsyncMock(return_value={'hourly': {'time': [], 'temperature_2m': [], 'precipitation': []}})
-            
-            mock_context = MagicMock()
-            mock_context.__aenter__ = AsyncMock(return_value=mock_response)
-            mock_context.__aexit__ = AsyncMock(return_value=None)
-            
-            mock_get = MagicMock(return_value=mock_context)
-            
-            mock_session_instance = MagicMock()
-            mock_session_instance.get = mock_get
-            mock_session_instance.__aenter__ = AsyncMock(return_value=mock_session_instance)
-            mock_session_instance.__aexit__ = AsyncMock(return_value=None)
-            
+            mock_session_instance, mock_get = self._mock_http_session()
             mock_session.return_value = mock_session_instance
             
             import asyncio
@@ -105,21 +93,7 @@ class TestForecastDaysCalculation(unittest.TestCase):
         expected_days = 2
         
         with patch('aiohttp.ClientSession') as mock_session:
-            mock_response = AsyncMock()
-            mock_response.status = 200
-            mock_response.json = AsyncMock(return_value={'hourly': {'time': [], 'temperature_2m': [], 'precipitation': []}})
-            
-            mock_context = MagicMock()
-            mock_context.__aenter__ = AsyncMock(return_value=mock_response)
-            mock_context.__aexit__ = AsyncMock(return_value=None)
-            
-            mock_get = MagicMock(return_value=mock_context)
-            
-            mock_session_instance = MagicMock()
-            mock_session_instance.get = mock_get
-            mock_session_instance.__aenter__ = AsyncMock(return_value=mock_session_instance)
-            mock_session_instance.__aexit__ = AsyncMock(return_value=None)
-            
+            mock_session_instance, mock_get = self._mock_http_session()
             mock_session.return_value = mock_session_instance
             
             import asyncio
@@ -138,21 +112,7 @@ class TestForecastDaysCalculation(unittest.TestCase):
         expected_days = 2
         
         with patch('aiohttp.ClientSession') as mock_session:
-            mock_response = AsyncMock()
-            mock_response.status = 200
-            mock_response.json = AsyncMock(return_value={'hourly': {'time': [], 'temperature_2m': [], 'precipitation': []}})
-            
-            mock_context = MagicMock()
-            mock_context.__aenter__ = AsyncMock(return_value=mock_response)
-            mock_context.__aexit__ = AsyncMock(return_value=None)
-            
-            mock_get = MagicMock(return_value=mock_context)
-            
-            mock_session_instance = MagicMock()
-            mock_session_instance.get = mock_get
-            mock_session_instance.__aenter__ = AsyncMock(return_value=mock_session_instance)
-            mock_session_instance.__aexit__ = AsyncMock(return_value=None)
-            
+            mock_session_instance, mock_get = self._mock_http_session()
             mock_session.return_value = mock_session_instance
             
             import asyncio
@@ -171,21 +131,7 @@ class TestForecastDaysCalculation(unittest.TestCase):
         expected_days = 3
         
         with patch('aiohttp.ClientSession') as mock_session:
-            mock_response = AsyncMock()
-            mock_response.status = 200
-            mock_response.json = AsyncMock(return_value={'hourly': {'time': [], 'temperature_2m': [], 'precipitation': []}})
-            
-            mock_context = MagicMock()
-            mock_context.__aenter__ = AsyncMock(return_value=mock_response)
-            mock_context.__aexit__ = AsyncMock(return_value=None)
-            
-            mock_get = MagicMock(return_value=mock_context)
-            
-            mock_session_instance = MagicMock()
-            mock_session_instance.get = mock_get
-            mock_session_instance.__aenter__ = AsyncMock(return_value=mock_session_instance)
-            mock_session_instance.__aexit__ = AsyncMock(return_value=None)
-            
+            mock_session_instance, mock_get = self._mock_http_session()
             mock_session.return_value = mock_session_instance
             
             import asyncio
@@ -205,21 +151,7 @@ class TestForecastDaysCalculation(unittest.TestCase):
         expected_days = 2
         
         with patch('aiohttp.ClientSession') as mock_session:
-            mock_response = AsyncMock()
-            mock_response.status = 200
-            mock_response.json = AsyncMock(return_value={'hourly': {'time': [], 'temperature_2m': [], 'precipitation': []}})
-            
-            mock_context = MagicMock()
-            mock_context.__aenter__ = AsyncMock(return_value=mock_response)
-            mock_context.__aexit__ = AsyncMock(return_value=None)
-            
-            mock_get = MagicMock(return_value=mock_context)
-            
-            mock_session_instance = MagicMock()
-            mock_session_instance.get = mock_get
-            mock_session_instance.__aenter__ = AsyncMock(return_value=mock_session_instance)
-            mock_session_instance.__aexit__ = AsyncMock(return_value=None)
-            
+            mock_session_instance, mock_get = self._mock_http_session()
             mock_session.return_value = mock_session_instance
             
             import asyncio
