@@ -528,51 +528,8 @@ function renderDeviceView(expectations, deviceControlData) {
                 <div class="accordion-content" id="accordion-content-${accordionId}">
                     <div class="accordion-body">
                         <div class="outlet-details-grid">
-                            ${device.outlets.map(outlet => renderOutletDetail(outlet)).join('')}
+                            ${device.outlets.map(outlet => renderOutletDetailWithControl(outlet, controlDevice)).join('')}
                         </div>
-        `;
-        
-        // Add device controls if available
-        if (controlDevice && controlDevice.outlets && controlDevice.outlets.length > 0) {
-            html += `
-                        <div class="outlet-controls" style="margin-top: 20px;">
-                            <h4 style="margin-bottom: 10px; color: #2c3e50;">Device Controls</h4>
-            `;
-            
-            for (const outlet of controlDevice.outlets) {
-                const outletState = outlet.is_on ? 'on' : 'off';
-                const outletStateText = outlet.is_on ? 'ON' : 'OFF';
-                const outletLabel = outlet.alias || (outlet.index !== null ? `Outlet ${outlet.index}` : device.name);
-                
-                html += `
-                            <div class="outlet-row">
-                                <div class="outlet-info">
-                                    <span class="outlet-name">${outletLabel}</span>
-                                    <span class="outlet-state ${outletState}">${outletStateText}</span>
-                                </div>
-                                <div class="outlet-buttons">
-                                    <button class="btn-control btn-on" 
-                                            onclick="controlOutlet('${controlDevice.group}', '${controlDevice.name}', ${outlet.index}, 'on')"
-                                            ${!isReachable || outlet.is_on ? 'disabled' : ''}>
-                                        Turn ON
-                                    </button>
-                                    <button class="btn-control btn-off" 
-                                            onclick="controlOutlet('${controlDevice.group}', '${controlDevice.name}', ${outlet.index}, 'off')"
-                                            ${!isReachable || !outlet.is_on ? 'disabled' : ''}>
-                                        Turn OFF
-                                    </button>
-                                </div>
-                            </div>
-                `;
-            }
-            
-            html += `
-                        </div>
-                        <div id="control-message-${sanitizeDeviceName(device.name)}" class="control-message" style="display: none;"></div>
-            `;
-        }
-        
-        html += `
                     </div>
                 </div>
             </div>
@@ -609,80 +566,47 @@ function renderGroupView(expectations, deviceControlData) {
         const healthStatus = getDeviceHealthStatus(outlets);
         const accordionId = generateAccordionId(groupName, 'group');
         
+        // Get all devices in this group for group control
+        const groupDevices = deviceControlData && deviceControlData.devices ? 
+            deviceControlData.devices.filter(d => d.group === groupName) : [];
+        
+        // Check if any device in group is reachable
+        const anyReachable = groupDevices.some(d => d.reachable);
+        
         html += `
             <div class="accordion-card ${healthStatus.status}">
-                <div class="accordion-header" onclick="toggleAccordion('${accordionId}')">
+                <div class="accordion-header">
                     <div class="accordion-header-left">
-                        <div>
+                        <div onclick="toggleAccordion('${accordionId}')" style="flex: 1; cursor: pointer;">
                             <div class="accordion-header-title">${groupName}</div>
                             <div class="accordion-header-subtitle">${outlets.length} outlet(s)</div>
                         </div>
                     </div>
                     <div class="accordion-header-right">
+                        <div class="group-control-buttons" onclick="event.stopPropagation();">
+                            <button class="btn-control btn-on btn-group" 
+                                    onclick="controlGroup('${groupName}', 'on')"
+                                    ${!anyReachable ? 'disabled' : ''}
+                                    title="Turn ON all outlets in this group">
+                                ⚡ Turn ON All
+                            </button>
+                            <button class="btn-control btn-off btn-group" 
+                                    onclick="controlGroup('${groupName}', 'off')"
+                                    ${!anyReachable ? 'disabled' : ''}
+                                    title="Turn OFF all outlets in this group">
+                                🔌 Turn OFF All
+                            </button>
+                        </div>
                         <span class="status-badge ${healthStatus.status}">${healthStatus.icon} ${healthStatus.text}</span>
-                        <span class="accordion-toggle" id="accordion-toggle-${accordionId}">▼</span>
+                        <span class="accordion-toggle" id="accordion-toggle-${accordionId}" onclick="toggleAccordion('${accordionId}')">▼</span>
                     </div>
                 </div>
                 <div class="accordion-content" id="accordion-content-${accordionId}">
                     <div class="accordion-body">
+                        <div id="group-control-message-${sanitizeDeviceName(groupName)}" class="control-message" style="display: none; margin-bottom: 15px;"></div>
                         <div class="outlet-details-grid">
-                            ${outlets.map(outlet => renderOutletDetailWithDevice(outlet)).join('')}
+                            ${outlets.map(outlet => renderOutletDetailWithDeviceAndControl(outlet, deviceControlMap)).join('')}
                         </div>
-        `;
-        
-        // Add device controls for this group
-        if (deviceControlData && deviceControlData.devices) {
-            const groupDevices = deviceControlData.devices.filter(d => d.group === groupName);
-            
-            if (groupDevices.length > 0) {
-                html += `
-                        <div class="outlet-controls" style="margin-top: 20px;">
-                            <h4 style="margin-bottom: 10px; color: #2c3e50;">Device Controls</h4>
-                `;
-                
-                for (const controlDevice of groupDevices) {
-                    const isReachable = controlDevice.reachable;
-                    const isInitialized = controlDevice.initialized !== false;
-                    
-                    if (controlDevice.outlets && controlDevice.outlets.length > 0) {
-                        for (const outlet of controlDevice.outlets) {
-                            const outletState = outlet.is_on ? 'on' : 'off';
-                            const outletStateText = outlet.is_on ? 'ON' : 'OFF';
-                            const outletLabel = outlet.alias || (outlet.index !== null ? `${controlDevice.name} - Outlet ${outlet.index}` : controlDevice.name);
-                            
-                            html += `
-                            <div class="outlet-row">
-                                <div class="outlet-info">
-                                    <span class="outlet-name">${outletLabel}</span>
-                                    <span class="outlet-state ${outletState}">${outletStateText}</span>
-                                </div>
-                                <div class="outlet-buttons">
-                                    <button class="btn-control btn-on" 
-                                            onclick="controlOutlet('${controlDevice.group}', '${controlDevice.name}', ${outlet.index}, 'on')"
-                                            ${!isReachable || outlet.is_on ? 'disabled' : ''}>
-                                        Turn ON
-                                    </button>
-                                    <button class="btn-control btn-off" 
-                                            onclick="controlOutlet('${controlDevice.group}', '${controlDevice.name}', ${outlet.index}, 'off')"
-                                            ${!isReachable || !outlet.is_on ? 'disabled' : ''}>
-                                        Turn OFF
-                                    </button>
-                                </div>
-                            </div>
-                            `;
-                        }
-                        
-                        html += `<div id="control-message-${sanitizeDeviceName(controlDevice.name)}" class="control-message" style="display: none;"></div>`;
-                    }
-                }
-                
-                html += `
-                        </div>
-                `;
-            }
-        }
-        
-        html += `
                     </div>
                 </div>
             </div>
@@ -735,6 +659,94 @@ function renderOutletDetail(outlet) {
     `;
 }
 
+// Render outlet detail with integrated controls (for device view)
+function renderOutletDetailWithControl(outlet, controlDevice) {
+    const isMatch = outlet.current_state === outlet.expected_state;
+    const matchClass = isMatch ? 'match' : 'mismatch';
+    const stateIcon = isMatch ? '✓' : '⚠️';
+    
+    // Find the specific outlet control data
+    const isReachable = controlDevice ? controlDevice.reachable : false;
+    const isInitialized = controlDevice ? (controlDevice.initialized !== false) : true;
+    
+    let outletControl = null;
+    if (controlDevice && controlDevice.outlets) {
+        outletControl = controlDevice.outlets.find(o => o.index === outlet.outlet);
+    }
+    
+    const outletState = outletControl ? (outletControl.is_on ? 'on' : 'off') : 'unknown';
+    const outletStateText = outletControl ? (outletControl.is_on ? 'ON' : 'OFF') : 'UNKNOWN';
+    const outletIsOn = outletControl ? outletControl.is_on : false;
+    
+    // Determine schedule status
+    const hasSchedule = outlet.expected_on_from || outlet.expected_off_at;
+    const scheduleStatus = hasSchedule ? '📅 Scheduled' : '⚪ Manual';
+    
+    return `
+        <div class="outlet-detail-card ${matchClass}">
+            <div class="outlet-detail-header">
+                <span>Outlet ${outlet.outlet}</span>
+                <span class="state-indicator ${matchClass}">${stateIcon}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Group:</span>
+                <span class="outlet-detail-value">${outlet.group}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">IP Address:</span>
+                <span class="outlet-detail-value">${outlet.ip_address}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Current State:</span>
+                <span class="outlet-detail-value">${outlet.current_state.toUpperCase()}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Expected State:</span>
+                <span class="outlet-detail-value">${outlet.expected_state.toUpperCase()}</span>
+            </div>
+            ${outlet.last_state_change ? `
+                <div class="outlet-detail-row">
+                    <span class="outlet-detail-label">Last Updated:</span>
+                    <span class="outlet-detail-value">${new Date(outlet.last_state_change).toLocaleString()}</span>
+                </div>
+            ` : ''}
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Schedule Status:</span>
+                <span class="outlet-detail-value">${scheduleStatus}</span>
+            </div>
+            ${outlet.expected_on_from ? `
+                <div class="outlet-detail-row">
+                    <span class="outlet-detail-label">Expected ON from:</span>
+                    <span class="outlet-detail-value">${new Date(outlet.expected_on_from).toLocaleString()}</span>
+                </div>
+            ` : ''}
+            ${outlet.expected_off_at ? `
+                <div class="outlet-detail-row">
+                    <span class="outlet-detail-label">Expected OFF at:</span>
+                    <span class="outlet-detail-value">${new Date(outlet.expected_off_at).toLocaleString()}</span>
+                </div>
+            ` : ''}
+            ${controlDevice ? `
+                <div class="outlet-controls-inline">
+                    <div class="outlet-control-buttons">
+                        <button class="btn-control btn-on" 
+                                onclick="controlOutlet('${outlet.group}', '${outlet.device_name}', ${outlet.outlet}, 'on')"
+                                ${!isReachable || outletIsOn ? 'disabled' : ''}>
+                            Turn ON
+                        </button>
+                        <button class="btn-control btn-off" 
+                                onclick="controlOutlet('${outlet.group}', '${outlet.device_name}', ${outlet.outlet}, 'off')"
+                                ${!isReachable || !outletIsOn ? 'disabled' : ''}>
+                            Turn OFF
+                        </button>
+                    </div>
+                    <div id="control-message-${sanitizeDeviceName(outlet.device_name)}-${outlet.outlet}" class="control-message-inline" style="display: none;"></div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
 // Render outlet detail with device info (for group view)
 function renderOutletDetailWithDevice(outlet) {
     const isMatch = outlet.current_state === outlet.expected_state;
@@ -773,6 +785,93 @@ function renderOutletDetailWithDevice(outlet) {
             ` : ''}
             ${outlet.last_state_change ? `
                 <div class="timestamp-display">Last change: ${new Date(outlet.last_state_change).toLocaleString()}</div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Render outlet detail with device info and integrated controls (for group view)
+function renderOutletDetailWithDeviceAndControl(outlet, deviceControlMap) {
+    const isMatch = outlet.current_state === outlet.expected_state;
+    const matchClass = isMatch ? 'match' : 'mismatch';
+    const stateIcon = isMatch ? '✓' : '⚠️';
+    
+    // Find the control device for this outlet
+    const deviceKey = `${outlet.group}-${outlet.device_name}`;
+    const controlDevice = deviceControlMap.get(deviceKey);
+    const isReachable = controlDevice ? controlDevice.reachable : false;
+    const isInitialized = controlDevice ? (controlDevice.initialized !== false) : true;
+    
+    // Find the specific outlet control data
+    let outletControl = null;
+    if (controlDevice && controlDevice.outlets) {
+        outletControl = controlDevice.outlets.find(o => o.index === outlet.outlet);
+    }
+    
+    const outletState = outletControl ? (outletControl.is_on ? 'on' : 'off') : 'unknown';
+    const outletStateText = outletControl ? (outletControl.is_on ? 'ON' : 'OFF') : 'UNKNOWN';
+    const outletIsOn = outletControl ? outletControl.is_on : false;
+    
+    // Determine schedule status
+    const hasSchedule = outlet.expected_on_from || outlet.expected_off_at;
+    const scheduleStatus = hasSchedule ? '📅 Scheduled' : '⚪ Manual';
+    
+    return `
+        <div class="outlet-detail-card ${matchClass}">
+            <div class="outlet-detail-header">
+                <span>${outlet.device_name} - Outlet ${outlet.outlet}</span>
+                <span class="state-indicator ${matchClass}">${stateIcon}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">IP Address:</span>
+                <span class="outlet-detail-value">${outlet.ip_address}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Current State:</span>
+                <span class="outlet-detail-value">${outlet.current_state.toUpperCase()}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Expected State:</span>
+                <span class="outlet-detail-value">${outlet.expected_state.toUpperCase()}</span>
+            </div>
+            ${outlet.last_state_change ? `
+                <div class="outlet-detail-row">
+                    <span class="outlet-detail-label">Last Updated:</span>
+                    <span class="outlet-detail-value">${new Date(outlet.last_state_change).toLocaleString()}</span>
+                </div>
+            ` : ''}
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Schedule Status:</span>
+                <span class="outlet-detail-value">${scheduleStatus}</span>
+            </div>
+            ${outlet.expected_on_from ? `
+                <div class="outlet-detail-row">
+                    <span class="outlet-detail-label">Expected ON from:</span>
+                    <span class="outlet-detail-value">${new Date(outlet.expected_on_from).toLocaleString()}</span>
+                </div>
+            ` : ''}
+            ${outlet.expected_off_at ? `
+                <div class="outlet-detail-row">
+                    <span class="outlet-detail-label">Expected OFF at:</span>
+                    <span class="outlet-detail-value">${new Date(outlet.expected_off_at).toLocaleString()}</span>
+                </div>
+            ` : ''}
+            ${controlDevice ? `
+                <div class="outlet-controls-inline">
+                    <div class="outlet-control-buttons">
+                        <button class="btn-control btn-on" 
+                                onclick="controlOutlet('${outlet.group}', '${outlet.device_name}', ${outlet.outlet}, 'on')"
+                                ${!isReachable || outletIsOn ? 'disabled' : ''}>
+                            Turn ON
+                        </button>
+                        <button class="btn-control btn-off" 
+                                onclick="controlOutlet('${outlet.group}', '${outlet.device_name}', ${outlet.outlet}, 'off')"
+                                ${!isReachable || !outletIsOn ? 'disabled' : ''}>
+                            Turn OFF
+                        </button>
+                    </div>
+                    <div id="control-message-${sanitizeDeviceName(outlet.device_name)}-${outlet.outlet}" class="control-message-inline" style="display: none;"></div>
+                </div>
             ` : ''}
         </div>
     `;
@@ -1063,18 +1162,24 @@ async function refreshWeather() {
 
 // Control a device outlet
 async function controlOutlet(group, deviceName, outletIndex, action) {
-    const messageId = 'control-message-' + sanitizeDeviceName(deviceName);
-    const messageDiv = document.getElementById(messageId);
+    // Try to find the inline message div first, fall back to old location
+    let messageId = `control-message-${sanitizeDeviceName(deviceName)}-${outletIndex}`;
+    let messageDiv = document.getElementById(messageId);
     
     if (!messageDiv) {
-        console.error('Message div not found');
-        return;
+        messageId = 'control-message-' + sanitizeDeviceName(deviceName);
+        messageDiv = document.getElementById(messageId);
     }
     
-    // Show loading message
-    messageDiv.className = 'control-message';
-    messageDiv.style.display = 'block';
-    messageDiv.textContent = `Sending ${action.toUpperCase()} command...`;
+    if (!messageDiv) {
+        // Create a toast notification if message div not found
+        showToast(`Sending ${action.toUpperCase()} command...`, 'info');
+    } else {
+        // Show loading message
+        messageDiv.className = messageDiv.classList.contains('control-message-inline') ? 'control-message-inline' : 'control-message';
+        messageDiv.style.display = 'block';
+        messageDiv.textContent = `Sending ${action.toUpperCase()} command...`;
+    }
     
     try {
         const response = await fetch('/api/devices/control', {
@@ -1093,34 +1198,150 @@ async function controlOutlet(group, deviceName, outletIndex, action) {
         const result = await response.json();
         
         if (result.success) {
-            messageDiv.className = 'control-message success';
             const outletText = outletIndex !== null ? ` outlet ${outletIndex}` : '';
-            messageDiv.textContent = `✓ Successfully turned ${action.toUpperCase()}${outletText}`;
+            const successMsg = `✓ Successfully turned ${action.toUpperCase()}${outletText}`;
+            
+            if (messageDiv) {
+                messageDiv.className = messageDiv.classList.contains('control-message-inline') ? 'control-message-inline success' : 'control-message success';
+                messageDiv.textContent = successMsg;
+            } else {
+                showToast(successMsg, 'success');
+            }
             
             // Refresh health view after 1 second
             setTimeout(() => {
                 renderHealthView();
             }, 1000);
         } else {
-            messageDiv.className = 'control-message error';
-            messageDiv.textContent = `✗ Failed: ${result.error || 'Unknown error'}`;
+            const errorMsg = `✗ Failed: ${result.error || 'Unknown error'}`;
+            
+            if (messageDiv) {
+                messageDiv.className = messageDiv.classList.contains('control-message-inline') ? 'control-message-inline error' : 'control-message error';
+                messageDiv.textContent = errorMsg;
+            } else {
+                showToast(errorMsg, 'error');
+            }
         }
         
         // Hide message after 5 seconds
-        setTimeout(() => {
-            messageDiv.style.display = 'none';
-        }, 5000);
+        if (messageDiv) {
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
         
     } catch (e) {
         console.error('Control request failed:', e);
-        messageDiv.className = 'control-message error';
-        messageDiv.textContent = `✗ Error: ${e.message}`;
+        const errorMsg = `✗ Error: ${e.message}`;
+        
+        if (messageDiv) {
+            messageDiv.className = messageDiv.classList.contains('control-message-inline') ? 'control-message-inline error' : 'control-message error';
+            messageDiv.textContent = errorMsg;
+            
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        } else {
+            showToast(errorMsg, 'error');
+        }
+    }
+}
+
+// Control all outlets in a group
+async function controlGroup(groupName, action) {
+    const messageId = `group-control-message-${sanitizeDeviceName(groupName)}`;
+    const messageDiv = document.getElementById(messageId);
+    
+    if (!messageDiv) {
+        showToast(`Sending ${action.toUpperCase()} command to group...`, 'info');
+    } else {
+        // Show loading message
+        messageDiv.className = 'control-message';
+        messageDiv.style.display = 'block';
+        messageDiv.textContent = `Sending ${action.toUpperCase()} command to all outlets in group...`;
+    }
+    
+    try {
+        const response = await fetch(`/api/groups/${groupName}/control`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                action: action
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const successMsg = `✓ Group ${action.toUpperCase()}: ${result.successful} successful, ${result.failed} failed`;
+            
+            if (messageDiv) {
+                messageDiv.className = 'control-message success';
+                messageDiv.textContent = successMsg;
+            } else {
+                showToast(successMsg, 'success');
+            }
+            
+            // Refresh health view after 1 second
+            setTimeout(() => {
+                renderHealthView();
+            }, 1000);
+        } else {
+            const errorMsg = `✗ Failed to control group: ${result.error || 'Unknown error'}`;
+            
+            if (messageDiv) {
+                messageDiv.className = 'control-message error';
+                messageDiv.textContent = errorMsg;
+            } else {
+                showToast(errorMsg, 'error');
+            }
+        }
         
         // Hide message after 5 seconds
-        setTimeout(() => {
-            messageDiv.style.display = 'none';
-        }, 5000);
+        if (messageDiv) {
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+    } catch (e) {
+        console.error('Group control request failed:', e);
+        const errorMsg = `✗ Error: ${e.message}`;
+        
+        if (messageDiv) {
+            messageDiv.className = 'control-message error';
+            messageDiv.textContent = errorMsg;
+            
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        } else {
+            showToast(errorMsg, 'error');
+        }
     }
+}
+
+// Show toast notification
+function showToast(message, type) {
+    // Create toast if it doesn't exist
+    let toast = document.getElementById('toast-notification');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast-notification';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+    }
+    
+    // Set message and type
+    toast.textContent = message;
+    toast.className = `toast ${type} show`;
+    
+    // Hide after 4 seconds
+    setTimeout(() => {
+        toast.className = 'toast';
+    }, 4000);
 }
 
 // Extract plain config values from annotated config (recursively)
