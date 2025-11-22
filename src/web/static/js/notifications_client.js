@@ -375,9 +375,6 @@ function startAggressivePolling(durationMs) {
     }, pollInterval);
 }
 
-// Initialize polling when the page loads
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initNotificationPolling);
-} else {
-    initNotificationPolling();
-}
+// Note: initNotificationPolling() is intentionally NOT called on page load.
+// Polling is started only when the Status tab becomes active via startNotificationPolling()
+// which is called from app.js switchTab() function.

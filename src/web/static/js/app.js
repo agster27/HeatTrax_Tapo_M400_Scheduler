@@ -2015,6 +2015,11 @@ window.addEventListener('load', () => {
     checkSecurity();
     refreshStatus();
     
+    // Start notification polling since Status tab is active by default
+    if (typeof startNotificationPolling === 'function') {
+        startNotificationPolling();
+    }
+    
     // Initialize health view toggle based on saved preference
     const healthViewToggle = document.getElementById('health-view-toggle');
     if (healthViewToggle) {
