@@ -372,6 +372,11 @@ async function renderHealthView() {
             fetch('/api/devices/status')
         ]);
         
+        // Check response status
+        if (!statusResponse.ok || !deviceControlResponse.ok) {
+            throw new Error(`API error: status ${statusResponse.status}, devices ${deviceControlResponse.status}`);
+        }
+        
         const status = await statusResponse.json();
         const deviceControlData = await deviceControlResponse.json();
         
@@ -427,6 +432,11 @@ function renderEmptyState(status) {
 function generateAccordionId(key, prefix = '') {
     const sanitized = key.replace(/[^a-zA-Z0-9]/g, '-');
     return prefix ? `${prefix}-${sanitized}` : sanitized;
+}
+
+// Sanitize device name for use in HTML IDs
+function sanitizeDeviceName(deviceName) {
+    return deviceName.replace(/[^a-zA-Z0-9]/g, '-');
 }
 
 // Get overall health status for a device
@@ -555,7 +565,7 @@ function renderDeviceView(expectations, deviceControlData) {
             
             html += `
                         </div>
-                        <div id="control-message-${device.name.replace(/[^a-zA-Z0-9]/g, '-')}" class="control-message" style="display: none;"></div>
+                        <div id="control-message-${sanitizeDeviceName(device.name)}" class="control-message" style="display: none;"></div>
             `;
         }
         
@@ -659,7 +669,7 @@ function renderGroupView(expectations, deviceControlData) {
                             `;
                         }
                         
-                        html += `<div id="control-message-${controlDevice.name.replace(/[^a-zA-Z0-9]/g, '-')}" class="control-message" style="display: none;"></div>`;
+                        html += `<div id="control-message-${sanitizeDeviceName(controlDevice.name)}" class="control-message" style="display: none;"></div>`;
                     }
                 }
                 
@@ -1179,7 +1189,7 @@ async function refreshWeather() {
 
 // Control a device outlet
 async function controlOutlet(group, deviceName, outletIndex, action) {
-    const messageId = 'control-message-' + deviceName.replace(/[^a-zA-Z0-9]/g, '-');
+    const messageId = 'control-message-' + sanitizeDeviceName(deviceName);
     const messageDiv = document.getElementById(messageId);
     
     if (!messageDiv) {
