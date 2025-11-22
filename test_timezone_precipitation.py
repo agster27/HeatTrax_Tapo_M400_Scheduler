@@ -113,9 +113,9 @@ logging:
         # Should return True because precip is within lead time (60 minutes)
         assert result is True, "Should turn on when precipitation is within lead time"
         
-        # Test 2: Verify line 542 uses timezone-aware datetime
-        # The fix changes datetime.now() to datetime.now(self.timezone) on line 542
-        # This test verifies the fix by checking that datetime comparison works
+        # Test 2: Verify should_turn_off_group uses timezone-aware datetime
+        # The fix changes datetime.now() to datetime.now(self.timezone) in the
+        # precipitation control section of should_turn_off_group method
         # Note: Full integration test would require fixing state_manager.py as well
         
         # Mock no precipitation to test the should_turn_off_group path
@@ -134,25 +134,27 @@ logging:
         # (state_manager.py has its own timezone issues that are separate from this fix)
         state.exceeded_max_runtime = MagicMock(return_value=False)
         
-        # Try calling should_turn_off_group - line 542 should use timezone-aware datetime
-        # The comparison at line 542 should now work with timezone-aware datetimes
+        # Try calling should_turn_off_group - the precipitation control section should use timezone-aware datetime
+        # The comparison should now work with timezone-aware datetimes
         try:
             result = await scheduler.should_turn_off_group('test_group')
-            print("✓ Line 542 uses timezone-aware datetime correctly")
+            print("✓ should_turn_off_group precipitation control uses timezone-aware datetime correctly")
         except TypeError as e:
             # If we get a timezone comparison error, check where it originated
             if "can't compare offset-naive and offset-aware datetimes" in str(e):
                 import traceback
                 tb = traceback.extract_tb(e.__traceback__)
-                # Check if the error originates from scheduler_enhanced.py line 542
+                # Check if the error originates from the precipitation control section in scheduler_enhanced.py
                 for frame in tb:
-                    if 'scheduler_enhanced.py' in frame.filename and frame.lineno == 542:
-                        pytest.fail(f"Line 542 still using timezone-naive datetime: {e}")
-                # If the error is from state_manager.py (line 134), our fix is working
+                    if 'scheduler_enhanced.py' in frame.filename and 'should_turn_off_group' in frame.name:
+                        # Check if it's in the precipitation control section (around line 542 in original code)
+                        if 540 <= frame.lineno <= 550:
+                            pytest.fail(f"Precipitation control in should_turn_off_group still using timezone-naive datetime: {e}")
+                # If the error is from state_manager.py, our fix is working
                 # That's a separate issue not addressed in this PR
                 for frame in tb:
                     if 'state_manager.py' in frame.filename:
-                        print("✓ Line 542 uses timezone-aware datetime correctly (error is in state_manager.py, not our fix)")
+                        print("✓ Precipitation control uses timezone-aware datetime correctly (error is in state_manager.py, not our fix)")
                         break
                 else:
                     # Error from unknown location
