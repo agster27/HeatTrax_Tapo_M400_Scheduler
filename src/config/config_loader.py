@@ -329,7 +329,7 @@ class Config:
             credentials['password'] = ''
         
         # Log credential state (will be checked for setup mode later)
-        from credential_validator import log_credential_state, is_valid_credential
+        from .credential_validator import log_credential_state, is_valid_credential
         log_credential_state(credentials.get('username'), credentials.get('password'), source="config")
         
         is_valid, reason = is_valid_credential(credentials.get('username'), credentials.get('password'))

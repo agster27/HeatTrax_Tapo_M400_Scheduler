@@ -310,7 +310,7 @@ class ConfigManager:
             Tuple of (config with overrides applied, dict mapping config paths to env var names)
         """
         # Import the existing mapping from config_loader
-        from config_loader import ENV_VAR_MAPPING, get_env_var
+        from .config_loader import ENV_VAR_MAPPING, get_env_var
         
         # Track which config paths are overridden by which env vars
         env_overridden_paths = {}
@@ -847,7 +847,7 @@ class ConfigManager:
                 - reason: Human-readable explanation
         """
         with self._lock:
-            from credential_validator import check_credentials_for_setup_mode
+            from .credential_validator import check_credentials_for_setup_mode
             
             credentials = self._config.get('devices', {}).get('credentials', {})
             username = credentials.get('username', '')
