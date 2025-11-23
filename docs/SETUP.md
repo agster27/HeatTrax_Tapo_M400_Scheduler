@@ -109,9 +109,13 @@ devices:
       items:
         - name: "Heated Mat"
           ip_address: "192.168.1.100"  # Your Tapo device IP
+          # Optional: For multi-outlet plugs (EP40M), control specific outlets
+          # outlets: [0, 1]  # Control both outlets, or [0] for first outlet only
 ```
 
 > **Tip**: You can also use a hybrid approach - put non-sensitive settings in `config.yaml` and override sensitive values (like username and password) with environment variables.
+
+> **Multi-Outlet Devices**: For plugs with multiple outlets (like EP40M), you can specify which outlets to control using the `outlets` field. If omitted, the entire device is controlled. See [MANUAL_CONTROL.md](MANUAL_CONTROL.md) for details.
 
 #### Important: Placeholder Values
 
@@ -330,6 +334,31 @@ morning_mode:
   enabled: false
 ```
 
+### Schedule-Based Control
+
+In addition to weather-based automation, you can configure device groups for schedule-based control (e.g., Christmas lights):
+
+```yaml
+devices:
+  groups:
+    christmas_lights:
+      enabled: true
+      automation:
+        weather_control: false       # Disable weather control
+        precipitation_control: false
+        morning_mode: false
+        schedule_control: true       # Enable schedule control
+      schedule:
+        on_time: "17:00"   # Turn on at 5:00 PM
+        off_time: "23:00"  # Turn off at 11:00 PM
+        # Optional: days: [5, 6]  # Saturday and Sunday only
+      items:
+        - name: "Christmas Lights"
+          ip_address: "192.168.1.110"
+```
+
+Schedule times respect the `location.timezone` setting.
+
 ### Configure Timezone
 
 **Important**: The `location.timezone` setting controls how all time-of-day automation rules are interpreted. This includes:
@@ -362,6 +391,40 @@ safety:
   max_runtime_hours: 8      # Change from 6 to 8
   cooldown_minutes: 45      # Change from 30 to 45
 ```
+
+### Weather Resilience
+
+The scheduler includes automatic weather resilience features to ensure reliable operation during internet or API outages:
+
+- **Automatic Caching**: Stores the last successful forecast to disk
+- **Three States**:
+  - **ONLINE**: Normal operation with fresh weather data (refreshes every 10 minutes)
+  - **DEGRADED**: API unavailable but using cached data (< 6 hours old) - all weather features continue working
+  - **OFFLINE**: Cache expired - falls back to static schedules until service recovers
+- **Auto-Recovery**: Automatically reconnects with exponential backoff (5 → 10 → 20 → 40 → 60 minutes)
+
+Configure resilience settings in `config.yaml`:
+```yaml
+weather_api:
+  resilience:
+    cache_valid_hours: 6.0              # How long to trust cached data
+    cache_file: "state/weather_cache.json"
+    retry_interval_minutes: 5           # Initial retry delay
+    max_retry_interval_minutes: 60      # Maximum retry delay
+```
+
+See your logs for weather service status messages.
+
+### Startup Diagnostics
+
+The application automatically runs diagnostic checks on startup:
+
+- Python version and package verification
+- Directory access validation
+- Configuration file parsing
+- Environment variable validation (with sensitive data redacted)
+
+These checks help troubleshoot deployment issues, especially in Docker/Portainer. Check your logs on startup to see the diagnostic output.
 
 ## Maintenance
 
@@ -418,7 +481,9 @@ docker-compose restart  # or restart Python process
 
 ### "Configuration file not found"
 
-Make sure you've created `config.yaml`:
+This message is **normal and informational** if you're using environment variables without a `config.yaml` file. The application will continue running using your environment variables.
+
+If you intended to use `config.yaml`, make sure you've created it:
 ```bash
 ls -la config.yaml
 ```
@@ -508,11 +573,18 @@ sudo systemctl start heattrax
 sudo systemctl status heattrax
 ```
 
+## Additional Features
+
+- **Health Monitoring**: Configure email and webhook notifications for device issues. See [HEALTH_CHECK.md](HEALTH_CHECK.md)
+- **Web UI**: Access the web interface for monitoring and configuration. See [WEB_UI_GUIDE.md](WEB_UI_GUIDE.md)
+- **Manual Control**: Control devices and outlets manually via Web UI. See [MANUAL_CONTROL.md](MANUAL_CONTROL.md)
+- **Environment Variables**: Full configuration via environment variables. See [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)
+
 ## Getting Help
 
 If you encounter issues:
 
-1. Check the logs first (most issues are logged with details)
+1. Check the logs first (most issues are logged with details) - see [LOGGING.md](LOGGING.md)
 2. Verify your configuration matches the examples
 3. Test device connectivity independently
 4. Open an issue on GitHub with:

@@ -4,14 +4,16 @@ Automated control system for TP-Link Kasa/Tapo smart plugs to manage heated outd
 
 ## 📚 Documentation
 
-- **[Quick Start Guide](QUICKSTART.md)** - 5-minute setup guide
-- **[Setup Instructions](SETUP.md)** - Detailed installation and configuration
-- **[Manual Device Control](MANUAL_CONTROL.md)** - Manual control of devices and outlets via Web UI
-- **[Environment Variables Reference](ENVIRONMENT_VARIABLES.md)** - Complete environment variable documentation
-- **[Logging Guide](LOGGING.md)** - Troubleshooting and logging information
-- **[Startup Checks](STARTUP_CHECKS.md)** - Debugging containerized deployments
-- **[Health Checks & Notifications](HEALTH_CHECK.md)** - Device monitoring and notification system
-- **[Changelog](CHANGELOG.md)** - Version history and release notes
+- **[Quick Start Guide](docs/QUICKSTART.md)** - 5-minute setup guide
+- **[Setup Instructions](docs/SETUP.md)** - Detailed installation and configuration
+- **[Web UI Guide](docs/WEB_UI_GUIDE.md)** - Web interface and JSON API reference
+- **[Manual Device Control](docs/MANUAL_CONTROL.md)** - Manual control of devices and outlets via Web UI
+- **[Environment Variables Reference](docs/ENVIRONMENT_VARIABLES.md)** - Complete environment variable documentation
+- **[Health Checks & Notifications](docs/HEALTH_CHECK.md)** - Device monitoring and notification system
+- **[Logging Guide](docs/LOGGING.md)** - Troubleshooting and logging information
+- **[Changelog](docs/CHANGELOG.md)** - Version history and release notes
+
+See the [complete documentation index](docs/README.md) for more information.
 
 ## 🎉 Version 1.1 - New Web UI!
 
@@ -190,7 +192,7 @@ After starting the container:
   - Configuration file parsing
   - Environment variable dump (with sensitive data redaction)
   - Optional device connectivity test
-  - See [STARTUP_CHECKS.md](STARTUP_CHECKS.md) for details
+  - See logs on startup for detailed diagnostic information
 - **Docker Support**: Easy deployment with Docker and docker-compose
 
 ## Requirements
