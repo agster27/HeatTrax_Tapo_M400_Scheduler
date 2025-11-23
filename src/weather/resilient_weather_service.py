@@ -466,3 +466,32 @@ class ResilientWeatherService:
             info['offline_duration_minutes'] = offline_duration
         
         return info
+    
+    def is_offline(self) -> bool:
+        """
+        Check if weather service is offline (cache expired > 12 hours).
+        
+        Used by unified scheduling to determine if weather-based conditions
+        should be disabled.
+        
+        Returns:
+            True if cache expired (> 12 hours old) or in OFFLINE state
+        """
+        if self.state == WeatherServiceState.OFFLINE_NO_WEATHER_DATA:
+            return True
+        
+        # Also check cache age - consider offline if > 12 hours
+        cache_age = self.cache.get_cache_age_hours()
+        if cache_age is not None and cache_age > 12.0:
+            return True
+        
+        return False
+    
+    def get_cache_age_hours(self) -> Optional[float]:
+        """
+        Get age of cached data in hours.
+        
+        Returns:
+            Cache age in hours, or None if no cache exists
+        """
+        return self.cache.get_cache_age_hours()
