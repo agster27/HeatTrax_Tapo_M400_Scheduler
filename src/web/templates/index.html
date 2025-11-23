@@ -190,6 +190,153 @@
         </div>
     </div>
 
+    <!-- Schedule Edit/Add Modal -->
+    <div id="schedule-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="schedule-modal-title">Add Schedule</h2>
+                <span class="modal-close" onclick="closeScheduleModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="schedule-form" onsubmit="return false;">
+                    <div class="form-group">
+                        <label for="schedule-name">Schedule Name</label>
+                        <input type="text" id="schedule-name" placeholder="e.g., Morning Heating" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="schedule-priority">Priority</label>
+                        <select id="schedule-priority">
+                            <option value="critical">Critical (highest)</option>
+                            <option value="normal" selected>Normal</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="schedule-enabled" checked>
+                            Enabled
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Days of Week</label>
+                        <div class="days-selector">
+                            <label class="day-checkbox"><input type="checkbox" value="1" checked> Mon</label>
+                            <label class="day-checkbox"><input type="checkbox" value="2" checked> Tue</label>
+                            <label class="day-checkbox"><input type="checkbox" value="3" checked> Wed</label>
+                            <label class="day-checkbox"><input type="checkbox" value="4" checked> Thu</label>
+                            <label class="day-checkbox"><input type="checkbox" value="5" checked> Fri</label>
+                            <label class="day-checkbox"><input type="checkbox" value="6" checked> Sat</label>
+                            <label class="day-checkbox"><input type="checkbox" value="7" checked> Sun</label>
+                        </div>
+                    </div>
+                    
+                    <hr style="margin: 20px 0;">
+                    
+                    <h3>ON Time</h3>
+                    <div class="form-group">
+                        <label for="on-type">Time Type</label>
+                        <select id="on-type" onchange="updateOnTimeFields()">
+                            <option value="time">Fixed Time (HH:MM)</option>
+                            <option value="sunrise">Sunrise</option>
+                            <option value="sunset">Sunset</option>
+                        </select>
+                    </div>
+                    
+                    <div id="on-time-field" class="form-group">
+                        <label for="on-time-value">Time (24-hour format)</label>
+                        <input type="time" id="on-time-value" required>
+                    </div>
+                    
+                    <div id="on-solar-fields" style="display: none;">
+                        <div class="form-group">
+                            <label for="on-offset">Offset (minutes)</label>
+                            <input type="number" id="on-offset" value="0" min="-180" max="180" step="1">
+                            <div class="helper-text">Positive = after sunrise/sunset, Negative = before</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="on-fallback">Fallback Time</label>
+                            <input type="time" id="on-fallback">
+                            <div class="helper-text">Used if solar calculation fails</div>
+                        </div>
+                    </div>
+                    
+                    <hr style="margin: 20px 0;">
+                    
+                    <h3>OFF Time</h3>
+                    <div class="form-group">
+                        <label for="off-type">Time Type</label>
+                        <select id="off-type" onchange="updateOffTimeFields()">
+                            <option value="time">Fixed Time (HH:MM)</option>
+                            <option value="sunrise">Sunrise</option>
+                            <option value="sunset">Sunset</option>
+                            <option value="duration">Duration (hours after ON)</option>
+                        </select>
+                    </div>
+                    
+                    <div id="off-time-field" class="form-group">
+                        <label for="off-time-value">Time (24-hour format)</label>
+                        <input type="time" id="off-time-value" required>
+                    </div>
+                    
+                    <div id="off-solar-fields" style="display: none;">
+                        <div class="form-group">
+                            <label for="off-offset">Offset (minutes)</label>
+                            <input type="number" id="off-offset" value="0" min="-180" max="180" step="1">
+                            <div class="helper-text">Positive = after sunrise/sunset, Negative = before</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="off-fallback">Fallback Time</label>
+                            <input type="time" id="off-fallback">
+                            <div class="helper-text">Used if solar calculation fails</div>
+                        </div>
+                    </div>
+                    
+                    <div id="off-duration-field" style="display: none;" class="form-group">
+                        <label for="off-duration">Duration (hours)</label>
+                        <input type="number" id="off-duration" value="1" min="0.1" max="24" step="0.1">
+                    </div>
+                    
+                    <hr style="margin: 20px 0;">
+                    
+                    <h3>Conditions (Optional)</h3>
+                    <div class="form-group">
+                        <label for="condition-temp-max">Maximum Temperature (°F)</label>
+                        <input type="number" id="condition-temp-max" placeholder="e.g., 32" step="0.1">
+                        <div class="helper-text">Only run if temperature is at or below this value</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="condition-precip">
+                            Only run when precipitation is active
+                        </label>
+                    </div>
+                    
+                    <hr style="margin: 20px 0;">
+                    
+                    <h3>Safety Overrides (Optional)</h3>
+                    <div class="form-group">
+                        <label for="safety-max-runtime">Max Runtime (hours)</label>
+                        <input type="number" id="safety-max-runtime" placeholder="Use global default" step="0.1" min="0.1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="safety-cooldown">Cooldown (minutes)</label>
+                        <input type="number" id="safety-cooldown" placeholder="Use global default" step="1" min="0">
+                    </div>
+                    
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeScheduleModal()">Cancel</button>
+                <button type="button" class="btn-primary" onclick="saveSchedule()">Save Schedule</button>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

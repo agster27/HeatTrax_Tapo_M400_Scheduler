@@ -2338,14 +2338,283 @@ async function toggleScheduleEnabled(groupName, scheduleIndex, enabled) {
     }
 }
 
+// Schedule modal management
+let currentScheduleGroupName = null;
+let currentScheduleIndex = null;
+
 function showAddScheduleDialog(groupName) {
-    // TODO: Implement add schedule dialog
-    alert(`Add schedule dialog for group '${groupName}' - To be implemented`);
+    currentScheduleGroupName = groupName;
+    currentScheduleIndex = null;
+    
+    // Reset form
+    document.getElementById('schedule-form').reset();
+    document.getElementById('schedule-modal-title').textContent = `Add Schedule to ${groupName}`;
+    
+    // Set defaults
+    document.getElementById('schedule-enabled').checked = true;
+    document.getElementById('schedule-priority').value = 'normal';
+    
+    // Check all days by default
+    document.querySelectorAll('.days-selector input[type="checkbox"]').forEach(cb => {
+        cb.checked = true;
+    });
+    
+    // Show modal
+    document.getElementById('schedule-modal').style.display = 'flex';
 }
 
-function editSchedule(groupName, scheduleIndex) {
-    // TODO: Implement edit schedule dialog
-    alert(`Edit schedule dialog for group '${groupName}', index ${scheduleIndex} - To be implemented`);
+async function editSchedule(groupName, scheduleIndex) {
+    currentScheduleGroupName = groupName;
+    currentScheduleIndex = scheduleIndex;
+    
+    try {
+        // Fetch the schedule
+        const response = await fetch(`/api/groups/${groupName}/schedules/${scheduleIndex}`);
+        if (!response.ok) {
+            alert('Failed to fetch schedule');
+            return;
+        }
+        
+        const data = await response.json();
+        const schedule = data.schedule;
+        
+        // Populate form
+        document.getElementById('schedule-modal-title').textContent = `Edit Schedule: ${schedule.name}`;
+        document.getElementById('schedule-name').value = schedule.name || '';
+        document.getElementById('schedule-priority').value = schedule.priority || 'normal';
+        document.getElementById('schedule-enabled').checked = schedule.enabled !== false;
+        
+        // Set days
+        document.querySelectorAll('.days-selector input[type="checkbox"]').forEach(cb => {
+            cb.checked = schedule.days && schedule.days.includes(parseInt(cb.value));
+        });
+        
+        // Set ON time
+        if (schedule.on) {
+            document.getElementById('on-type').value = schedule.on.type || 'time';
+            updateOnTimeFields();
+            
+            if (schedule.on.type === 'time') {
+                document.getElementById('on-time-value').value = schedule.on.value || '';
+            } else if (schedule.on.type === 'sunrise' || schedule.on.type === 'sunset') {
+                document.getElementById('on-offset').value = schedule.on.offset || 0;
+                document.getElementById('on-fallback').value = schedule.on.fallback || '';
+            }
+        }
+        
+        // Set OFF time
+        if (schedule.off) {
+            document.getElementById('off-type').value = schedule.off.type || 'time';
+            updateOffTimeFields();
+            
+            if (schedule.off.type === 'time') {
+                document.getElementById('off-time-value').value = schedule.off.value || '';
+            } else if (schedule.off.type === 'sunrise' || schedule.off.type === 'sunset') {
+                document.getElementById('off-offset').value = schedule.off.offset || 0;
+                document.getElementById('off-fallback').value = schedule.off.fallback || '';
+            } else if (schedule.off.type === 'duration') {
+                document.getElementById('off-duration').value = schedule.off.value || 1;
+            }
+        }
+        
+        // Set conditions
+        if (schedule.conditions) {
+            document.getElementById('condition-temp-max').value = schedule.conditions.temperature_max || '';
+            document.getElementById('condition-precip').checked = schedule.conditions.precipitation_active || false;
+        }
+        
+        // Set safety
+        if (schedule.safety) {
+            document.getElementById('safety-max-runtime').value = schedule.safety.max_runtime_hours || '';
+            document.getElementById('safety-cooldown').value = schedule.safety.cooldown_minutes || '';
+        }
+        
+        // Show modal
+        document.getElementById('schedule-modal').style.display = 'flex';
+        
+    } catch (e) {
+        alert(`Failed to load schedule: ${e.message}`);
+    }
+}
+
+function closeScheduleModal() {
+    document.getElementById('schedule-modal').style.display = 'none';
+    currentScheduleGroupName = null;
+    currentScheduleIndex = null;
+}
+
+function updateOnTimeFields() {
+    const type = document.getElementById('on-type').value;
+    const timeField = document.getElementById('on-time-field');
+    const solarFields = document.getElementById('on-solar-fields');
+    
+    if (type === 'time') {
+        timeField.style.display = 'block';
+        solarFields.style.display = 'none';
+        document.getElementById('on-time-value').required = true;
+    } else {
+        timeField.style.display = 'none';
+        solarFields.style.display = 'block';
+        document.getElementById('on-time-value').required = false;
+        document.getElementById('on-fallback').required = true;
+    }
+}
+
+function updateOffTimeFields() {
+    const type = document.getElementById('off-type').value;
+    const timeField = document.getElementById('off-time-field');
+    const solarFields = document.getElementById('off-solar-fields');
+    const durationField = document.getElementById('off-duration-field');
+    
+    if (type === 'time') {
+        timeField.style.display = 'block';
+        solarFields.style.display = 'none';
+        durationField.style.display = 'none';
+        document.getElementById('off-time-value').required = true;
+    } else if (type === 'duration') {
+        timeField.style.display = 'none';
+        solarFields.style.display = 'none';
+        durationField.style.display = 'block';
+        document.getElementById('off-time-value').required = false;
+    } else {
+        timeField.style.display = 'none';
+        solarFields.style.display = 'block';
+        durationField.style.display = 'none';
+        document.getElementById('off-time-value').required = false;
+        document.getElementById('off-fallback').required = true;
+    }
+}
+
+async function saveSchedule() {
+    if (!currentScheduleGroupName) {
+        alert('Error: No group selected');
+        return;
+    }
+    
+    // Collect form data
+    const schedule = {
+        name: document.getElementById('schedule-name').value,
+        priority: document.getElementById('schedule-priority').value,
+        enabled: document.getElementById('schedule-enabled').checked,
+        days: []
+    };
+    
+    // Collect selected days
+    document.querySelectorAll('.days-selector input[type="checkbox"]:checked').forEach(cb => {
+        schedule.days.push(parseInt(cb.value));
+    });
+    
+    if (schedule.days.length === 0) {
+        alert('Please select at least one day of the week');
+        return;
+    }
+    
+    // ON time
+    const onType = document.getElementById('on-type').value;
+    schedule.on = { type: onType };
+    
+    if (onType === 'time') {
+        schedule.on.value = document.getElementById('on-time-value').value;
+        if (!schedule.on.value) {
+            alert('Please specify ON time');
+            return;
+        }
+    } else {
+        schedule.on.offset = parseInt(document.getElementById('on-offset').value) || 0;
+        schedule.on.fallback = document.getElementById('on-fallback').value;
+        if (!schedule.on.fallback) {
+            alert('Please specify fallback time for ON');
+            return;
+        }
+    }
+    
+    // OFF time
+    const offType = document.getElementById('off-type').value;
+    schedule.off = { type: offType };
+    
+    if (offType === 'time') {
+        schedule.off.value = document.getElementById('off-time-value').value;
+        if (!schedule.off.value) {
+            alert('Please specify OFF time');
+            return;
+        }
+    } else if (offType === 'duration') {
+        schedule.off.value = parseFloat(document.getElementById('off-duration').value);
+        if (!schedule.off.value || schedule.off.value <= 0) {
+            alert('Please specify a valid duration');
+            return;
+        }
+    } else {
+        schedule.off.offset = parseInt(document.getElementById('off-offset').value) || 0;
+        schedule.off.fallback = document.getElementById('off-fallback').value;
+        if (!schedule.off.fallback) {
+            alert('Please specify fallback time for OFF');
+            return;
+        }
+    }
+    
+    // Conditions
+    const tempMax = document.getElementById('condition-temp-max').value;
+    const precip = document.getElementById('condition-precip').checked;
+    
+    if (tempMax || precip) {
+        schedule.conditions = {};
+        if (tempMax) {
+            schedule.conditions.temperature_max = parseFloat(tempMax);
+        }
+        if (precip) {
+            schedule.conditions.precipitation_active = true;
+        }
+    }
+    
+    // Safety
+    const maxRuntime = document.getElementById('safety-max-runtime').value;
+    const cooldown = document.getElementById('safety-cooldown').value;
+    
+    if (maxRuntime || cooldown) {
+        schedule.safety = {};
+        if (maxRuntime) {
+            schedule.safety.max_runtime_hours = parseFloat(maxRuntime);
+        }
+        if (cooldown) {
+            schedule.safety.cooldown_minutes = parseInt(cooldown);
+        }
+    }
+    
+    try {
+        let url, method;
+        
+        if (currentScheduleIndex !== null) {
+            // Edit existing schedule
+            url = `/api/groups/${currentScheduleGroupName}/schedules/${currentScheduleIndex}`;
+            method = 'PUT';
+        } else {
+            // Add new schedule
+            url = `/api/groups/${currentScheduleGroupName}/schedules`;
+            method = 'POST';
+        }
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(schedule)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            alert(`Failed to save schedule: ${error.error || 'Unknown error'}\n${error.details || ''}`);
+            return;
+        }
+        
+        // Close modal and refresh
+        closeScheduleModal();
+        await refreshSchedules();
+        
+    } catch (e) {
+        alert(`Failed to save schedule: ${e.message}`);
+    }
 }
 
 async function deleteSchedule(groupName, scheduleIndex) {

@@ -1235,6 +1235,129 @@ button:hover {
     background: #229954;
 }
 
+/* Modal Dialog */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal-content {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 2px solid #ecf0f1;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.modal-close {
+    font-size: 32px;
+    font-weight: bold;
+    color: #95a5a6;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.modal-close:hover {
+    color: #2c3e50;
+}
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 20px;
+    border-top: 2px solid #ecf0f1;
+}
+
+.btn-primary {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.btn-primary:hover {
+    background: #229954;
+}
+
+.btn-secondary {
+    background: #95a5a6;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.btn-secondary:hover {
+    background: #7f8c8d;
+}
+
+/* Days Selector */
+.days-selector {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.day-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.day-checkbox:hover {
+    background: #e9ecef;
+}
+
+.day-checkbox input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+}
+
 /* Responsive adjustments for schedules */
 @media (max-width: 768px) {
     .schedules-list {
@@ -1247,5 +1370,19 @@ button:hover {
     
     .vacation-toggle-switch input:checked + .vacation-toggle-slider:before {
         transform: translateX(112px);
+    }
+    
+    .modal-content {
+        max-width: 95%;
+        margin: 10px;
+    }
+    
+    .days-selector {
+        gap: 5px;
+    }
+    
+    .day-checkbox {
+        padding: 6px 10px;
+        font-size: 13px;
     }
 }
