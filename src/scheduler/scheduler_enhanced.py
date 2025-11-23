@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List, Optional
 
 from src.config import Config
 from src.weather import WeatherServiceFactory, WeatherServiceError
@@ -13,6 +13,9 @@ from src.devices import DeviceGroupManager
 from src.scheduler.state_manager import StateManager
 from src.health import HealthCheckService, HealthCheckServer
 from src.scheduler.automation_overrides import AutomationOverrides
+from src.scheduler.solar_calculator import SolarCalculator
+from src.scheduler.schedule_types import Schedule, parse_schedules
+from src.scheduler.schedule_evaluator import ScheduleEvaluator
 from src.notifications.notification_service import (
     NotificationService,
     validate_and_test_notifications,
@@ -118,6 +121,53 @@ class EnhancedScheduler:
         except Exception as e:
             self.logger.warning(f"Invalid timezone '{config.location.get('timezone')}', defaulting to UTC: {e}")
             self.timezone = ZoneInfo('UTC')
+        
+        # Solar calculator for sunrise/sunset times
+        try:
+            latitude = config.location.get('latitude', 0.0)
+            longitude = config.location.get('longitude', 0.0)
+            self.solar_calculator = SolarCalculator(latitude, longitude, tz_name)
+            self.logger.info("Solar calculator initialized for schedule evaluation")
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize solar calculator: {e}")
+            self.solar_calculator = None
+        
+        # Schedule evaluator for unified scheduling
+        if self.solar_calculator:
+            self.schedule_evaluator = ScheduleEvaluator(self.solar_calculator, self.timezone)
+            self.logger.info("Schedule evaluator initialized")
+        else:
+            self.schedule_evaluator = None
+            self.logger.warning("Schedule evaluator not initialized (solar calculator unavailable)")
+        
+        # Get vacation mode from config
+        self.vacation_mode = config._config.get('vacation_mode', False)
+        if self.vacation_mode:
+            self.logger.warning("VACATION MODE IS ENABLED - All schedules will be disabled")
+        
+        # Parse schedules for each group
+        self.group_schedules = {}  # group_name -> List[Schedule]
+        for group_name, group_config in groups.items():
+            schedules_config = group_config.get('schedules', [])
+            if schedules_config:
+                try:
+                    self.group_schedules[group_name] = parse_schedules(schedules_config)
+                    self.logger.info(
+                        f"Loaded {len(self.group_schedules[group_name])} schedule(s) "
+                        f"for group '{group_name}'"
+                    )
+                except ValueError as e:
+                    self.logger.error(f"Failed to parse schedules for group '{group_name}': {e}")
+                    self.group_schedules[group_name] = []
+            else:
+                self.group_schedules[group_name] = []
+                # Check for old automation format (backward compatibility)
+                automation = group_config.get('automation', {})
+                if automation:
+                    self.logger.warning(
+                        f"Group '{group_name}' uses old automation format - "
+                        f"migration to unified schedules recommended"
+                    )
     
     async def initialize(self):
         """Initialize the scheduler and device connections."""
@@ -329,7 +379,7 @@ class EnhancedScheduler:
     
     async def should_turn_on_group(self, group_name: str) -> bool:
         """
-        Determine if a device group should be turned on.
+        Determine if a device group should be turned on using unified scheduling.
         
         Args:
             group_name: Name of the group to check
@@ -347,22 +397,122 @@ class EnhancedScheduler:
             self.logger.error(f"State manager not found for group '{group_name}'")
             return False
         
+        # Get local time
+        now_local = self._get_local_now()
+        
+        # Check vacation mode first
+        if self.vacation_mode:
+            self.logger.info(f"Group '{group_name}': Vacation mode enabled - all schedules disabled")
+            return False
+        
+        # Check if in cooldown
+        cooldown_minutes = self.config.safety.get('cooldown_minutes', 30)
+        if state.is_in_cooldown(cooldown_minutes):
+            self.logger.info(f"Group '{group_name}' in cooldown period")
+            return False
+        
+        # Check if group has new unified schedules
+        schedules = self.group_schedules.get(group_name, [])
+        if schedules and self.schedule_evaluator:
+            # Use unified schedule evaluation
+            return await self._should_turn_on_unified(group_name, schedules, now_local)
+        else:
+            # Fall back to old automation logic for backward compatibility
+            self.logger.debug(f"Group '{group_name}': Using legacy automation logic")
+            return await self._should_turn_on_legacy(group_name, now_local)
+    
+    async def _should_turn_on_unified(
+        self, 
+        group_name: str, 
+        schedules: List[Schedule], 
+        now_local: datetime
+    ) -> bool:
+        """
+        Unified schedule evaluation logic.
+        
+        Args:
+            group_name: Name of the group
+            schedules: List of schedules for the group
+            now_local: Current local time
+            
+        Returns:
+            True if any schedule wants device ON
+        """
+        # Get weather conditions if available
+        weather_conditions = None
+        weather_offline = False
+        
+        if self.weather_enabled and self.weather:
+            # Check if weather service is offline
+            weather_offline = self.weather.is_offline()
+            
+            if not weather_offline:
+                try:
+                    conditions = await self.weather.get_current_conditions()
+                    if conditions:
+                        temp_f, precip_mm = conditions
+                        # Check for precipitation in forecast
+                        forecast_result = await self.weather.check_precipitation_forecast(
+                            hours_ahead=self.config.scheduler.get('forecast_hours', 12),
+                            temperature_threshold_f=999  # We'll check temp in schedule conditions
+                        )
+                        
+                        precip_active = False
+                        if forecast_result and forecast_result != (False, None, None):
+                            has_precip, precip_time, _ = forecast_result
+                            # Consider precipitation active if expected within next hour
+                            if has_precip and precip_time:
+                                time_to_precip = (precip_time - now_local).total_seconds() / 60
+                                precip_active = time_to_precip <= 60
+                        
+                        weather_conditions = {
+                            'temperature_f': temp_f,
+                            'precipitation_active': precip_active
+                        }
+                except Exception as e:
+                    self.logger.warning(f"Failed to get weather conditions: {e}")
+        
+        # Evaluate schedules
+        should_on, winning_schedule, reason = self.schedule_evaluator.should_turn_on(
+            schedules,
+            now_local,
+            weather_conditions,
+            weather_offline
+        )
+        
+        if should_on:
+            self.logger.info(f"Group '{group_name}': {reason}")
+        else:
+            self.logger.debug(f"Group '{group_name}': {reason}")
+        
+        return should_on
+    
+    async def _should_turn_on_legacy(self, group_name: str, now_local: datetime) -> bool:
+        """
+        Legacy automation logic for backward compatibility.
+        
+        Args:
+            group_name: Name of the group
+            now_local: Current local time
+            
+        Returns:
+            True if legacy automation wants device ON
+        """
+        group_config = self.device_manager.get_group_config(group_name)
+        state = self.states.get(group_name)
+        
         base_automation = group_config.get('automation', {})
         automation = self.automation_overrides.get_effective_automation(group_name, base_automation)
         
-        # Get local time for schedule/morning mode checks
-        now_local = self._get_local_now()
-        
-        # Log effective automation and local time
+        # Log effective automation
         self.logger.info(
-            f"Group '{group_name}': effective automation={automation}, "
+            f"Group '{group_name}': legacy automation={automation}, "
             f"now_local={now_local.isoformat()} ({self.timezone})"
         )
         
-        # Check if in cooldown
-        if state.is_in_cooldown(self.config.safety['cooldown_minutes']):
-            self.logger.info(f"Group '{group_name}' in cooldown period")
-            return False
+        # Check if thresholds config exists (legacy format)
+        thresholds = self.config._config.get('thresholds', {})
+        morning_mode_config = self.config._config.get('morning_mode', {})
         
         # Weather-based control
         if automation.get('weather_control', False):
@@ -374,11 +524,10 @@ class EnhancedScheduler:
             # Morning mode (black ice protection)
             if automation.get('morning_mode', False):
                 current_hour = now_local.hour
-                morning_mode = self.config.morning_mode
                 
-                if morning_mode.get('enabled', False):
-                    start_hour = morning_mode.get('start_hour', 6)
-                    end_hour = morning_mode.get('end_hour', 8)
+                if morning_mode_config.get('enabled', False):
+                    start_hour = morning_mode_config.get('start_hour', 6)
+                    end_hour = morning_mode_config.get('end_hour', 8)
                     
                     if start_hour <= current_hour < end_hour:
                         self.logger.info(
@@ -394,8 +543,8 @@ class EnhancedScheduler:
                                 )
                             else:
                                 temp, _ = conditions
-                                morning_temp_threshold = morning_mode.get('temperature_f', 
-                                                                           self.config.thresholds['temperature_f'])
+                                morning_temp_threshold = morning_mode_config.get('temperature_f', 
+                                                                           thresholds.get('temperature_f', 32))
                                 if temp < morning_temp_threshold:
                                     self.logger.info(
                                         f"Group '{group_name}': Temperature {temp}°F below "
@@ -409,8 +558,8 @@ class EnhancedScheduler:
             if automation.get('precipitation_control', False):
                 try:
                     result = await self.weather.check_precipitation_forecast(
-                        hours_ahead=self.config.scheduler['forecast_hours'],
-                        temperature_threshold_f=self.config.thresholds['temperature_f']
+                        hours_ahead=self.config.scheduler.get('forecast_hours', 12),
+                        temperature_threshold_f=thresholds.get('temperature_f', 34)
                     )
                     
                     # Check if result is None or valid tuple
@@ -425,7 +574,7 @@ class EnhancedScheduler:
                         has_precip, precip_time, temp = result
                         
                         if has_precip and precip_time:
-                            lead_time = timedelta(minutes=self.config.thresholds['lead_time_minutes'])
+                            lead_time = timedelta(minutes=thresholds.get('lead_time_minutes', 60))
                             turn_on_time = precip_time - lead_time
                             now = datetime.now(self.timezone)
                             
@@ -472,7 +621,7 @@ class EnhancedScheduler:
     
     async def should_turn_off_group(self, group_name: str) -> bool:
         """
-        Determine if a device group should be turned off.
+        Determine if a device group should be turned off using unified scheduling.
         
         Args:
             group_name: Name of the group to check
@@ -488,16 +637,103 @@ class EnhancedScheduler:
         if not state:
             return True  # Turn off if state not found
         
+        # Get local time
+        now_local = self._get_local_now()
+        
+        # Check vacation mode - turn off if enabled
+        if self.vacation_mode:
+            self.logger.info(f"Group '{group_name}': Vacation mode enabled - turning OFF")
+            return True
+        
+        # Check if exceeded max runtime (use schedule-specific or global)
+        # For unified schedules, we need to check the winning schedule's max runtime
+        schedules = self.group_schedules.get(group_name, [])
+        if schedules and self.schedule_evaluator:
+            # Get weather conditions to determine which schedule is active
+            weather_conditions = None
+            weather_offline = False
+            
+            if self.weather_enabled and self.weather:
+                weather_offline = self.weather.is_offline()
+                if not weather_offline:
+                    try:
+                        conditions = await self.weather.get_current_conditions()
+                        if conditions:
+                            temp_f, precip_mm = conditions
+                            forecast_result = await self.weather.check_precipitation_forecast(
+                                hours_ahead=self.config.scheduler.get('forecast_hours', 12),
+                                temperature_threshold_f=999
+                            )
+                            precip_active = False
+                            if forecast_result and forecast_result != (False, None, None):
+                                has_precip, precip_time, _ = forecast_result
+                                if has_precip and precip_time:
+                                    time_to_precip = (precip_time - now_local).total_seconds() / 60
+                                    precip_active = time_to_precip <= 60
+                            weather_conditions = {
+                                'temperature_f': temp_f,
+                                'precipitation_active': precip_active
+                            }
+                    except Exception as e:
+                        self.logger.warning(f"Failed to get weather conditions: {e}")
+            
+            # Check if any schedule wants device on
+            should_on, winning_schedule, _ = self.schedule_evaluator.should_turn_on(
+                schedules,
+                now_local,
+                weather_conditions,
+                weather_offline
+            )
+            
+            if should_on and winning_schedule:
+                # Check max runtime for winning schedule
+                max_runtime = winning_schedule.get_max_runtime_hours(
+                    self.config.safety.get('max_runtime_hours', 6)
+                )
+                if state.exceeded_max_runtime(max_runtime):
+                    self.logger.warning(
+                        f"Group '{group_name}': Maximum runtime exceeded "
+                        f"({max_runtime} hours for schedule '{winning_schedule.name}')"
+                    )
+                    state.start_cooldown()
+                    return True
+                
+                # Schedule still wants device on
+                return False
+            else:
+                # No schedules want device on
+                return True
+        else:
+            # Fall back to legacy logic
+            return await self._should_turn_off_legacy(group_name, now_local)
+    
+    async def _should_turn_off_legacy(self, group_name: str, now_local: datetime) -> bool:
+        """
+        Legacy turn-off logic for backward compatibility.
+        
+        Args:
+            group_name: Name of the group
+            now_local: Current local time
+            
+        Returns:
+            True if legacy automation wants device OFF
+        """
+        group_config = self.device_manager.get_group_config(group_name)
+        state = self.states.get(group_name)
+        
         base_automation = group_config.get('automation', {})
         automation = self.automation_overrides.get_effective_automation(group_name, base_automation)
         
-        # Get local time for schedule/morning mode checks
-        now_local = self._get_local_now()
-        
         # Check if exceeded max runtime
-        if state.exceeded_max_runtime(self.config.safety['max_runtime_hours']):
+        max_runtime_hours = self.config.safety.get('max_runtime_hours', 6)
+        if state.exceeded_max_runtime(max_runtime_hours):
             self.logger.warning(f"Group '{group_name}': Maximum runtime exceeded")
+            state.start_cooldown()
             return True
+        
+        # Check if thresholds config exists (legacy format)
+        thresholds = self.config._config.get('thresholds', {})
+        morning_mode_config = self.config._config.get('morning_mode', {})
         
         # Weather-based control
         if automation.get('weather_control', False):
@@ -509,17 +745,16 @@ class EnhancedScheduler:
             # Check if still in morning mode hours
             if automation.get('morning_mode', False):
                 current_hour = now_local.hour
-                morning_mode = self.config.morning_mode
                 
-                if morning_mode.get('enabled', False):
-                    start_hour = morning_mode.get('start_hour', 6)
-                    end_hour = morning_mode.get('end_hour', 8)
+                if morning_mode_config.get('enabled', False):
+                    start_hour = morning_mode_config.get('start_hour', 6)
+                    end_hour = morning_mode_config.get('end_hour', 8)
                     
                     if start_hour <= current_hour < end_hour:
                         try:
                             temp, _ = await self.weather.get_current_conditions()
-                            morning_temp_threshold = morning_mode.get('temperature_f',
-                                                                       self.config.thresholds['temperature_f'])
+                            morning_temp_threshold = morning_mode_config.get('temperature_f',
+                                                                       thresholds.get('temperature_f', 32))
                             if temp < morning_temp_threshold:
                                 return False  # Keep on
                         except WeatherServiceError as e:
@@ -529,13 +764,13 @@ class EnhancedScheduler:
             if automation.get('precipitation_control', False):
                 try:
                     has_precip, precip_time, _ = await self.weather.check_precipitation_forecast(
-                        hours_ahead=self.config.scheduler['forecast_hours'],
-                        temperature_threshold_f=self.config.thresholds['temperature_f']
+                        hours_ahead=self.config.scheduler.get('forecast_hours', 12),
+                        temperature_threshold_f=thresholds.get('temperature_f', 34)
                     )
                     
                     if not has_precip:
                         trailing_time = timedelta(
-                            minutes=self.config.thresholds['trailing_time_minutes']
+                            minutes=thresholds.get('trailing_time_minutes', 60)
                         )
                         if state.device_on and state.turn_on_time:
                             # Ensure turn_on_time is timezone-aware for comparison
