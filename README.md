@@ -4,8 +4,18 @@ Automated control system for TP-Link Kasa/Tapo smart plugs to manage heated outd
 
 ## 📚 Documentation
 
+### Core Documentation
 - **[Quick Start Guide](docs/QUICKSTART.md)** - 5-minute setup guide
 - **[Setup Instructions](docs/SETUP.md)** - Detailed installation and configuration
+- **[Scheduling Guide](SCHEDULING.md)** - **NEW!** Comprehensive guide to the unified conditional scheduling system
+  - System architecture and schedule evaluation
+  - Clock-based and solar-based schedules
+  - Weather conditions and priority system
+  - Migration examples from old configurations
+  - API documentation with examples
+  - Troubleshooting and best practices
+
+### Feature Documentation
 - **[Web UI Guide](docs/WEB_UI_GUIDE.md)** - Web interface and JSON API reference
 - **[Manual Device Control](docs/MANUAL_CONTROL.md)** - Manual control of devices and outlets via Web UI
 - **[Environment Variables Reference](docs/ENVIRONMENT_VARIABLES.md)** - Complete environment variable documentation
@@ -15,10 +25,17 @@ Automated control system for TP-Link Kasa/Tapo smart plugs to manage heated outd
 
 See the [complete documentation index](docs/README.md) for more information.
 
-## 🎉 Version 1.1 - New Web UI!
+## 🎉 Latest Features
 
-HeatTrax Scheduler now includes a **browser-based web UI** for easy monitoring and configuration:
+HeatTrax Scheduler includes powerful features for automated device control:
 
+- ✅ **Unified Conditional Scheduling** - Advanced scheduling system combining multiple paradigms
+  - Clock-based schedules (fixed times like "06:00")
+  - Solar-based schedules (sunrise/sunset with offsets)
+  - Weather conditions (temperature, precipitation)
+  - Priority system (critical, normal, low)
+  - Day-of-week filtering
+  - See the **[Scheduling Guide](SCHEDULING.md)** for complete documentation
 - ✅ **Web UI & JSON API** for monitoring and configuration
 - ✅ **Real-time status** of devices, weather, and scheduler
 - ✅ **Manual device control** - Turn devices and outlets on/off from the Health page
@@ -131,11 +148,27 @@ After starting the container:
   - Enables mats if temperature is below threshold
   - Separate temperature threshold for morning mode
 
-### Schedule-Based Control
-- **Time-Based Scheduling**: Perfect for Christmas lights and decorations
-  - Configure on/off times for each group
-  - Optional day-of-week filtering
-  - Independent from weather conditions
+### Unified Conditional Scheduling System
+- **Multiple Schedule Types**: Flexible scheduling to meet any automation need
+  - **Clock-based schedules**: Fixed times (e.g., "06:00", "22:30")
+  - **Solar-based schedules**: Relative to sunrise/sunset (e.g., "sunrise-30", "sunset+15")
+  - Automatic seasonal adjustment for solar schedules
+- **Weather Conditions**: Optional filters for temperature and precipitation
+  - `temperature_max`: Activate only if temperature is below threshold
+  - `precipitation_active`: Activate only during precipitation
+  - Weather-independent schedules continue working during weather outages
+- **Priority System**: Resolve conflicts when multiple schedules overlap
+  - `critical`: Safety/heating schedules (highest priority)
+  - `normal`: Standard automation (default)
+  - `low`: Decorative/optional features
+- **Day-of-Week Filtering**: Different schedules for weekdays vs weekends
+  - ISO 8601 day numbering (1=Monday, 7=Sunday)
+  - Any combination of days (e.g., weekdays only, specific days)
+- **Multiple Schedules per Group**: Device turns ON if ANY schedule is active
+  - Combine weather-dependent and weather-independent schedules
+  - Different schedules for different scenarios
+  - Highest priority schedule wins if multiple are active
+- **📖 See the [Scheduling Guide](SCHEDULING.md)** for complete documentation, examples, and best practices
 
 ### Safety & Reliability
 - **Safety Features**:
