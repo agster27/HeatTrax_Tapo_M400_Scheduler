@@ -1,0 +1,58 @@
+# Valid schedule configuration for testing
+schedules:
+  - name: "Morning Warmup"
+    enabled: true
+    priority: "normal"
+    days: [1, 2, 3, 4, 5]  # Weekdays
+    "on":
+      type: "time"
+      value: "06:00"
+    "off":
+      type: "time"
+      value: "08:00"
+    conditions: {}
+    safety: {}
+
+  - name: "Evening Solar Schedule"
+    enabled: true
+    priority: "normal"
+    days: [1, 2, 3, 4, 5, 6, 7]
+    "on":
+      type: "sunset"
+      offset: -30
+      fallback: "17:30"
+    "off":
+      type: "time"
+      value: "23:00"
+    conditions: {}
+    safety: {}
+
+  - name: "Winter Storm Schedule"
+    enabled: true
+    priority: "critical"
+    days: [1, 2, 3, 4, 5, 6, 7]
+    "on":
+      type: "time"
+      value: "04:00"
+    "off":
+      type: "time"
+      value: "10:00"
+    conditions:
+      temperature_max: 32
+      precipitation_active: true
+    safety:
+      max_runtime_hours: 8
+      cooldown_minutes: 60
+
+  - name: "Weekend Schedule"
+    enabled: true
+    priority: "low"
+    days: [6, 7]
+    "on":
+      type: "time"
+      value: "09:00"
+    "off":
+      type: "time"
+      value: "18:00"
+    conditions: {}
+    safety: {}

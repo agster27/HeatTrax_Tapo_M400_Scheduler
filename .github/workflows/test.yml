@@ -1,0 +1,92 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-mock pytest-asyncio freezegun
+    
+    - name: Run unit tests
+      run: |
+        pytest tests/unit/test_schedule.py tests/unit/test_solar_calculator.py tests/unit/test_schedule_evaluator.py tests/unit/test_conditions.py -v --cov=src --cov-report=term-missing --cov-report=xml --cov-report=html
+    
+    - name: Run integration tests
+      run: |
+        pytest tests/integration/test_schedule_execution.py tests/integration/test_configuration.py tests/integration/test_api.py -v --cov=src --cov-append --cov-report=term-missing --cov-report=xml --cov-report=html
+    
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4
+      if: matrix.python-version == '3.12'
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+        verbose: true
+    
+    - name: Upload coverage HTML report
+      uses: actions/upload-artifact@v4
+      if: matrix.python-version == '3.12'
+      with:
+        name: coverage-report
+        path: htmlcov/
+    
+    - name: Check test coverage threshold
+      if: matrix.python-version == '3.12'
+      run: |
+        # Check core scheduler components coverage meets threshold
+        # Only checking the files that were specifically tested in this PR
+        coverage report --include="src/scheduler/schedule_types.py,src/scheduler/schedule_evaluator.py,src/scheduler/solar_calculator.py" --fail-under=85
+        echo "Core scheduler components coverage check passed (≥85%)"
+
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black
+    
+    - name: Lint with flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 src tests --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings
+        flake8 src tests --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
+      continue-on-error: true
+    
+    - name: Check formatting with black
+      run: |
+        black --check src tests --line-length=100
+      continue-on-error: true

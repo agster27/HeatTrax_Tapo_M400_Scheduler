@@ -1,0 +1,55 @@
+# Invalid schedule configuration for testing error handling
+schedules:
+  - name: "Missing On Time"
+    enabled: true
+    priority: "normal"
+    days: [1, 2, 3, 4, 5]
+    # Missing 'on' field
+    "off":
+      type: "time"
+      value: "08:00"
+
+  - name: "Invalid Time Format"
+    enabled: true
+    priority: "normal"
+    days: [1, 2, 3, 4, 5]
+    "on":
+      type: "time"
+      value: "25:00"  # Invalid hour
+    "off":
+      type: "time"
+      value: "08:00"
+
+  - name: "Invalid Priority"
+    enabled: true
+    priority: "super_duper"  # Invalid priority
+    days: [1, 2, 3, 4, 5]
+    "on":
+      type: "time"
+      value: "06:00"
+    "off":
+      type: "time"
+      value: "08:00"
+
+  - name: "Invalid Days"
+    enabled: true
+    priority: "normal"
+    days: [0, 8, 9]  # Invalid day numbers
+    "on":
+      type: "time"
+      value: "06:00"
+    "off":
+      type: "time"
+      value: "08:00"
+
+  - name: "Solar Without Fallback"
+    enabled: true
+    priority: "normal"
+    days: [1, 2, 3, 4, 5]
+    "on":
+      type: "sunrise"
+      offset: 30
+      # Missing 'fallback' field
+    "off":
+      type: "time"
+      value: "08:00"
