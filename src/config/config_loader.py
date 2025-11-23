@@ -54,10 +54,8 @@ ENV_VAR_MAPPING = {
     'HEATTRAX_MAX_RUNTIME_HOURS': ('safety', 'max_runtime_hours', float),
     'HEATTRAX_COOLDOWN_MINUTES': ('safety', 'cooldown_minutes', int),
     
-    # Morning mode settings
-    'HEATTRAX_MORNING_MODE_ENABLED': ('morning_mode', 'enabled', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
-    'HEATTRAX_MORNING_MODE_START_HOUR': ('morning_mode', 'start_hour', int),
-    'HEATTRAX_MORNING_MODE_END_HOUR': ('morning_mode', 'end_hour', int),
+    # Vacation mode
+    'HEATTRAX_VACATION_MODE': ('vacation_mode', lambda x: x.lower() in ('true', '1', 'yes', 'on')),
     
     # Logging settings
     'HEATTRAX_LOG_LEVEL': ('logging', 'level', str),
@@ -208,13 +206,12 @@ class Config:
             
             # Create minimal config structure that will be populated by env vars
             config = {
+                'vacation_mode': False,
                 'location': {},
                 'devices': {'credentials': {}, 'groups': {}},
                 'weather_api': {},
-                'thresholds': {},
                 'scheduler': {},
                 'safety': {},
-                'morning_mode': {},
                 'logging': {},
                 'health_check': {},
                 'notifications': {'email': {}, 'webhook': {}},
@@ -232,13 +229,12 @@ class Config:
             if config is None:
                 logger.warning("Configuration file is empty, using empty config structure")
                 config = {
+                    'vacation_mode': False,
                     'location': {},
                     'devices': {'credentials': {}, 'groups': {}},
                     'weather_api': {},
-                    'thresholds': {},
                     'scheduler': {},
                     'safety': {},
-                    'morning_mode': {},
                     'logging': {},
                     'health_check': {},
                     'notifications': {'email': {}, 'webhook': {}},
@@ -269,7 +265,7 @@ class Config:
         logger.info("Validating configuration...")
         
         # Required sections for multi-device configuration
-        required_sections = ['location', 'devices', 'thresholds', 'safety', 'scheduler']
+        required_sections = ['location', 'devices', 'safety', 'scheduler']
         
         logger.debug(f"Checking for required sections: {required_sections}")
         for section in required_sections:
