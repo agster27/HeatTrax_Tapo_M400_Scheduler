@@ -4,11 +4,11 @@ schedules:
     enabled: true
     priority: "normal"
     days: [1, 2, 3, 4, 5, 6, 7]
-    on:
+    "on":
       type: "sunrise"
       offset: -30  # 30 min before sunrise
       fallback: "06:00"
-    off:
+    "off":
       type: "sunset"
       offset: 30  # 30 min after sunset
       fallback: "19:00"
@@ -19,11 +19,11 @@ schedules:
     enabled: true
     priority: "normal"
     days: [1, 2, 3, 4, 5, 6, 7]
-    on:
+    "on":
       type: "sunset"
       offset: 0
       fallback: "18:00"
-    off:
+    "off":
       type: "time"
       value: "23:00"
     conditions: {}
@@ -33,11 +33,11 @@ schedules:
     enabled: true
     priority: "normal"
     days: [1, 2, 3, 4, 5]
-    on:
+    "on":
       type: "sunrise"
       offset: -60  # 1 hour before sunrise
       fallback: "05:00"
-    off:
+    "off":
       type: "sunrise"
       offset: 30  # 30 min after sunrise
       fallback: "07:30"

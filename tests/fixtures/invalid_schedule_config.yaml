@@ -5,7 +5,7 @@ schedules:
     priority: "normal"
     days: [1, 2, 3, 4, 5]
     # Missing 'on' field
-    off:
+    "off":
       type: "time"
       value: "08:00"
 
@@ -13,10 +13,10 @@ schedules:
     enabled: true
     priority: "normal"
     days: [1, 2, 3, 4, 5]
-    on:
+    "on":
       type: "time"
       value: "25:00"  # Invalid hour
-    off:
+    "off":
       type: "time"
       value: "08:00"
 
@@ -24,10 +24,10 @@ schedules:
     enabled: true
     priority: "super_duper"  # Invalid priority
     days: [1, 2, 3, 4, 5]
-    on:
+    "on":
       type: "time"
       value: "06:00"
-    off:
+    "off":
       type: "time"
       value: "08:00"
 
@@ -35,10 +35,10 @@ schedules:
     enabled: true
     priority: "normal"
     days: [0, 8, 9]  # Invalid day numbers
-    on:
+    "on":
       type: "time"
       value: "06:00"
-    off:
+    "off":
       type: "time"
       value: "08:00"
 
@@ -46,10 +46,10 @@ schedules:
     enabled: true
     priority: "normal"
     days: [1, 2, 3, 4, 5]
-    on:
+    "on":
       type: "sunrise"
       offset: 30
       # Missing 'fallback' field
-    off:
+    "off":
       type: "time"
       value: "08:00"
