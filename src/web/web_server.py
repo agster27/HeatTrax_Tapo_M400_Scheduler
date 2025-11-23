@@ -524,22 +524,18 @@ class WebServer:
                         'error': str(e)
                     }), 500
                 
-                # Reload configuration in config_manager
-                try:
-                    self.config_manager._config, self.config_manager._env_overridden_paths = \
-                        self.config_manager._load_or_create_config()
-                    logger.info("Configuration reloaded successfully")
-                except Exception as e:
-                    logger.error(f"Failed to reload config: {e}", exc_info=True)
-                    # Config was written but failed to reload - not fatal
-                    logger.warning("Configuration file updated but reload failed. Restart may be required.")
+                # Note: Configuration is written to disk. Application restart is required
+                # to fully reload the configuration. The config_manager could be reloaded here,
+                # but since environment variables and other startup processes may affect the
+                # configuration, a full restart is the safest approach.
+                logger.info("Configuration file updated successfully. Restart required to apply changes.")
                 
                 return jsonify({
                     'status': 'ok',
                     'message': 'Configuration uploaded and validated successfully',
                     'backup_created': backup_file is not None,
                     'backup_file': backup_file,
-                    'restart_required': 'true'
+                    'restart_required': True
                 })
                 
             except Exception as e:
@@ -1539,12 +1535,21 @@ class WebServer:
                                             if not re.match(ip_pattern, ip):
                                                 errors.append(f"Invalid IP address format for devices.groups.{group_name}.items[{idx}].ip_address: {ip}")
                                             else:
-                                                # Validate IP octets are in range
+                                                # Validate IP octets are in range and valid decimal format
                                                 octets = ip.split('.')
-                                                for octet in octets:
-                                                    if int(octet) > 255:
-                                                        errors.append(f"Invalid IP address for devices.groups.{group_name}.items[{idx}].ip_address: {ip} (octet > 255)")
-                                                        break
+                                                try:
+                                                    for octet_str in octets:
+                                                        # Check for leading zeros (invalid in IP addresses)
+                                                        if len(octet_str) > 1 and octet_str[0] == '0':
+                                                            errors.append(f"Invalid IP address for devices.groups.{group_name}.items[{idx}].ip_address: {ip} (leading zeros not allowed)")
+                                                            break
+                                                        octet = int(octet_str)
+                                                        if octet > 255:
+                                                            errors.append(f"Invalid IP address for devices.groups.{group_name}.items[{idx}].ip_address: {ip} (octet > 255)")
+                                                            break
+                                                except ValueError:
+                                                    errors.append(f"Invalid IP address for devices.groups.{group_name}.items[{idx}].ip_address: {ip} (non-numeric octet)")
+
                                         
                                         # Validate outlets if present
                                         if 'outlets' in item:

@@ -132,7 +132,8 @@ class TestConfigUploadDownload(unittest.TestCase):
     def test_upload_valid_config(self):
         """Test uploading a valid config file."""
         # Create a valid config file
-        new_config = self.valid_config.copy()
+        import copy
+        new_config = copy.deepcopy(self.valid_config)
         new_config['location']['latitude'] = 41.0
         new_config['location']['longitude'] = -75.0
         
@@ -208,7 +209,8 @@ class TestConfigUploadDownload(unittest.TestCase):
     
     def test_upload_invalid_latitude(self):
         """Test uploading config with invalid latitude."""
-        invalid_config = self.valid_config.copy()
+        import copy
+        invalid_config = copy.deepcopy(self.valid_config)
         invalid_config['location']['latitude'] = 95  # Out of range
         
         config_bytes = yaml.safe_dump(invalid_config).encode('utf-8')
@@ -228,7 +230,8 @@ class TestConfigUploadDownload(unittest.TestCase):
     
     def test_upload_invalid_ip_address(self):
         """Test uploading config with invalid IP address."""
-        invalid_config = self.valid_config.copy()
+        import copy
+        invalid_config = copy.deepcopy(self.valid_config)
         invalid_config['devices']['groups']['test_group']['items'][0]['ip_address'] = '999.999.999.999'
         
         config_bytes = yaml.safe_dump(invalid_config).encode('utf-8')
