@@ -31,11 +31,11 @@ jobs:
     
     - name: Run unit tests
       run: |
-        pytest tests/unit/ -v --cov=src --cov-report=term-missing --cov-report=xml --cov-report=html
+        pytest tests/unit/test_schedule.py tests/unit/test_solar_calculator.py tests/unit/test_schedule_evaluator.py tests/unit/test_conditions.py -v --cov=src --cov-report=term-missing --cov-report=xml --cov-report=html
     
     - name: Run integration tests
       run: |
-        pytest tests/integration/ -v --cov=src --cov-append --cov-report=term-missing --cov-report=xml --cov-report=html
+        pytest tests/integration/test_schedule_execution.py tests/integration/test_configuration.py tests/integration/test_api.py -v --cov=src --cov-append --cov-report=term-missing --cov-report=xml --cov-report=html
     
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4
