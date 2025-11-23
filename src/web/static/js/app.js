@@ -46,10 +46,13 @@ function switchTab(tabName) {
     
     if (tabName === 'status') {
         refreshStatus();
+        refreshVacationMode();
         // Start notification polling when entering status tab
         if (typeof startNotificationPolling === 'function') {
             startNotificationPolling();
         }
+    } else if (tabName === 'schedules') {
+        refreshSchedules();
     } else if (tabName === 'groups') {
         refreshGroups();
     } else if (tabName === 'config') {
@@ -2009,11 +2012,372 @@ async function saveConfig() {
     }
 }
 
+// Vacation mode management
+async function refreshVacationMode() {
+    try {
+        const response = await fetch('/api/vacation_mode');
+        const data = await response.json();
+        
+        const toggle = document.getElementById('vacation-mode-toggle');
+        const status = document.getElementById('vacation-mode-status');
+        
+        if (toggle && status) {
+            toggle.checked = data.enabled;
+            updateVacationModeUI(data.enabled);
+        }
+    } catch (e) {
+        console.error('Failed to fetch vacation mode:', e);
+    }
+}
+
+function updateVacationModeUI(enabled) {
+    const status = document.getElementById('vacation-mode-status');
+    const card = document.getElementById('vacation-mode-card');
+    
+    if (enabled) {
+        status.textContent = '🏖️ Vacation Mode Active';
+        status.style.color = '#f39c12';
+        if (card) {
+            card.style.borderLeft = '4px solid #f39c12';
+        }
+    } else {
+        status.textContent = '✓ Normal Operation';
+        status.style.color = '#27ae60';
+        if (card) {
+            card.style.borderLeft = '4px solid #27ae60';
+        }
+    }
+}
+
+async function toggleVacationMode(enabled) {
+    const messageDiv = document.getElementById('vacation-mode-message');
+    
+    // Show confirmation dialog
+    const action = enabled ? 'enable' : 'disable';
+    const message = enabled 
+        ? 'Enable Vacation Mode?\n\nThis will:\n• Disable all schedules\n• Turn OFF all devices\n• Manual control will still work'
+        : 'Disable Vacation Mode?\n\nThis will:\n• Re-enable all schedules\n• Resume normal automated operation';
+    
+    if (!confirm(message)) {
+        // Revert toggle
+        document.getElementById('vacation-mode-toggle').checked = !enabled;
+        return;
+    }
+    
+    if (messageDiv) {
+        messageDiv.style.display = 'block';
+        messageDiv.className = 'info';
+        messageDiv.textContent = `${enabled ? 'Enabling' : 'Disabling'} vacation mode...`;
+    }
+    
+    try {
+        const response = await fetch('/api/vacation_mode', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ enabled: enabled })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            updateVacationModeUI(enabled);
+            if (messageDiv) {
+                messageDiv.className = 'success';
+                messageDiv.textContent = `✓ Vacation mode ${enabled ? 'enabled' : 'disabled'} successfully`;
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 3000);
+            }
+        } else {
+            if (messageDiv) {
+                messageDiv.className = 'error';
+                messageDiv.textContent = `✗ Failed to ${action} vacation mode: ${result.error || 'Unknown error'}`;
+            }
+            // Revert toggle
+            document.getElementById('vacation-mode-toggle').checked = !enabled;
+        }
+    } catch (e) {
+        console.error('Failed to toggle vacation mode:', e);
+        if (messageDiv) {
+            messageDiv.className = 'error';
+            messageDiv.textContent = `✗ Error: ${e.message}`;
+        }
+        // Revert toggle
+        document.getElementById('vacation-mode-toggle').checked = !enabled;
+    }
+}
+
+// Schedule management functions
+async function refreshSchedules() {
+    const schedulesContent = document.getElementById('schedules-content');
+    const solarTimesCard = document.getElementById('solar-times-card');
+    const solarTimesContent = document.getElementById('solar-times-content');
+    
+    try {
+        // Fetch config to get all groups and schedules
+        const configResponse = await fetch('/api/config');
+        const annotatedConfig = await configResponse.json();
+        const config = extractConfigValues(annotatedConfig);
+        
+        const groups = config.devices?.groups;
+        if (!groups || Object.keys(groups).length === 0) {
+            schedulesContent.innerHTML = '<p>No device groups configured.</p>';
+            return;
+        }
+        
+        // Fetch solar times
+        let solarTimes = null;
+        try {
+            const solarResponse = await fetch('/api/solar_times');
+            if (solarResponse.ok) {
+                solarTimes = await solarResponse.json();
+                if (solarTimes && !solarTimes.error) {
+                    solarTimesCard.style.display = 'block';
+                    let solarHtml = `
+                        <div class="status-item">
+                            <label>Date</label>
+                            <value>${solarTimes.date}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>☀️ Sunrise</label>
+                            <value>${solarTimes.sunrise}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>🌙 Sunset</label>
+                            <value>${solarTimes.sunset}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>Timezone</label>
+                            <value>${solarTimes.timezone}</value>
+                        </div>
+                    `;
+                    solarTimesContent.innerHTML = solarHtml;
+                }
+            }
+        } catch (e) {
+            console.error('Failed to fetch solar times:', e);
+        }
+        
+        let html = '';
+        
+        for (const [groupName, groupConfig] of Object.entries(groups)) {
+            const schedules = groupConfig.schedules || [];
+            const groupEnabled = groupConfig.enabled !== false;
+            
+            html += `<div class="schedule-group-card">
+                <div class="schedule-group-header">
+                    <h3>${groupName}</h3>
+                    <span class="group-status-badge ${groupEnabled ? 'enabled' : 'disabled'}">
+                        ${groupEnabled ? '✓ Enabled' : '⚪ Disabled'}
+                    </span>
+                </div>`;
+            
+            if (schedules.length === 0) {
+                html += '<p class="no-schedules">No schedules configured for this group.</p>';
+            } else {
+                html += '<div class="schedules-list">';
+                schedules.forEach((schedule, index) => {
+                    html += renderScheduleCard(groupName, schedule, index, solarTimes);
+                });
+                html += '</div>';
+            }
+            
+            html += `<div class="schedule-actions">
+                <button class="btn-add-schedule" onclick="showAddScheduleDialog('${groupName}')">
+                    ➕ Add Schedule
+                </button>
+            </div>`;
+            
+            html += '</div>';
+        }
+        
+        schedulesContent.innerHTML = html;
+        
+    } catch (e) {
+        schedulesContent.innerHTML = `<div class="error">Failed to load schedules: ${e.message}</div>`;
+    }
+}
+
+function renderScheduleCard(groupName, schedule, index, solarTimes) {
+    const enabled = schedule.enabled !== false;
+    const priority = schedule.priority || 'normal';
+    const days = schedule.days || [1,2,3,4,5,6,7];
+    const daysText = formatDays(days);
+    
+    // Format ON time
+    const onTime = formatScheduleTime(schedule.on, 'on', solarTimes);
+    const offTime = formatScheduleTime(schedule.off, 'off', solarTimes);
+    
+    // Format conditions
+    const conditions = schedule.conditions || {};
+    let conditionsHtml = '';
+    if (Object.keys(conditions).length > 0) {
+        conditionsHtml = '<div class="schedule-conditions">';
+        conditionsHtml += '<strong>Conditions:</strong> ';
+        const condParts = [];
+        if (conditions.temperature_max !== undefined) {
+            condParts.push(`Temp ≤ ${conditions.temperature_max}°F`);
+        }
+        if (conditions.precipitation_active) {
+            condParts.push('Precipitation active');
+        }
+        conditionsHtml += condParts.join(', ');
+        conditionsHtml += '</div>';
+    }
+    
+    return `
+        <div class="schedule-card ${enabled ? 'enabled' : 'disabled'} priority-${priority}">
+            <div class="schedule-header">
+                <div class="schedule-title">
+                    <span class="schedule-name">${schedule.name || 'Unnamed Schedule'}</span>
+                    <span class="schedule-priority-badge ${priority}">${priority}</span>
+                </div>
+                <label class="schedule-toggle-switch">
+                    <input type="checkbox" ${enabled ? 'checked' : ''} 
+                           onchange="toggleScheduleEnabled('${groupName}', ${index}, this.checked)">
+                    <span class="schedule-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="schedule-details">
+                <div class="schedule-time-row">
+                    <span class="schedule-time-label">ON:</span>
+                    <span class="schedule-time-value">${onTime}</span>
+                </div>
+                <div class="schedule-time-row">
+                    <span class="schedule-time-label">OFF:</span>
+                    <span class="schedule-time-value">${offTime}</span>
+                </div>
+                <div class="schedule-days">
+                    <strong>Days:</strong> ${daysText}
+                </div>
+                ${conditionsHtml}
+            </div>
+            <div class="schedule-actions">
+                <button class="btn-edit" onclick="editSchedule('${groupName}', ${index})" title="Edit schedule">
+                    ✏️ Edit
+                </button>
+                <button class="btn-delete" onclick="deleteSchedule('${groupName}', ${index})" title="Delete schedule">
+                    🗑️ Delete
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function formatScheduleTime(timeConfig, label, solarTimes) {
+    if (!timeConfig || !timeConfig.type) {
+        return 'Not configured';
+    }
+    
+    const type = timeConfig.type;
+    
+    if (type === 'time') {
+        return `⏰ ${timeConfig.value}`;
+    } else if (type === 'sunrise' || type === 'sunset') {
+        const offset = timeConfig.offset || 0;
+        const offsetText = offset === 0 ? '' : (offset > 0 ? `+${offset}min` : `${offset}min`);
+        const icon = type === 'sunrise' ? '☀️' : '🌙';
+        const fallback = timeConfig.fallback || '??:??';
+        
+        // Calculate actual time if solarTimes available
+        let actualTime = fallback;
+        if (solarTimes) {
+            const baseTime = type === 'sunrise' ? solarTimes.sunrise : solarTimes.sunset;
+            if (baseTime) {
+                const [hours, minutes] = baseTime.split(':').map(Number);
+                const totalMinutes = hours * 60 + minutes + offset;
+                const actualHours = Math.floor(totalMinutes / 60) % 24;
+                const actualMinutes = totalMinutes % 60;
+                actualTime = `${String(actualHours).padStart(2, '0')}:${String(actualMinutes).padStart(2, '0')}`;
+            }
+        }
+        
+        return `${icon} ${type}${offsetText} (${actualTime})`;
+    } else if (type === 'duration') {
+        const hours = timeConfig.value || 0;
+        return `⏱️ ${hours}h after ON`;
+    }
+    
+    return 'Unknown';
+}
+
+function formatDays(days) {
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    if (!days || days.length === 0) return 'None';
+    if (days.length === 7) return 'Every day';
+    
+    return days.map(d => dayNames[d - 1]).join(', ');
+}
+
+async function toggleScheduleEnabled(groupName, scheduleIndex, enabled) {
+    try {
+        const response = await fetch(`/api/groups/${groupName}/schedules/${scheduleIndex}/enabled`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ enabled: enabled })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            alert(`Failed to toggle schedule: ${error.error || 'Unknown error'}`);
+            // Refresh to revert UI
+            await refreshSchedules();
+            return;
+        }
+        
+        // Refresh schedules to update UI
+        await refreshSchedules();
+        
+    } catch (e) {
+        alert(`Failed to toggle schedule: ${e.message}`);
+        await refreshSchedules();
+    }
+}
+
+function showAddScheduleDialog(groupName) {
+    // TODO: Implement add schedule dialog
+    alert(`Add schedule dialog for group '${groupName}' - To be implemented`);
+}
+
+function editSchedule(groupName, scheduleIndex) {
+    // TODO: Implement edit schedule dialog
+    alert(`Edit schedule dialog for group '${groupName}', index ${scheduleIndex} - To be implemented`);
+}
+
+async function deleteSchedule(groupName, scheduleIndex) {
+    if (!confirm('Are you sure you want to delete this schedule?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/groups/${groupName}/schedules/${scheduleIndex}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            alert(`Failed to delete schedule: ${error.error || 'Unknown error'}`);
+            return;
+        }
+        
+        // Refresh schedules
+        await refreshSchedules();
+        
+    } catch (e) {
+        alert(`Failed to delete schedule: ${e.message}`);
+    }
+}
+
 // Initialize on load
 window.addEventListener('load', () => {
     checkSetupMode();
     checkSecurity();
     refreshStatus();
+    refreshVacationMode();
     
     // Start notification polling since Status tab is active by default
     if (typeof startNotificationPolling === 'function') {
