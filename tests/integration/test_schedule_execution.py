@@ -13,8 +13,9 @@ from src.scheduler.schedule_types import Schedule, parse_schedules
 @pytest.fixture
 def valid_schedules_from_yaml():
     """Load valid schedules from YAML fixture file."""
-    yaml_path = 'tests/fixtures/valid_schedule_config.yaml'
-    with open(yaml_path, 'r') as f:
+    from pathlib import Path
+    fixture_path = Path(__file__).parent.parent / 'fixtures' / 'valid_schedule_config.yaml'
+    with open(fixture_path, 'r') as f:
         config = yaml.safe_load(f)
     return parse_schedules(config['schedules'])
 
@@ -22,8 +23,9 @@ def valid_schedules_from_yaml():
 @pytest.fixture
 def solar_schedules_from_yaml():
     """Load solar schedules from YAML fixture file."""
-    yaml_path = 'tests/fixtures/solar_schedule_config.yaml'
-    with open(yaml_path, 'r') as f:
+    from pathlib import Path
+    fixture_path = Path(__file__).parent.parent / 'fixtures' / 'solar_schedule_config.yaml'
+    with open(fixture_path, 'r') as f:
         config = yaml.safe_load(f)
     return parse_schedules(config['schedules'])
 

@@ -75,8 +75,10 @@ class TestShouldTurnOnBasic:
     
     def test_schedule_disabled(self, schedule_evaluator, schedule_config_basic, timezone_ny):
         """Test disabled schedule is not activated."""
-        schedule_config_basic['enabled'] = False
-        schedule = Schedule(schedule_config_basic)
+        # Create a copy to avoid modifying the fixture
+        config = schedule_config_basic.copy()
+        config['enabled'] = False
+        schedule = Schedule(config)
         
         test_time = datetime(2024, 6, 17, 7, 0, tzinfo=timezone_ny)  # Monday 7 AM
         

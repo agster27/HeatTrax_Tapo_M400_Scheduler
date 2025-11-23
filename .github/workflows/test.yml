@@ -53,8 +53,9 @@ jobs:
     - name: Check test coverage threshold
       if: matrix.python-version == '3.12'
       run: |
-        coverage report --fail-under=0  # Set to 0 for now, can be increased later
-        echo "Test coverage check passed"
+        # Check scheduler module coverage meets threshold
+        coverage report --include="src/scheduler/*" --fail-under=85
+        echo "Scheduler module coverage check passed (≥85%)"
 
   lint:
     runs-on: ubuntu-latest

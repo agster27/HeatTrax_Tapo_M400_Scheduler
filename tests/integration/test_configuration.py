@@ -17,9 +17,9 @@ class TestConfigurationLoading:
     
     def test_load_valid_yaml_config(self):
         """Test loading valid schedule configuration from YAML."""
-        yaml_path = 'tests/fixtures/valid_schedule_config.yaml'
+        fixture_path = Path(__file__).parent.parent / 'fixtures' / 'valid_schedule_config.yaml'
         
-        with open(yaml_path, 'r') as f:
+        with open(fixture_path, 'r') as f:
             config = yaml.safe_load(f)
         
         assert 'schedules' in config
@@ -34,9 +34,9 @@ class TestConfigurationLoading:
     
     def test_load_solar_yaml_config(self):
         """Test loading solar schedule configuration from YAML."""
-        yaml_path = 'tests/fixtures/solar_schedule_config.yaml'
+        fixture_path = Path(__file__).parent.parent / 'fixtures' / 'solar_schedule_config.yaml'
         
-        with open(yaml_path, 'r') as f:
+        with open(fixture_path, 'r') as f:
             config = yaml.safe_load(f)
         
         schedules = parse_schedules(config['schedules'])
@@ -53,9 +53,9 @@ class TestConfigurationLoading:
     
     def test_detect_invalid_yaml_config(self):
         """Test detection of invalid schedule configuration."""
-        yaml_path = 'tests/fixtures/invalid_schedule_config.yaml'
+        fixture_path = Path(__file__).parent.parent / 'fixtures' / 'invalid_schedule_config.yaml'
         
-        with open(yaml_path, 'r') as f:
+        with open(fixture_path, 'r') as f:
             config = yaml.safe_load(f)
         
         # Validation should fail
@@ -66,9 +66,9 @@ class TestConfigurationLoading:
     
     def test_parse_invalid_config_raises_error(self):
         """Test that parsing invalid config raises ValueError."""
-        yaml_path = 'tests/fixtures/invalid_schedule_config.yaml'
+        fixture_path = Path(__file__).parent.parent / 'fixtures' / 'invalid_schedule_config.yaml'
         
-        with open(yaml_path, 'r') as f:
+        with open(fixture_path, 'r') as f:
             config = yaml.safe_load(f)
         
         with pytest.raises(ValueError):

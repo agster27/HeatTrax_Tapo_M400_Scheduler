@@ -228,10 +228,14 @@ class TestEdgeCases:
             
             # Should have a long day (more than 14 hours)
             assert day_length > 14 * 60
-        except ValueError:
-            # At extreme latitudes during summer, sun may not set properly
-            # This is expected behavior - test passes
-            pytest.skip("Solar calculation not possible at this latitude/date (midnight sun period)")
+        except ValueError as e:
+            # At extreme latitudes during summer, astral library may raise ValueError
+            # for "Sun never reaches X degrees below the horizon" (midnight sun period)
+            if "never reaches" in str(e).lower() or "horizon" in str(e).lower():
+                pytest.skip("Solar calculation not possible at this latitude/date (midnight sun period)")
+            else:
+                # Re-raise if it's a different type of ValueError
+                raise
     
     def test_alaska_winter_short_days(self, solar_calculator_alaska):
         """Test solar times in Alaska during winter."""
