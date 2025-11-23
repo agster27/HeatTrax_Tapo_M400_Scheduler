@@ -48,6 +48,17 @@
         </div>
         
         {% include 'notifications_panel.html' %}
+        
+        <div class="card">
+            <h2>Configuration File Management</h2>
+            <p>Download or upload your config.yaml file. Uploaded files will be validated before overwriting the current configuration.</p>
+            <div class="button-group">
+                <button onclick="downloadConfig()">📥 Download config.yaml</button>
+                <button onclick="document.getElementById('config-upload-input').click()">📤 Upload config.yaml</button>
+                <input type="file" id="config-upload-input" accept=".yaml,.yml" style="display: none;" onchange="uploadConfig(this.files[0])">
+            </div>
+            <div id="config-upload-message"></div>
+        </div>
     </div>
 
     <div id="groups-tab" class="tab-content">
