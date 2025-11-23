@@ -46,10 +46,13 @@ function switchTab(tabName) {
     
     if (tabName === 'status') {
         refreshStatus();
+        refreshVacationMode();
         // Start notification polling when entering status tab
         if (typeof startNotificationPolling === 'function') {
             startNotificationPolling();
         }
+    } else if (tabName === 'schedules') {
+        refreshSchedules();
     } else if (tabName === 'groups') {
         refreshGroups();
     } else if (tabName === 'config') {
@@ -2009,11 +2012,641 @@ async function saveConfig() {
     }
 }
 
+// Vacation mode management
+async function refreshVacationMode() {
+    try {
+        const response = await fetch('/api/vacation_mode');
+        const data = await response.json();
+        
+        const toggle = document.getElementById('vacation-mode-toggle');
+        const status = document.getElementById('vacation-mode-status');
+        
+        if (toggle && status) {
+            toggle.checked = data.enabled;
+            updateVacationModeUI(data.enabled);
+        }
+    } catch (e) {
+        console.error('Failed to fetch vacation mode:', e);
+    }
+}
+
+function updateVacationModeUI(enabled) {
+    const status = document.getElementById('vacation-mode-status');
+    const card = document.getElementById('vacation-mode-card');
+    
+    if (enabled) {
+        status.textContent = '🏖️ Vacation Mode Active';
+        status.style.color = '#f39c12';
+        if (card) {
+            card.style.borderLeft = '4px solid #f39c12';
+        }
+    } else {
+        status.textContent = '✓ Normal Operation';
+        status.style.color = '#27ae60';
+        if (card) {
+            card.style.borderLeft = '4px solid #27ae60';
+        }
+    }
+}
+
+async function toggleVacationMode(enabled) {
+    const messageDiv = document.getElementById('vacation-mode-message');
+    
+    // Show confirmation dialog
+    const action = enabled ? 'enable' : 'disable';
+    const message = enabled 
+        ? 'Enable Vacation Mode?\n\nThis will:\n• Disable all schedules\n• Turn OFF all devices\n• Manual control will still work'
+        : 'Disable Vacation Mode?\n\nThis will:\n• Re-enable all schedules\n• Resume normal automated operation';
+    
+    if (!confirm(message)) {
+        // Revert toggle
+        document.getElementById('vacation-mode-toggle').checked = !enabled;
+        return;
+    }
+    
+    if (messageDiv) {
+        messageDiv.style.display = 'block';
+        messageDiv.className = 'info';
+        messageDiv.textContent = `${enabled ? 'Enabling' : 'Disabling'} vacation mode...`;
+    }
+    
+    try {
+        const response = await fetch('/api/vacation_mode', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ enabled: enabled })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            updateVacationModeUI(enabled);
+            if (messageDiv) {
+                messageDiv.className = 'success';
+                messageDiv.textContent = `✓ Vacation mode ${enabled ? 'enabled' : 'disabled'} successfully`;
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 3000);
+            }
+        } else {
+            if (messageDiv) {
+                messageDiv.className = 'error';
+                messageDiv.textContent = `✗ Failed to ${action} vacation mode: ${result.error || 'Unknown error'}`;
+            }
+            // Revert toggle
+            document.getElementById('vacation-mode-toggle').checked = !enabled;
+        }
+    } catch (e) {
+        console.error('Failed to toggle vacation mode:', e);
+        if (messageDiv) {
+            messageDiv.className = 'error';
+            messageDiv.textContent = `✗ Error: ${e.message}`;
+        }
+        // Revert toggle
+        document.getElementById('vacation-mode-toggle').checked = !enabled;
+    }
+}
+
+// Schedule management functions
+async function refreshSchedules() {
+    const schedulesContent = document.getElementById('schedules-content');
+    const solarTimesCard = document.getElementById('solar-times-card');
+    const solarTimesContent = document.getElementById('solar-times-content');
+    
+    try {
+        // Fetch config to get all groups and schedules
+        const configResponse = await fetch('/api/config');
+        const annotatedConfig = await configResponse.json();
+        const config = extractConfigValues(annotatedConfig);
+        
+        const groups = config.devices?.groups;
+        if (!groups || Object.keys(groups).length === 0) {
+            schedulesContent.innerHTML = '<p>No device groups configured.</p>';
+            return;
+        }
+        
+        // Fetch solar times
+        let solarTimes = null;
+        try {
+            const solarResponse = await fetch('/api/solar_times');
+            if (solarResponse.ok) {
+                solarTimes = await solarResponse.json();
+                if (solarTimes && !solarTimes.error) {
+                    solarTimesCard.style.display = 'block';
+                    let solarHtml = `
+                        <div class="status-item">
+                            <label>Date</label>
+                            <value>${solarTimes.date}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>☀️ Sunrise</label>
+                            <value>${solarTimes.sunrise}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>🌙 Sunset</label>
+                            <value>${solarTimes.sunset}</value>
+                        </div>
+                        <div class="status-item">
+                            <label>Timezone</label>
+                            <value>${solarTimes.timezone}</value>
+                        </div>
+                    `;
+                    solarTimesContent.innerHTML = solarHtml;
+                }
+            }
+        } catch (e) {
+            console.error('Failed to fetch solar times:', e);
+        }
+        
+        let html = '';
+        
+        for (const [groupName, groupConfig] of Object.entries(groups)) {
+            const schedules = groupConfig.schedules || [];
+            const groupEnabled = groupConfig.enabled !== false;
+            
+            html += `<div class="schedule-group-card">
+                <div class="schedule-group-header">
+                    <h3>${groupName}</h3>
+                    <span class="group-status-badge ${groupEnabled ? 'enabled' : 'disabled'}">
+                        ${groupEnabled ? '✓ Enabled' : '⚪ Disabled'}
+                    </span>
+                </div>`;
+            
+            if (schedules.length === 0) {
+                html += '<p class="no-schedules">No schedules configured for this group.</p>';
+            } else {
+                html += '<div class="schedules-list">';
+                schedules.forEach((schedule, index) => {
+                    html += renderScheduleCard(groupName, schedule, index, solarTimes);
+                });
+                html += '</div>';
+            }
+            
+            html += `<div class="schedule-actions">
+                <button class="btn-add-schedule" onclick="showAddScheduleDialog('${groupName}')">
+                    ➕ Add Schedule
+                </button>
+            </div>`;
+            
+            html += '</div>';
+        }
+        
+        schedulesContent.innerHTML = html;
+        
+    } catch (e) {
+        schedulesContent.innerHTML = `<div class="error">Failed to load schedules: ${e.message}</div>`;
+    }
+}
+
+function renderScheduleCard(groupName, schedule, index, solarTimes) {
+    const enabled = schedule.enabled !== false;
+    const priority = schedule.priority || 'normal';
+    const days = schedule.days || [1,2,3,4,5,6,7];
+    const daysText = formatDays(days);
+    
+    // Format ON time
+    const onTime = formatScheduleTime(schedule.on, 'on', solarTimes);
+    const offTime = formatScheduleTime(schedule.off, 'off', solarTimes);
+    
+    // Format conditions
+    const conditions = schedule.conditions || {};
+    let conditionsHtml = '';
+    if (Object.keys(conditions).length > 0) {
+        conditionsHtml = '<div class="schedule-conditions">';
+        conditionsHtml += '<strong>Conditions:</strong> ';
+        const condParts = [];
+        if (conditions.temperature_max !== undefined) {
+            condParts.push(`Temp ≤ ${conditions.temperature_max}°F`);
+        }
+        if (conditions.precipitation_active) {
+            condParts.push('Precipitation active');
+        }
+        conditionsHtml += condParts.join(', ');
+        conditionsHtml += '</div>';
+    }
+    
+    return `
+        <div class="schedule-card ${enabled ? 'enabled' : 'disabled'} priority-${priority}">
+            <div class="schedule-header">
+                <div class="schedule-title">
+                    <span class="schedule-name">${schedule.name || 'Unnamed Schedule'}</span>
+                    <span class="schedule-priority-badge ${priority}">${priority}</span>
+                </div>
+                <label class="schedule-toggle-switch">
+                    <input type="checkbox" ${enabled ? 'checked' : ''} 
+                           onchange="toggleScheduleEnabled('${groupName}', ${index}, this.checked)">
+                    <span class="schedule-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="schedule-details">
+                <div class="schedule-time-row">
+                    <span class="schedule-time-label">ON:</span>
+                    <span class="schedule-time-value">${onTime}</span>
+                </div>
+                <div class="schedule-time-row">
+                    <span class="schedule-time-label">OFF:</span>
+                    <span class="schedule-time-value">${offTime}</span>
+                </div>
+                <div class="schedule-days">
+                    <strong>Days:</strong> ${daysText}
+                </div>
+                ${conditionsHtml}
+            </div>
+            <div class="schedule-actions">
+                <button class="btn-edit" onclick="editSchedule('${groupName}', ${index})" title="Edit schedule">
+                    ✏️ Edit
+                </button>
+                <button class="btn-delete" onclick="deleteSchedule('${groupName}', ${index})" title="Delete schedule">
+                    🗑️ Delete
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function formatScheduleTime(timeConfig, label, solarTimes) {
+    if (!timeConfig || !timeConfig.type) {
+        return 'Not configured';
+    }
+    
+    const type = timeConfig.type;
+    
+    if (type === 'time') {
+        return `⏰ ${timeConfig.value}`;
+    } else if (type === 'sunrise' || type === 'sunset') {
+        const offset = timeConfig.offset || 0;
+        const offsetText = offset === 0 ? '' : (offset > 0 ? `+${offset}min` : `${offset}min`);
+        const icon = type === 'sunrise' ? '☀️' : '🌙';
+        const fallback = timeConfig.fallback || '??:??';
+        
+        // Calculate actual time if solarTimes available
+        let actualTime = fallback;
+        if (solarTimes) {
+            const baseTime = type === 'sunrise' ? solarTimes.sunrise : solarTimes.sunset;
+            if (baseTime) {
+                const [hours, minutes] = baseTime.split(':').map(Number);
+                const totalMinutes = hours * 60 + minutes + offset;
+                const actualHours = Math.floor(totalMinutes / 60) % 24;
+                const actualMinutes = totalMinutes % 60;
+                actualTime = `${String(actualHours).padStart(2, '0')}:${String(actualMinutes).padStart(2, '0')}`;
+            }
+        }
+        
+        return `${icon} ${type}${offsetText} (${actualTime})`;
+    } else if (type === 'duration') {
+        const hours = timeConfig.value || 0;
+        return `⏱️ ${hours}h after ON`;
+    }
+    
+    return 'Unknown';
+}
+
+function formatDays(days) {
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    if (!days || days.length === 0) return 'None';
+    if (days.length === 7) return 'Every day';
+    
+    return days.map(d => dayNames[d - 1]).join(', ');
+}
+
+async function toggleScheduleEnabled(groupName, scheduleIndex, enabled) {
+    try {
+        const response = await fetch(`/api/groups/${groupName}/schedules/${scheduleIndex}/enabled`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ enabled: enabled })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            alert(`Failed to toggle schedule: ${error.error || 'Unknown error'}`);
+            // Refresh to revert UI
+            await refreshSchedules();
+            return;
+        }
+        
+        // Refresh schedules to update UI
+        await refreshSchedules();
+        
+    } catch (e) {
+        alert(`Failed to toggle schedule: ${e.message}`);
+        await refreshSchedules();
+    }
+}
+
+// Schedule modal management
+let currentScheduleGroupName = null;
+let currentScheduleIndex = null;
+
+function showAddScheduleDialog(groupName) {
+    currentScheduleGroupName = groupName;
+    currentScheduleIndex = null;
+    
+    // Reset form
+    document.getElementById('schedule-form').reset();
+    document.getElementById('schedule-modal-title').textContent = `Add Schedule to ${groupName}`;
+    
+    // Set defaults
+    document.getElementById('schedule-enabled').checked = true;
+    document.getElementById('schedule-priority').value = 'normal';
+    
+    // Check all days by default
+    document.querySelectorAll('.days-selector input[type="checkbox"]').forEach(cb => {
+        cb.checked = true;
+    });
+    
+    // Show modal
+    document.getElementById('schedule-modal').style.display = 'flex';
+}
+
+async function editSchedule(groupName, scheduleIndex) {
+    currentScheduleGroupName = groupName;
+    currentScheduleIndex = scheduleIndex;
+    
+    try {
+        // Fetch the schedule
+        const response = await fetch(`/api/groups/${groupName}/schedules/${scheduleIndex}`);
+        if (!response.ok) {
+            alert('Failed to fetch schedule');
+            return;
+        }
+        
+        const data = await response.json();
+        const schedule = data.schedule;
+        
+        // Populate form
+        document.getElementById('schedule-modal-title').textContent = `Edit Schedule: ${schedule.name}`;
+        document.getElementById('schedule-name').value = schedule.name || '';
+        document.getElementById('schedule-priority').value = schedule.priority || 'normal';
+        document.getElementById('schedule-enabled').checked = schedule.enabled !== false;
+        
+        // Set days
+        document.querySelectorAll('.days-selector input[type="checkbox"]').forEach(cb => {
+            cb.checked = schedule.days && schedule.days.includes(parseInt(cb.value));
+        });
+        
+        // Set ON time
+        if (schedule.on) {
+            document.getElementById('on-type').value = schedule.on.type || 'time';
+            updateOnTimeFields();
+            
+            if (schedule.on.type === 'time') {
+                document.getElementById('on-time-value').value = schedule.on.value || '';
+            } else if (schedule.on.type === 'sunrise' || schedule.on.type === 'sunset') {
+                document.getElementById('on-offset').value = schedule.on.offset || 0;
+                document.getElementById('on-fallback').value = schedule.on.fallback || '';
+            }
+        }
+        
+        // Set OFF time
+        if (schedule.off) {
+            document.getElementById('off-type').value = schedule.off.type || 'time';
+            updateOffTimeFields();
+            
+            if (schedule.off.type === 'time') {
+                document.getElementById('off-time-value').value = schedule.off.value || '';
+            } else if (schedule.off.type === 'sunrise' || schedule.off.type === 'sunset') {
+                document.getElementById('off-offset').value = schedule.off.offset || 0;
+                document.getElementById('off-fallback').value = schedule.off.fallback || '';
+            } else if (schedule.off.type === 'duration') {
+                document.getElementById('off-duration').value = schedule.off.value || 1;
+            }
+        }
+        
+        // Set conditions
+        if (schedule.conditions) {
+            document.getElementById('condition-temp-max').value = schedule.conditions.temperature_max || '';
+            document.getElementById('condition-precip').checked = schedule.conditions.precipitation_active || false;
+        }
+        
+        // Set safety
+        if (schedule.safety) {
+            document.getElementById('safety-max-runtime').value = schedule.safety.max_runtime_hours || '';
+            document.getElementById('safety-cooldown').value = schedule.safety.cooldown_minutes || '';
+        }
+        
+        // Show modal
+        document.getElementById('schedule-modal').style.display = 'flex';
+        
+    } catch (e) {
+        alert(`Failed to load schedule: ${e.message}`);
+    }
+}
+
+function closeScheduleModal() {
+    document.getElementById('schedule-modal').style.display = 'none';
+    currentScheduleGroupName = null;
+    currentScheduleIndex = null;
+}
+
+function updateOnTimeFields() {
+    const type = document.getElementById('on-type').value;
+    const timeField = document.getElementById('on-time-field');
+    const solarFields = document.getElementById('on-solar-fields');
+    
+    if (type === 'time') {
+        timeField.style.display = 'block';
+        solarFields.style.display = 'none';
+        document.getElementById('on-time-value').required = true;
+    } else {
+        timeField.style.display = 'none';
+        solarFields.style.display = 'block';
+        document.getElementById('on-time-value').required = false;
+        document.getElementById('on-fallback').required = true;
+    }
+}
+
+function updateOffTimeFields() {
+    const type = document.getElementById('off-type').value;
+    const timeField = document.getElementById('off-time-field');
+    const solarFields = document.getElementById('off-solar-fields');
+    const durationField = document.getElementById('off-duration-field');
+    
+    if (type === 'time') {
+        timeField.style.display = 'block';
+        solarFields.style.display = 'none';
+        durationField.style.display = 'none';
+        document.getElementById('off-time-value').required = true;
+    } else if (type === 'duration') {
+        timeField.style.display = 'none';
+        solarFields.style.display = 'none';
+        durationField.style.display = 'block';
+        document.getElementById('off-time-value').required = false;
+    } else {
+        timeField.style.display = 'none';
+        solarFields.style.display = 'block';
+        durationField.style.display = 'none';
+        document.getElementById('off-time-value').required = false;
+        document.getElementById('off-fallback').required = true;
+    }
+}
+
+async function saveSchedule() {
+    if (!currentScheduleGroupName) {
+        alert('Error: No group selected');
+        return;
+    }
+    
+    // Collect form data
+    const schedule = {
+        name: document.getElementById('schedule-name').value,
+        priority: document.getElementById('schedule-priority').value,
+        enabled: document.getElementById('schedule-enabled').checked,
+        days: []
+    };
+    
+    // Collect selected days
+    document.querySelectorAll('.days-selector input[type="checkbox"]:checked').forEach(cb => {
+        schedule.days.push(parseInt(cb.value));
+    });
+    
+    if (schedule.days.length === 0) {
+        alert('Please select at least one day of the week');
+        return;
+    }
+    
+    // ON time
+    const onType = document.getElementById('on-type').value;
+    schedule.on = { type: onType };
+    
+    if (onType === 'time') {
+        schedule.on.value = document.getElementById('on-time-value').value;
+        if (!schedule.on.value) {
+            alert('Please specify ON time');
+            return;
+        }
+    } else {
+        schedule.on.offset = parseInt(document.getElementById('on-offset').value) || 0;
+        schedule.on.fallback = document.getElementById('on-fallback').value;
+        if (!schedule.on.fallback) {
+            alert('Please specify fallback time for ON');
+            return;
+        }
+    }
+    
+    // OFF time
+    const offType = document.getElementById('off-type').value;
+    schedule.off = { type: offType };
+    
+    if (offType === 'time') {
+        schedule.off.value = document.getElementById('off-time-value').value;
+        if (!schedule.off.value) {
+            alert('Please specify OFF time');
+            return;
+        }
+    } else if (offType === 'duration') {
+        schedule.off.value = parseFloat(document.getElementById('off-duration').value);
+        if (!schedule.off.value || schedule.off.value <= 0) {
+            alert('Please specify a valid duration');
+            return;
+        }
+    } else {
+        schedule.off.offset = parseInt(document.getElementById('off-offset').value) || 0;
+        schedule.off.fallback = document.getElementById('off-fallback').value;
+        if (!schedule.off.fallback) {
+            alert('Please specify fallback time for OFF');
+            return;
+        }
+    }
+    
+    // Conditions
+    const tempMax = document.getElementById('condition-temp-max').value;
+    const precip = document.getElementById('condition-precip').checked;
+    
+    if (tempMax || precip) {
+        schedule.conditions = {};
+        if (tempMax) {
+            schedule.conditions.temperature_max = parseFloat(tempMax);
+        }
+        if (precip) {
+            schedule.conditions.precipitation_active = true;
+        }
+    }
+    
+    // Safety
+    const maxRuntime = document.getElementById('safety-max-runtime').value;
+    const cooldown = document.getElementById('safety-cooldown').value;
+    
+    if (maxRuntime || cooldown) {
+        schedule.safety = {};
+        if (maxRuntime) {
+            schedule.safety.max_runtime_hours = parseFloat(maxRuntime);
+        }
+        if (cooldown) {
+            schedule.safety.cooldown_minutes = parseInt(cooldown);
+        }
+    }
+    
+    try {
+        let url, method;
+        
+        if (currentScheduleIndex !== null) {
+            // Edit existing schedule
+            url = `/api/groups/${currentScheduleGroupName}/schedules/${currentScheduleIndex}`;
+            method = 'PUT';
+        } else {
+            // Add new schedule
+            url = `/api/groups/${currentScheduleGroupName}/schedules`;
+            method = 'POST';
+        }
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(schedule)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            alert(`Failed to save schedule: ${error.error || 'Unknown error'}\n${error.details || ''}`);
+            return;
+        }
+        
+        // Close modal and refresh
+        closeScheduleModal();
+        await refreshSchedules();
+        
+    } catch (e) {
+        alert(`Failed to save schedule: ${e.message}`);
+    }
+}
+
+async function deleteSchedule(groupName, scheduleIndex) {
+    if (!confirm('Are you sure you want to delete this schedule?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/groups/${groupName}/schedules/${scheduleIndex}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            alert(`Failed to delete schedule: ${error.error || 'Unknown error'}`);
+            return;
+        }
+        
+        // Refresh schedules
+        await refreshSchedules();
+        
+    } catch (e) {
+        alert(`Failed to delete schedule: ${e.message}`);
+    }
+}
+
 // Initialize on load
 window.addEventListener('load', () => {
     checkSetupMode();
     checkSecurity();
     refreshStatus();
+    refreshVacationMode();
     
     // Start notification polling since Status tab is active by default
     if (typeof startNotificationPolling === 'function') {

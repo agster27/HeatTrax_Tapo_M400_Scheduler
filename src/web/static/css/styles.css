@@ -902,3 +902,487 @@ button:hover {
         max-width: none;
     }
 }
+
+/* Vacation Mode Toggle */
+.vacation-toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 200px;
+    height: 48px;
+}
+
+.vacation-toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.vacation-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #27ae60;
+    transition: .4s;
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 15px;
+}
+
+.vacation-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 40px;
+    width: 40px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.vacation-toggle-switch input:checked + .vacation-toggle-slider {
+    background-color: #f39c12;
+}
+
+.vacation-toggle-switch input:checked + .vacation-toggle-slider:before {
+    transform: translateX(152px);
+}
+
+.vacation-toggle-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+    z-index: 1;
+    user-select: none;
+}
+
+.vacation-toggle-text.left {
+    margin-left: 8px;
+}
+
+.vacation-toggle-text.right {
+    margin-right: 8px;
+}
+
+/* Schedule Group Cards */
+.schedule-group-card {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    border: 2px solid #ddd;
+    margin-bottom: 20px;
+}
+
+.schedule-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #ecf0f1;
+    padding-bottom: 10px;
+}
+
+.schedule-group-header h3 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.group-status-badge {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.group-status-badge.enabled {
+    background: #d5f4e6;
+    color: #27ae60;
+}
+
+.group-status-badge.disabled {
+    background: #f0f0f0;
+    color: #95a5a6;
+}
+
+.no-schedules {
+    text-align: center;
+    color: #95a5a6;
+    font-style: italic;
+    padding: 20px;
+}
+
+.schedules-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+/* Schedule Cards */
+.schedule-card {
+    background: #f8f9fa;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    transition: all 0.3s ease;
+}
+
+.schedule-card.enabled {
+    border-left: 4px solid #27ae60;
+}
+
+.schedule-card.disabled {
+    border-left: 4px solid #95a5a6;
+    opacity: 0.7;
+}
+
+.schedule-card.priority-critical {
+    border-left-width: 6px;
+    border-left-color: #e74c3c;
+}
+
+.schedule-card.priority-normal {
+    border-left-width: 4px;
+}
+
+.schedule-card.priority-low {
+    border-left-width: 2px;
+}
+
+.schedule-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.schedule-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.schedule-name {
+    font-weight: 600;
+    font-size: 16px;
+    color: #2c3e50;
+}
+
+.schedule-priority-badge {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.schedule-priority-badge.critical {
+    background: #fadbd8;
+    color: #e74c3c;
+}
+
+.schedule-priority-badge.normal {
+    background: #d6eaf8;
+    color: #3498db;
+}
+
+.schedule-priority-badge.low {
+    background: #f0f0f0;
+    color: #95a5a6;
+}
+
+/* Schedule Toggle Switch */
+.schedule-toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.schedule-toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.schedule-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #95a5a6;
+    transition: .3s;
+    border-radius: 24px;
+}
+
+.schedule-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+}
+
+.schedule-toggle-switch input:checked + .schedule-toggle-slider {
+    background-color: #27ae60;
+}
+
+.schedule-toggle-switch input:checked + .schedule-toggle-slider:before {
+    transform: translateX(26px);
+}
+
+/* Schedule Details */
+.schedule-details {
+    margin-bottom: 12px;
+}
+
+.schedule-time-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #ecf0f1;
+}
+
+.schedule-time-label {
+    font-weight: 600;
+    color: #7f8c8d;
+}
+
+.schedule-time-value {
+    color: #2c3e50;
+    font-family: 'Courier New', monospace;
+}
+
+.schedule-days {
+    margin-top: 8px;
+    padding: 8px;
+    background: white;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.schedule-conditions {
+    margin-top: 8px;
+    padding: 8px;
+    background: #fff3cd;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #856404;
+}
+
+/* Schedule Actions */
+.schedule-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.btn-edit {
+    flex: 1;
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn-edit:hover {
+    background: #2980b9;
+}
+
+.btn-delete {
+    flex: 1;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn-delete:hover {
+    background: #c0392b;
+}
+
+.btn-add-schedule {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.btn-add-schedule:hover {
+    background: #229954;
+}
+
+/* Modal Dialog */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal-content {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 2px solid #ecf0f1;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.modal-close {
+    font-size: 32px;
+    font-weight: bold;
+    color: #95a5a6;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.modal-close:hover {
+    color: #2c3e50;
+}
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 20px;
+    border-top: 2px solid #ecf0f1;
+}
+
+.btn-primary {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.btn-primary:hover {
+    background: #229954;
+}
+
+.btn-secondary {
+    background: #95a5a6;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.btn-secondary:hover {
+    background: #7f8c8d;
+}
+
+/* Days Selector */
+.days-selector {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.day-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.day-checkbox:hover {
+    background: #e9ecef;
+}
+
+.day-checkbox input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+}
+
+/* Responsive adjustments for schedules */
+@media (max-width: 768px) {
+    .schedules-list {
+        grid-template-columns: 1fr;
+    }
+    
+    .vacation-toggle-switch {
+        width: 160px;
+    }
+    
+    .vacation-toggle-switch input:checked + .vacation-toggle-slider:before {
+        transform: translateX(112px);
+    }
+    
+    .modal-content {
+        max-width: 95%;
+        margin: 10px;
+    }
+    
+    .days-selector {
+        gap: 5px;
+    }
+    
+    .day-checkbox {
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+}
