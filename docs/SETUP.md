@@ -363,6 +363,38 @@ safety:
   cooldown_minutes: 45      # Change from 30 to 45
 ```
 
+### Weather Resilience
+
+The scheduler includes automatic weather resilience features:
+
+- **Automatic Caching**: Stores the last successful forecast to disk
+- **Degraded Mode**: Uses cached data during temporary API outages (up to 6 hours)
+- **Offline Mode**: Falls back to static schedules when weather data is unavailable
+- **Auto-Recovery**: Automatically reconnects with exponential backoff
+
+Configure resilience settings in `config.yaml`:
+```yaml
+weather_api:
+  resilience:
+    cache_valid_hours: 6.0              # How long to trust cached data
+    cache_file: "state/weather_cache.json"
+    retry_interval_minutes: 5           # Initial retry delay
+    max_retry_interval_minutes: 60      # Maximum retry delay
+```
+
+See your logs for weather service status messages.
+
+### Startup Diagnostics
+
+The application automatically runs diagnostic checks on startup:
+
+- Python version and package verification
+- Directory access validation
+- Configuration file parsing
+- Environment variable validation (with sensitive data redacted)
+
+These checks help troubleshoot deployment issues, especially in Docker/Portainer. Check your logs on startup to see the diagnostic output.
+
 ## Maintenance
 
 ### Update the Application
@@ -418,7 +450,9 @@ docker-compose restart  # or restart Python process
 
 ### "Configuration file not found"
 
-Make sure you've created `config.yaml`:
+This message is **normal and informational** if you're using environment variables without a `config.yaml` file. The application will continue running using your environment variables.
+
+If you intended to use `config.yaml`, make sure you've created it:
 ```bash
 ls -la config.yaml
 ```

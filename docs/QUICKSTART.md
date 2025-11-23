@@ -4,216 +4,114 @@ Get your HeatTrax scheduler running in 5 minutes!
 
 ## Prerequisites
 
-- TP-Link Tapo smart plug set up on your network
+- TP-Link Tapo/Kasa smart plug set up on your network
 - Docker installed (or Python 3.11+)
+- Your Tapo account credentials
+- Your device IP address (find in Tapo app → Settings → Device Info)
 
-## Quick Setup (Docker)
+## Docker Quick Start (Recommended)
 
-1. **Clone the repository:**
+1. **Clone and configure:**
    ```bash
    git clone https://github.com/agster27/HeatTrax_Tapo_M400_Scheduler.git
    cd HeatTrax_Tapo_M400_Scheduler
-   ```
-
-2. **Choose your configuration method:**
-
-   **Option A: Using Environment Variables (Recommended)**
-   
-   Create a `stack.env` file with your settings:
-   ```bash
-   # stack.env
-   HEATTRAX_LATITUDE=YOUR_LATITUDE
-   HEATTRAX_LONGITUDE=YOUR_LONGITUDE
-   HEATTRAX_TIMEZONE=America/New_York
-   HEATTRAX_TAPO_USERNAME=YOUR_TAPO_EMAIL
-   HEATTRAX_TAPO_PASSWORD=YOUR_TAPO_PASSWORD
-   # Note: Device IP addresses are configured in config.yaml under devices.groups
-   # or you can use a minimal config.yaml and override other settings via env vars
-   ```
-   
-   Update `docker-compose.yml` to use it:
-   ```yaml
-   env_file:
-     - stack.env
-   ```
-   
-   > **Note**: When using environment variables, you'll see `Configuration file not found: config.yaml` in the logs - this is normal! The app will use your environment variables instead.
-
-   **Option B: Using config.yaml**
-   
-   ```bash
    cp config.example.yaml config.yaml
+   nano config.yaml  # Edit with your settings
    ```
-   
-   Edit `config.yaml` with your settings:
+
+2. **Edit the key settings in `config.yaml`:**
    ```yaml
    location:
-     latitude: YOUR_LATITUDE    # Find on Google Maps
+     latitude: YOUR_LATITUDE      # Find on Google Maps
      longitude: YOUR_LONGITUDE
-     timezone: "America/New_York"  # Your timezone
+     timezone: "America/New_York"
    
    devices:
      credentials:
-       username: "YOUR_TAPO_EMAIL"
-       password: "YOUR_TAPO_PASSWORD"
+       username: "your_tapo_email@example.com"
+       password: "your_tapo_password"
      groups:
        heated_mats:
          enabled: true
-         automation:
-           weather_control: true
-           precipitation_control: true
-           morning_mode: true
          items:
            - name: "My Heated Mat"
-             ip_address: "YOUR_DEVICE_IP"  # Find in Tapo app
+             ip_address: "192.168.1.100"  # Your device IP
    ```
 
 3. **Start the scheduler:**
    ```bash
    docker-compose up -d
+   docker-compose logs -f  # View logs
    ```
 
-4. **Check it's working:**
-   ```bash
-   docker-compose logs -f
-   ```
-
-5. **Access the Web UI (Optional):**
+4. **Access the Web UI:**
    
-   Open your browser to `http://localhost:4328` to access the monitoring interface.
-   
-   **Features:**
-   - View system status and device information
-   - **Groups tab**: Toggle automation flags (weather_control, precipitation_control, morning_mode, schedule_control) for each device group - changes apply immediately!
-   - Edit configuration directly in the browser
-   - Manual device control from the Health tab
-   - **Auto-restart on save**: When you save configuration changes, the container automatically restarts to apply them
-   
-   **For network access** (to view from other machines):
-   ```bash
-   # Add to your stack.env or docker-compose.yml environment:
-   HEATTRAX_WEB_HOST=0.0.0.0
-   HEATTRAX_WEB_PORT=4328
-   ```
-   
-   Then access from any machine: `http://YOUR_HOST_IP:4328`
+   Open `http://localhost:4328` in your browser to:
+   - View real-time status and weather
+   - Control automation flags per device group
+   - Manually control devices
+   - Edit configuration with validation
 
-That's it! Your mats will now automatically turn on before precipitation when the temperature is below 34°F.
+That's it! Your devices will now automatically control based on weather conditions.
 
-## Quick Setup (Python)
+## Python Quick Start (Alternative)
 
-1. **Clone and setup:**
+1. **Install and configure:**
    ```bash
    git clone https://github.com/agster27/HeatTrax_Tapo_M400_Scheduler.git
    cd HeatTrax_Tapo_M400_Scheduler
    pip install -r requirements.txt
-   ```
-
-2. **Configure:**
-   ```bash
    cp config.example.yaml config.yaml
    nano config.yaml  # Edit with your settings
    ```
 
-3. **Run:**
+2. **Run:**
    ```bash
    python main.py
    ```
 
-## Test Your Configuration
+## Configuration Options
 
-Before running the scheduler 24/7, test your setup:
-
+**Using Environment Variables (Docker/Portainer):**
+Instead of editing `config.yaml`, you can configure via environment variables:
 ```bash
-python test_connection.py
+HEATTRAX_LATITUDE=40.7128
+HEATTRAX_LONGITUDE=-74.0060
+HEATTRAX_TIMEZONE=America/New_York
+HEATTRAX_TAPO_USERNAME=your_email@example.com
+HEATTRAX_TAPO_PASSWORD=your_password
 ```
 
-This will verify:
-- Configuration is valid
-- Device connection works
-- Weather API is accessible
-- Current weather conditions
+See [SETUP.md](SETUP.md) for complete environment variable setup instructions.
 
-## What Happens Next?
+**Setup Mode:**
+You can start without credentials configured - the Web UI will be accessible at `http://localhost:4328` where you can configure everything through the browser.
+
+## How It Works
 
 The scheduler will:
 - ✅ Check weather every 10 minutes
-- ✅ Turn mats ON 60 minutes before precipitation (if temp < 34°F)
-- ✅ Turn mats OFF 60 minutes after precipitation ends
-- ✅ Optional: Clear frost between 6-8 AM if temperature is low
-- ✅ Safety: Auto-shutoff after 6 hours, 30-min cooldown
+- ✅ Turn devices ON before precipitation (if temp < 34°F)
+- ✅ Turn devices OFF after precipitation ends
+- ✅ Optional: Morning frost mode (6-8 AM)
+- ✅ Safety: Auto-shutoff, cooldown periods
 
-## Common Settings to Adjust
+## Next Steps
 
-**Change temperature threshold:**
-```yaml
-thresholds:
-  temperature_f: 32  # Lower to turn on at colder temps
-```
-
-**Disable morning frost mode:**
-```yaml
-morning_mode:
-  enabled: false
-```
-
-**Turn on earlier before precipitation:**
-```yaml
-thresholds:
-  lead_time_minutes: 90  # Turn on 90 minutes before
-```
-
-## Getting Your Device IP
-
-**Easiest way - Tapo App:**
-1. Open Tapo app
-2. Tap your device
-3. Tap settings ⚙️
-4. Look for "Device Info"
-5. Note the IP address
-
-**Alternative - Router:**
-Look in your router's connected devices list for "Tapo" or "TP-Link"
-
-## Need More Help?
-
-- 📖 See [SETUP.md](SETUP.md) for detailed instructions
-- 📖 See [README.md](README.md) for full documentation
-- 🐛 Having issues? Check the logs: `docker-compose logs -f`
-- ❓ Questions? Open an issue on GitHub
-
-## Verifying It Works
-
-Watch the logs when you first start. You should see:
-```
-Successfully connected to device at 192.168.1.100
-Scheduler initialized successfully
-Running scheduler cycle...
-No precipitation expected below threshold
-Device staying OFF
-```
-
-This means everything is working! The scheduler is monitoring weather and will automatically control your mats when needed.
+- 📖 **Detailed Setup**: See [SETUP.md](SETUP.md) for comprehensive configuration
+- 🌐 **Web UI Guide**: See [WEB_UI_GUIDE.md](WEB_UI_GUIDE.md) for web interface features
+- 🔧 **Environment Variables**: See [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md) for all config options
+- 🏥 **Monitoring**: See [HEALTH_CHECK.md](HEALTH_CHECK.md) for alerts and notifications
+- 🐛 **Troubleshooting**: See [LOGGING.md](LOGGING.md) for debugging help
 
 ## Stopping the Scheduler
 
 ```bash
-# Docker
-docker-compose down
-
-# Python
-Ctrl+C (if running in foreground)
-# or kill the process if running in background
+docker-compose down        # Docker
+# or
+Ctrl+C                     # Python (foreground)
 ```
-
-## Tips
-
-- 💡 Run `docker-compose logs -f` to watch what the scheduler is doing
-- 💡 Check `state/{group_name}.json` files to see per-group runtime and cooldown status
-- 💡 Logs are saved in `logs/` directory for troubleshooting
-- 💡 The scheduler survives restarts - state is preserved to disk
-- 💡 You can still manually control the device via Tapo app if needed
 
 ---
 
-**Ready for more?** Check out [SETUP.md](SETUP.md) for advanced configuration options, troubleshooting, and Raspberry Pi setup instructions.
+**Need help?** Check the logs with `docker-compose logs -f` or see [SETUP.md](SETUP.md) for troubleshooting.
