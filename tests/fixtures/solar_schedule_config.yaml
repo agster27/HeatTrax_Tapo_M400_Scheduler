@@ -1,0 +1,45 @@
+# Solar-based schedules for testing sunrise/sunset functionality
+schedules:
+  - name: "Dawn to Dusk"
+    enabled: true
+    priority: "normal"
+    days: [1, 2, 3, 4, 5, 6, 7]
+    on:
+      type: "sunrise"
+      offset: -30  # 30 min before sunrise
+      fallback: "06:00"
+    off:
+      type: "sunset"
+      offset: 30  # 30 min after sunset
+      fallback: "19:00"
+    conditions: {}
+    safety: {}
+
+  - name: "Evening Lighting"
+    enabled: true
+    priority: "normal"
+    days: [1, 2, 3, 4, 5, 6, 7]
+    on:
+      type: "sunset"
+      offset: 0
+      fallback: "18:00"
+    off:
+      type: "time"
+      value: "23:00"
+    conditions: {}
+    safety: {}
+
+  - name: "Pre-Dawn Heating"
+    enabled: true
+    priority: "normal"
+    days: [1, 2, 3, 4, 5]
+    on:
+      type: "sunrise"
+      offset: -60  # 1 hour before sunrise
+      fallback: "05:00"
+    off:
+      type: "sunrise"
+      offset: 30  # 30 min after sunrise
+      fallback: "07:30"
+    conditions: {}
+    safety: {}
