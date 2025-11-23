@@ -109,9 +109,13 @@ devices:
       items:
         - name: "Heated Mat"
           ip_address: "192.168.1.100"  # Your Tapo device IP
+          # Optional: For multi-outlet plugs (EP40M), control specific outlets
+          # outlets: [0, 1]  # Control both outlets, or [0] for first outlet only
 ```
 
 > **Tip**: You can also use a hybrid approach - put non-sensitive settings in `config.yaml` and override sensitive values (like username and password) with environment variables.
+
+> **Multi-Outlet Devices**: For plugs with multiple outlets (like EP40M), you can specify which outlets to control using the `outlets` field. If omitted, the entire device is controlled. See [MANUAL_CONTROL.md](MANUAL_CONTROL.md) for details.
 
 #### Important: Placeholder Values
 
@@ -330,6 +334,31 @@ morning_mode:
   enabled: false
 ```
 
+### Schedule-Based Control
+
+In addition to weather-based automation, you can configure device groups for schedule-based control (e.g., Christmas lights):
+
+```yaml
+devices:
+  groups:
+    christmas_lights:
+      enabled: true
+      automation:
+        weather_control: false       # Disable weather control
+        precipitation_control: false
+        morning_mode: false
+        schedule_control: true       # Enable schedule control
+      schedule:
+        on_time: "17:00"   # Turn on at 5:00 PM
+        off_time: "23:00"  # Turn off at 11:00 PM
+        # Optional: days: [5, 6]  # Saturday and Sunday only
+      items:
+        - name: "Christmas Lights"
+          ip_address: "192.168.1.110"
+```
+
+Schedule times respect the `location.timezone` setting.
+
 ### Configure Timezone
 
 **Important**: The `location.timezone` setting controls how all time-of-day automation rules are interpreted. This includes:
@@ -542,11 +571,18 @@ sudo systemctl start heattrax
 sudo systemctl status heattrax
 ```
 
+## Additional Features
+
+- **Health Monitoring**: Configure email and webhook notifications for device issues. See [HEALTH_CHECK.md](HEALTH_CHECK.md)
+- **Web UI**: Access the web interface for monitoring and configuration. See [WEB_UI_GUIDE.md](WEB_UI_GUIDE.md)
+- **Manual Control**: Control devices and outlets manually via Web UI. See [MANUAL_CONTROL.md](MANUAL_CONTROL.md)
+- **Environment Variables**: Full configuration via environment variables. See [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)
+
 ## Getting Help
 
 If you encounter issues:
 
-1. Check the logs first (most issues are logged with details)
+1. Check the logs first (most issues are logged with details) - see [LOGGING.md](LOGGING.md)
 2. Verify your configuration matches the examples
 3. Test device connectivity independently
 4. Open an issue on GitHub with:
