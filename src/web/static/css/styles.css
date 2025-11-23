@@ -136,6 +136,13 @@ button:hover {
     border-radius: 4px;
     margin-top: 10px;
 }
+.info {
+    color: #3498db;
+    padding: 10px;
+    background: #d6eaf8;
+    border-radius: 4px;
+    margin-top: 10px;
+}
 .button-group {
     margin-top: 15px;
     display: flex;

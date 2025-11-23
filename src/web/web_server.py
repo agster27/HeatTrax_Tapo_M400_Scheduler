@@ -2,10 +2,14 @@
 
 import logging
 import os
+import re
+import shutil
+import yaml
 from datetime import datetime
-from typing import Dict, Any, Optional
-from flask import Flask, request, jsonify, send_from_directory, render_template, abort
+from typing import Dict, Any, Optional, List
+from flask import Flask, request, jsonify, send_from_directory, render_template, abort, send_file
 from pathlib import Path
+from werkzeug.utils import secure_filename
 
 logger = logging.getLogger(__name__)
 
@@ -375,6 +379,176 @@ class WebServer:
             threading.Thread(target=delayed_exit, daemon=True).start()
             
             return response
+        
+        @self.app.route('/api/config/download', methods=['GET'])
+        def api_config_download():
+            """
+            Download current config.yaml file.
+            
+            Returns:
+                File: config.yaml file for download
+            """
+            try:
+                config_path = self.config_manager.config_path
+                
+                if not config_path.exists():
+                    return jsonify({
+                        'error': 'Configuration file not found'
+                    }), 404
+                
+                # Send file with appropriate headers for download
+                return send_file(
+                    str(config_path),
+                    mimetype='application/x-yaml',
+                    as_attachment=True,
+                    download_name='config.yaml'
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to download config: {e}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to download configuration file',
+                    'details': str(e)
+                }), 500
+        
+        @self.app.route('/api/config/upload', methods=['POST'])
+        def api_config_upload():
+            """
+            Upload and validate new config.yaml file.
+            
+            Expects:
+                multipart/form-data with 'config_file' field
+            
+            Returns:
+                JSON: Upload result with validation status
+            """
+            try:
+                # Check if file is present in request
+                if 'config_file' not in request.files:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'No file uploaded',
+                        'error': 'Missing config_file in request'
+                    }), 400
+                
+                file = request.files['config_file']
+                
+                # Check if file was selected
+                if file.filename == '':
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'No file selected',
+                        'error': 'Empty filename'
+                    }), 400
+                
+                # Validate file extension
+                filename = secure_filename(file.filename)
+                if not (filename.endswith('.yaml') or filename.endswith('.yml')):
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Invalid file type',
+                        'error': 'File must have .yaml or .yml extension'
+                    }), 400
+                
+                # Read file content
+                try:
+                    file_content = file.read().decode('utf-8')
+                except Exception as e:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Failed to read file',
+                        'error': f'Could not decode file content: {str(e)}'
+                    }), 400
+                
+                # Parse YAML
+                try:
+                    new_config = yaml.safe_load(file_content)
+                except yaml.YAMLError as e:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Invalid YAML syntax',
+                        'error': str(e),
+                        'validation_errors': [f'YAML parsing error: {str(e)}']
+                    }), 400
+                
+                # Validate configuration structure and content
+                validation_errors = self._validate_uploaded_config(new_config)
+                
+                if validation_errors:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Configuration validation failed',
+                        'validation_errors': validation_errors
+                    }), 400
+                
+                # Create backup of current config
+                config_path = self.config_manager.config_path
+                backup_file = None
+                
+                if config_path.exists():
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    backup_path = config_path.parent / f"config.yaml.backup.{timestamp}"
+                    
+                    try:
+                        shutil.copy2(str(config_path), str(backup_path))
+                        backup_file = backup_path.name
+                        logger.info(f"Created config backup: {backup_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to create backup: {e}", exc_info=True)
+                        return jsonify({
+                            'status': 'error',
+                            'message': 'Failed to create backup',
+                            'error': str(e)
+                        }), 500
+                
+                # Write new config to disk
+                try:
+                    with open(config_path, 'w') as f:
+                        yaml.safe_dump(new_config, f, default_flow_style=False, sort_keys=False)
+                    logger.info(f"Successfully wrote new config to {config_path}")
+                except Exception as e:
+                    logger.error(f"Failed to write new config: {e}", exc_info=True)
+                    
+                    # Try to restore backup if write failed
+                    if backup_file:
+                        backup_path = config_path.parent / backup_file
+                        try:
+                            shutil.copy2(str(backup_path), str(config_path))
+                            logger.info("Restored backup after write failure")
+                        except Exception as restore_error:
+                            logger.error(f"Failed to restore backup: {restore_error}")
+                    
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Failed to write configuration file',
+                        'error': str(e)
+                    }), 500
+                
+                # Reload configuration in config_manager
+                try:
+                    self.config_manager._config, self.config_manager._env_overridden_paths = \
+                        self.config_manager._load_or_create_config()
+                    logger.info("Configuration reloaded successfully")
+                except Exception as e:
+                    logger.error(f"Failed to reload config: {e}", exc_info=True)
+                    # Config was written but failed to reload - not fatal
+                    logger.warning("Configuration file updated but reload failed. Restart may be required.")
+                
+                return jsonify({
+                    'status': 'ok',
+                    'message': 'Configuration uploaded and validated successfully',
+                    'backup_created': backup_file is not None,
+                    'backup_file': backup_file,
+                    'restart_required': 'true'
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to upload config: {e}", exc_info=True)
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to upload configuration',
+                    'error': str(e)
+                }), 500
         
         @self.app.route('/api/devices/status', methods=['GET'])
         def api_devices_status():
@@ -1245,6 +1419,218 @@ class WebServer:
         status['timestamp'] = datetime.now().isoformat()
         
         return status
+    
+    def _validate_uploaded_config(self, config: Dict[str, Any]) -> List[str]:
+        """
+        Validate uploaded configuration structure and content.
+        
+        Args:
+            config: Configuration dictionary to validate
+            
+        Returns:
+            List of validation error messages (empty if valid)
+        """
+        errors = []
+        
+        if not isinstance(config, dict):
+            errors.append("Configuration must be a dictionary")
+            return errors
+        
+        # Validate required top-level sections
+        required_sections = ['location', 'devices']
+        for section in required_sections:
+            if section not in config:
+                errors.append(f"Missing required section: {section}")
+        
+        # Validate location section
+        if 'location' in config:
+            location = config['location']
+            if not isinstance(location, dict):
+                errors.append("location section must be a dictionary")
+            else:
+                # Validate latitude
+                if 'latitude' in location:
+                    lat = location['latitude']
+                    if not isinstance(lat, (int, float)):
+                        errors.append(f"location.latitude must be a number, got {type(lat).__name__}")
+                    elif lat < -90 or lat > 90:
+                        errors.append(f"location.latitude must be between -90 and 90, got {lat}")
+                else:
+                    errors.append("Missing required field: location.latitude")
+                
+                # Validate longitude
+                if 'longitude' in location:
+                    lon = location['longitude']
+                    if not isinstance(lon, (int, float)):
+                        errors.append(f"location.longitude must be a number, got {type(lon).__name__}")
+                    elif lon < -180 or lon > 180:
+                        errors.append(f"location.longitude must be between -180 and 180, got {lon}")
+                else:
+                    errors.append("Missing required field: location.longitude")
+                
+                # Validate timezone
+                if 'timezone' in location:
+                    tz = location['timezone']
+                    if not isinstance(tz, str):
+                        errors.append(f"location.timezone must be a string, got {type(tz).__name__}")
+                else:
+                    errors.append("Missing required field: location.timezone")
+        
+        # Validate devices section
+        if 'devices' in config:
+            devices = config['devices']
+            if not isinstance(devices, dict):
+                errors.append("devices section must be a dictionary")
+            else:
+                # Validate credentials
+                if 'credentials' in devices:
+                    credentials = devices['credentials']
+                    if not isinstance(credentials, dict):
+                        errors.append("devices.credentials must be a dictionary")
+                    else:
+                        if 'username' not in credentials:
+                            errors.append("Missing required field: devices.credentials.username")
+                        elif not isinstance(credentials['username'], str):
+                            errors.append("devices.credentials.username must be a string")
+                        
+                        if 'password' not in credentials:
+                            errors.append("Missing required field: devices.credentials.password")
+                        elif not isinstance(credentials['password'], str):
+                            errors.append("devices.credentials.password must be a string")
+                else:
+                    errors.append("Missing required section: devices.credentials")
+                
+                # Validate groups
+                if 'groups' in devices:
+                    groups = devices['groups']
+                    if not isinstance(groups, dict):
+                        errors.append("devices.groups must be a dictionary")
+                    else:
+                        for group_name, group_config in groups.items():
+                            if not isinstance(group_config, dict):
+                                errors.append(f"devices.groups.{group_name} must be a dictionary")
+                                continue
+                            
+                            # Validate items
+                            if 'items' in group_config:
+                                items = group_config['items']
+                                if not isinstance(items, list):
+                                    errors.append(f"devices.groups.{group_name}.items must be a list")
+                                else:
+                                    for idx, item in enumerate(items):
+                                        if not isinstance(item, dict):
+                                            errors.append(f"devices.groups.{group_name}.items[{idx}] must be a dictionary")
+                                            continue
+                                        
+                                        # Validate required device fields
+                                        if 'name' not in item:
+                                            errors.append(f"Missing required field: devices.groups.{group_name}.items[{idx}].name")
+                                        elif not isinstance(item['name'], str):
+                                            errors.append(f"devices.groups.{group_name}.items[{idx}].name must be a string")
+                                        
+                                        if 'ip_address' not in item:
+                                            errors.append(f"Missing required field: devices.groups.{group_name}.items[{idx}].ip_address")
+                                        elif not isinstance(item['ip_address'], str):
+                                            errors.append(f"devices.groups.{group_name}.items[{idx}].ip_address must be a string")
+                                        else:
+                                            # Validate IP address format
+                                            ip = item['ip_address']
+                                            ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+                                            if not re.match(ip_pattern, ip):
+                                                errors.append(f"Invalid IP address format for devices.groups.{group_name}.items[{idx}].ip_address: {ip}")
+                                            else:
+                                                # Validate IP octets are in range
+                                                octets = ip.split('.')
+                                                for octet in octets:
+                                                    if int(octet) > 255:
+                                                        errors.append(f"Invalid IP address for devices.groups.{group_name}.items[{idx}].ip_address: {ip} (octet > 255)")
+                                                        break
+                                        
+                                        # Validate outlets if present
+                                        if 'outlets' in item:
+                                            outlets = item['outlets']
+                                            if not isinstance(outlets, list):
+                                                errors.append(f"devices.groups.{group_name}.items[{idx}].outlets must be a list")
+                                            else:
+                                                for outlet_idx, outlet in enumerate(outlets):
+                                                    if not isinstance(outlet, int):
+                                                        errors.append(f"devices.groups.{group_name}.items[{idx}].outlets[{outlet_idx}] must be an integer")
+                            
+                            # Validate automation section if present
+                            if 'automation' in group_config:
+                                automation = group_config['automation']
+                                if not isinstance(automation, dict):
+                                    errors.append(f"devices.groups.{group_name}.automation must be a dictionary")
+                                else:
+                                    # Validate boolean flags
+                                    bool_flags = ['weather_control', 'precipitation_control', 'morning_mode', 'schedule_control']
+                                    for flag in bool_flags:
+                                        if flag in automation and not isinstance(automation[flag], bool):
+                                            errors.append(f"devices.groups.{group_name}.automation.{flag} must be a boolean")
+                            
+                            # Validate schedule if present
+                            if 'schedule' in group_config:
+                                schedule = group_config['schedule']
+                                if not isinstance(schedule, dict):
+                                    errors.append(f"devices.groups.{group_name}.schedule must be a dictionary")
+                                else:
+                                    # Validate time format
+                                    time_pattern = r'^([01]?\d|2[0-3]):([0-5]\d)$'
+                                    for time_field in ['on_time', 'off_time']:
+                                        if time_field in schedule:
+                                            time_val = schedule[time_field]
+                                            if not isinstance(time_val, str):
+                                                errors.append(f"devices.groups.{group_name}.schedule.{time_field} must be a string")
+                                            elif not re.match(time_pattern, time_val):
+                                                errors.append(f"Invalid time format for devices.groups.{group_name}.schedule.{time_field}: {time_val} (expected HH:MM)")
+        
+        # Validate thresholds section if present
+        if 'thresholds' in config:
+            thresholds = config['thresholds']
+            if not isinstance(thresholds, dict):
+                errors.append("thresholds section must be a dictionary")
+            else:
+                # Validate temperature
+                if 'temperature_f' in thresholds:
+                    temp = thresholds['temperature_f']
+                    if not isinstance(temp, (int, float)):
+                        errors.append(f"thresholds.temperature_f must be a number, got {type(temp).__name__}")
+                    elif temp < -50 or temp > 150:
+                        errors.append(f"thresholds.temperature_f must be between -50 and 150, got {temp}")
+                
+                # Validate time values
+                for time_field in ['lead_time_minutes', 'trailing_time_minutes']:
+                    if time_field in thresholds:
+                        val = thresholds[time_field]
+                        if not isinstance(val, int):
+                            errors.append(f"thresholds.{time_field} must be an integer")
+                        elif val < 0:
+                            errors.append(f"thresholds.{time_field} must be non-negative")
+        
+        # Validate safety section if present
+        if 'safety' in config:
+            safety = config['safety']
+            if not isinstance(safety, dict):
+                errors.append("safety section must be a dictionary")
+            else:
+                if 'max_runtime_hours' in safety:
+                    val = safety['max_runtime_hours']
+                    if not isinstance(val, (int, float)):
+                        errors.append(f"safety.max_runtime_hours must be a number")
+                    elif val < 0:
+                        errors.append(f"safety.max_runtime_hours must be non-negative")
+        
+        # Validate web section if present (for port validation)
+        if 'web' in config:
+            web = config['web']
+            if isinstance(web, dict) and 'port' in web:
+                port = web['port']
+                if not isinstance(port, int):
+                    errors.append(f"web.port must be an integer")
+                elif port < 1 or port > 65535:
+                    errors.append(f"web.port must be between 1 and 65535, got {port}")
+        
+        return errors
     
     def run(self, host: str = '127.0.0.1', port: int = 4328, debug: bool = False):
         """

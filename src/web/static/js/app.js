@@ -2027,3 +2027,111 @@ window.addEventListener('load', () => {
         healthViewToggle.checked = (currentView === 'group');
     }
 });
+
+/**
+ * Download current config.yaml file
+ */
+async function downloadConfig() {
+    try {
+        const response = await fetch('/api/config/download');
+        
+        if (!response.ok) {
+            const error = await response.json();
+            showConfigUploadMessage('error', `Failed to download: ${error.error || 'Unknown error'}`);
+            return;
+        }
+        
+        // Create blob and trigger download
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'config.yaml';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        showConfigUploadMessage('success', '✓ Configuration downloaded successfully');
+    } catch (error) {
+        console.error('Download failed:', error);
+        showConfigUploadMessage('error', `Download failed: ${error.message}`);
+    }
+}
+
+/**
+ * Upload and validate config.yaml file
+ */
+async function uploadConfig(file) {
+    if (!file) {
+        return;
+    }
+    
+    // Check file extension
+    if (!file.name.endsWith('.yaml') && !file.name.endsWith('.yml')) {
+        showConfigUploadMessage('error', 'Please select a YAML file (.yaml or .yml)');
+        return;
+    }
+    
+    // Show loading message
+    showConfigUploadMessage('info', 'Uploading and validating configuration...');
+    
+    try {
+        const formData = new FormData();
+        formData.append('config_file', file);
+        
+        const response = await fetch('/api/config/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.status === 'ok') {
+            showConfigUploadMessage('success', `✓ ${result.message || 'Configuration uploaded and validated successfully'}`);
+            if (result.backup_created) {
+                showConfigUploadMessage('success', `Backup created: ${result.backup_file}`, true);
+            }
+            // Optionally refresh status
+            setTimeout(() => refreshStatus(), 1000);
+        } else {
+            let errorMsg = result.message || result.error || 'Upload failed';
+            if (result.validation_errors && result.validation_errors.length > 0) {
+                errorMsg += '\n\nValidation errors:\n' + result.validation_errors.join('\n');
+            }
+            showConfigUploadMessage('error', errorMsg);
+        }
+    } catch (error) {
+        console.error('Upload failed:', error);
+        showConfigUploadMessage('error', `Upload failed: ${error.message}`);
+    }
+    
+    // Reset file input
+    document.getElementById('config-upload-input').value = '';
+}
+
+/**
+ * Show message for config upload/download
+ */
+function showConfigUploadMessage(type, message, append = false) {
+    const messageDiv = document.getElementById('config-upload-message');
+    
+    if (!append) {
+        messageDiv.innerHTML = '';
+    }
+    
+    const msgElement = document.createElement('div');
+    msgElement.className = type; // 'success', 'error', or 'info'
+    msgElement.style.marginTop = '10px';
+    msgElement.style.whiteSpace = 'pre-wrap';
+    msgElement.textContent = message;
+    
+    messageDiv.appendChild(msgElement);
+    
+    // Auto-clear success messages after 5 seconds
+    if (type === 'success') {
+        setTimeout(() => {
+            msgElement.remove();
+        }, 5000);
+    }
+}
