@@ -85,7 +85,7 @@ HEATTRAX_TAPO_PASSWORD=your_password
 See [SETUP.md](SETUP.md) for complete environment variable setup instructions.
 
 **Setup Mode:**
-You can start without credentials configured - the Web UI will be accessible at `http://localhost:4328` where you can configure everything through the browser.
+You can start without credentials configured - the application will start safely with the Web UI accessible at `http://localhost:4328` (device control disabled until you configure credentials through the browser).
 
 ## How It Works
 

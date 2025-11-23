@@ -394,12 +394,14 @@ safety:
 
 ### Weather Resilience
 
-The scheduler includes automatic weather resilience features:
+The scheduler includes automatic weather resilience features to ensure reliable operation during internet or API outages:
 
 - **Automatic Caching**: Stores the last successful forecast to disk
-- **Degraded Mode**: Uses cached data during temporary API outages (up to 6 hours)
-- **Offline Mode**: Falls back to static schedules when weather data is unavailable
-- **Auto-Recovery**: Automatically reconnects with exponential backoff
+- **Three States**:
+  - **ONLINE**: Normal operation with fresh weather data (refreshes every 10 minutes)
+  - **DEGRADED**: API unavailable but using cached data (< 6 hours old) - all weather features continue working
+  - **OFFLINE**: Cache expired - falls back to static schedules until service recovers
+- **Auto-Recovery**: Automatically reconnects with exponential backoff (5 → 10 → 20 → 40 → 60 minutes)
 
 Configure resilience settings in `config.yaml`:
 ```yaml
