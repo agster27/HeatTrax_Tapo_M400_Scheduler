@@ -1508,12 +1508,18 @@ on:
    - Use multi-device groups structure
    - Convert old schedules to new format
 
-3. **Use config validation:**
+3. **Validate configuration via Web UI:**
+   - Use the Web UI configuration editor at `http://localhost:4328`
+   - The editor provides real-time validation
+   - Test changes before saving
+   
+   Or use the API to check for errors:
    ```bash
-   # Test configuration before applying
-   curl -X POST http://localhost:4328/api/config/validate \
+   # POST new config and check response for validation errors
+   curl -X POST http://localhost:4328/api/config \
      -H "Content-Type: application/json" \
-     -d @config.yaml
+     -d @new_config.json
+   # Returns validation errors if invalid (400 Bad Request)
    ```
 
 4. **Start fresh if needed:**
