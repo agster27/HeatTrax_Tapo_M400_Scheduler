@@ -1128,6 +1128,299 @@ class WebServer:
                     'details': str(e)
                 }), 500
         
+        @self.app.route('/api/vacation_mode', methods=['GET', 'PUT'])
+        def api_vacation_mode():
+            """
+            Get or set vacation mode.
+            
+            GET: Returns current vacation mode status
+            PUT: Updates vacation mode (expects JSON: {"enabled": true/false})
+            """
+            try:
+                if request.method == 'GET':
+                    if not self.scheduler:
+                        return jsonify({'error': 'Scheduler not available'}), 503
+                    
+                    return jsonify({
+                        'enabled': self.scheduler.vacation_mode
+                    })
+                
+                elif request.method == 'PUT':
+                    data = request.get_json()
+                    if not data or 'enabled' not in data:
+                        return jsonify({'error': 'Missing "enabled" field'}), 400
+                    
+                    enabled = bool(data['enabled'])
+                    
+                    # Update scheduler
+                    if self.scheduler:
+                        self.scheduler.vacation_mode = enabled
+                        logger.info(f"Vacation mode {'enabled' if enabled else 'disabled'} via API")
+                    
+                    # Update config file
+                    config = self.config_manager.get_config(include_secrets=True)
+                    config['vacation_mode'] = enabled
+                    
+                    config_path = self.config_manager.config_path
+                    self.config_manager._atomic_write_yaml(config_path, config)
+                    
+                    return jsonify({
+                        'success': True,
+                        'enabled': enabled
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Failed to handle vacation mode: {e}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to handle vacation mode',
+                    'details': str(e)
+                }), 500
+        
+        @self.app.route('/api/solar_times', methods=['GET'])
+        def api_solar_times():
+            """
+            Get today's sunrise and sunset times.
+            
+            Returns:
+                JSON: {
+                    "date": "YYYY-MM-DD",
+                    "sunrise": "HH:MM",
+                    "sunset": "HH:MM",
+                    "timezone": "America/New_York"
+                }
+            """
+            try:
+                if not self.scheduler or not self.scheduler.solar_calculator:
+                    return jsonify({'error': 'Solar calculator not available'}), 503
+                
+                from datetime import date
+                today = date.today()
+                
+                sunrise_time, sunset_time = self.scheduler.solar_calculator.calculate_solar_times(today)
+                
+                return jsonify({
+                    'date': today.isoformat(),
+                    'sunrise': sunrise_time.strftime('%H:%M'),
+                    'sunset': sunset_time.strftime('%H:%M'),
+                    'timezone': str(self.scheduler.timezone)
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to get solar times: {e}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to get solar times',
+                    'details': str(e)
+                }), 500
+        
+        @self.app.route('/api/groups/<group_name>/schedules', methods=['GET', 'POST'])
+        def api_group_schedules(group_name):
+            """
+            Get or add schedules for a group.
+            
+            GET: Returns all schedules for the group
+            POST: Adds a new schedule to the group
+            """
+            try:
+                config = self.config_manager.get_config(include_secrets=True)
+                groups = config.get('devices', {}).get('groups', {})
+                
+                if group_name not in groups:
+                    return jsonify({'error': f"Group '{group_name}' not found"}), 404
+                
+                if request.method == 'GET':
+                    schedules = groups[group_name].get('schedules', [])
+                    return jsonify({
+                        'group': group_name,
+                        'schedules': schedules
+                    })
+                
+                elif request.method == 'POST':
+                    new_schedule = request.get_json()
+                    if not new_schedule:
+                        return jsonify({'error': 'Missing schedule data'}), 400
+                    
+                    # Validate schedule
+                    from src.scheduler.schedule_types import validate_schedules
+                    is_valid, errors = validate_schedules([new_schedule])
+                    if not is_valid:
+                        return jsonify({
+                            'error': 'Invalid schedule',
+                            'details': errors
+                        }), 400
+                    
+                    # Add schedule to group
+                    schedules = groups[group_name].get('schedules', [])
+                    schedules.append(new_schedule)
+                    groups[group_name]['schedules'] = schedules
+                    
+                    # Save config
+                    config_path = self.config_manager.config_path
+                    self.config_manager._atomic_write_yaml(config_path, config)
+                    
+                    # Reload scheduler schedules
+                    if self.scheduler:
+                        from src.scheduler.schedule_types import parse_schedules
+                        self.scheduler.group_schedules[group_name] = parse_schedules(schedules)
+                    
+                    logger.info(f"Added schedule '{new_schedule.get('name')}' to group '{group_name}'")
+                    
+                    return jsonify({
+                        'success': True,
+                        'schedule': new_schedule
+                    }), 201
+                    
+            except Exception as e:
+                logger.error(f"Failed to handle group schedules: {e}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to handle group schedules',
+                    'details': str(e)
+                }), 500
+        
+        @self.app.route('/api/groups/<group_name>/schedules/<int:schedule_index>', methods=['GET', 'PUT', 'DELETE'])
+        def api_group_schedule(group_name, schedule_index):
+            """
+            Get, update, or delete a specific schedule.
+            
+            GET: Returns the schedule at the given index
+            PUT: Updates the schedule at the given index
+            DELETE: Deletes the schedule at the given index
+            """
+            try:
+                config = self.config_manager.get_config(include_secrets=True)
+                groups = config.get('devices', {}).get('groups', {})
+                
+                if group_name not in groups:
+                    return jsonify({'error': f"Group '{group_name}' not found"}), 404
+                
+                schedules = groups[group_name].get('schedules', [])
+                
+                if schedule_index < 0 or schedule_index >= len(schedules):
+                    return jsonify({'error': f"Schedule index {schedule_index} out of range"}), 404
+                
+                if request.method == 'GET':
+                    return jsonify({
+                        'group': group_name,
+                        'index': schedule_index,
+                        'schedule': schedules[schedule_index]
+                    })
+                
+                elif request.method == 'PUT':
+                    updated_schedule = request.get_json()
+                    if not updated_schedule:
+                        return jsonify({'error': 'Missing schedule data'}), 400
+                    
+                    # Validate schedule
+                    from src.scheduler.schedule_types import validate_schedules
+                    is_valid, errors = validate_schedules([updated_schedule])
+                    if not is_valid:
+                        return jsonify({
+                            'error': 'Invalid schedule',
+                            'details': errors
+                        }), 400
+                    
+                    # Update schedule
+                    schedules[schedule_index] = updated_schedule
+                    groups[group_name]['schedules'] = schedules
+                    
+                    # Save config
+                    config_path = self.config_manager.config_path
+                    self.config_manager._atomic_write_yaml(config_path, config)
+                    
+                    # Reload scheduler schedules
+                    if self.scheduler:
+                        from src.scheduler.schedule_types import parse_schedules
+                        self.scheduler.group_schedules[group_name] = parse_schedules(schedules)
+                    
+                    logger.info(f"Updated schedule {schedule_index} for group '{group_name}'")
+                    
+                    return jsonify({
+                        'success': True,
+                        'schedule': updated_schedule
+                    })
+                
+                elif request.method == 'DELETE':
+                    # Remove schedule
+                    removed_schedule = schedules.pop(schedule_index)
+                    groups[group_name]['schedules'] = schedules
+                    
+                    # Save config
+                    config_path = self.config_manager.config_path
+                    self.config_manager._atomic_write_yaml(config_path, config)
+                    
+                    # Reload scheduler schedules
+                    if self.scheduler:
+                        from src.scheduler.schedule_types import parse_schedules
+                        self.scheduler.group_schedules[group_name] = parse_schedules(schedules)
+                    
+                    logger.info(f"Deleted schedule {schedule_index} from group '{group_name}'")
+                    
+                    return jsonify({
+                        'success': True,
+                        'deleted': removed_schedule
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Failed to handle group schedule: {e}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to handle group schedule',
+                    'details': str(e)
+                }), 500
+        
+        @self.app.route('/api/groups/<group_name>/schedules/<int:schedule_index>/enabled', methods=['PUT'])
+        def api_toggle_schedule_enabled(group_name, schedule_index):
+            """
+            Toggle a schedule's enabled status.
+            
+            Expects JSON: {"enabled": true/false}
+            """
+            try:
+                data = request.get_json()
+                if not data or 'enabled' not in data:
+                    return jsonify({'error': 'Missing "enabled" field'}), 400
+                
+                enabled = bool(data['enabled'])
+                
+                config = self.config_manager.get_config(include_secrets=True)
+                groups = config.get('devices', {}).get('groups', {})
+                
+                if group_name not in groups:
+                    return jsonify({'error': f"Group '{group_name}' not found"}), 404
+                
+                schedules = groups[group_name].get('schedules', [])
+                
+                if schedule_index < 0 or schedule_index >= len(schedules):
+                    return jsonify({'error': f"Schedule index {schedule_index} out of range"}), 404
+                
+                # Update enabled status
+                schedules[schedule_index]['enabled'] = enabled
+                groups[group_name]['schedules'] = schedules
+                
+                # Save config
+                config_path = self.config_manager.config_path
+                self.config_manager._atomic_write_yaml(config_path, config)
+                
+                # Reload scheduler schedules
+                if self.scheduler:
+                    from src.scheduler.schedule_types import parse_schedules
+                    self.scheduler.group_schedules[group_name] = parse_schedules(schedules)
+                
+                logger.info(
+                    f"{'Enabled' if enabled else 'Disabled'} schedule {schedule_index} "
+                    f"for group '{group_name}'"
+                )
+                
+                return jsonify({
+                    'success': True,
+                    'enabled': enabled
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to toggle schedule enabled: {e}", exc_info=True)
+                return jsonify({
+                    'error': 'Failed to toggle schedule enabled',
+                    'details': str(e)
+                }), 500
+        
         @self.app.route('/api/weather/forecast', methods=['GET'])
         def api_weather_forecast():
             """
@@ -1365,6 +1658,9 @@ class WebServer:
                 
                 status['device_groups'] = device_groups
                 
+                # Add vacation mode status
+                status['vacation_mode'] = getattr(self.scheduler, 'vacation_mode', False)
+                
                 # Try to get weather service status
                 if hasattr(self.scheduler, 'weather') and self.scheduler.weather:
                     weather = self.scheduler.weather
@@ -1380,6 +1676,14 @@ class WebServer:
                             status['weather_state'] = state.name
                         else:
                             status['weather_state'] = str(state)
+                    
+                    # Add weather offline status
+                    if hasattr(weather, 'is_offline'):
+                        status['weather_offline'] = weather.is_offline()
+                    if hasattr(weather, 'get_cache_age_hours'):
+                        cache_age = weather.get_cache_age_hours()
+                        if cache_age is not None:
+                            status['weather_cache_age_hours'] = round(cache_age, 2)
                 
                 # Get device expectations for health monitoring
                 if hasattr(self.scheduler, 'get_device_expectations'):
