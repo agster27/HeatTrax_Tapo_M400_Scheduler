@@ -1161,8 +1161,7 @@ class WebServer:
                     config = self.config_manager.get_config(include_secrets=True)
                     config['vacation_mode'] = enabled
                     
-                    config_path = self.config_manager.config_path
-                    self.config_manager._atomic_write_yaml(config_path, config)
+                    self.config_manager._write_config_to_disk(config)
                     
                     return jsonify({
                         'success': True,
@@ -1254,8 +1253,7 @@ class WebServer:
                     groups[group_name]['schedules'] = schedules
                     
                     # Save config
-                    config_path = self.config_manager.config_path
-                    self.config_manager._atomic_write_yaml(config_path, config)
+                    self.config_manager._write_config_to_disk(config)
                     
                     # Reload scheduler schedules
                     if self.scheduler:
@@ -1323,8 +1321,7 @@ class WebServer:
                     groups[group_name]['schedules'] = schedules
                     
                     # Save config
-                    config_path = self.config_manager.config_path
-                    self.config_manager._atomic_write_yaml(config_path, config)
+                    self.config_manager._write_config_to_disk(config)
                     
                     # Reload scheduler schedules
                     if self.scheduler:
@@ -1344,8 +1341,7 @@ class WebServer:
                     groups[group_name]['schedules'] = schedules
                     
                     # Save config
-                    config_path = self.config_manager.config_path
-                    self.config_manager._atomic_write_yaml(config_path, config)
+                    self.config_manager._write_config_to_disk(config)
                     
                     # Reload scheduler schedules
                     if self.scheduler:
@@ -1396,8 +1392,7 @@ class WebServer:
                 groups[group_name]['schedules'] = schedules
                 
                 # Save config
-                config_path = self.config_manager.config_path
-                self.config_manager._atomic_write_yaml(config_path, config)
+                self.config_manager._write_config_to_disk(config)
                 
                 # Reload scheduler schedules
                 if self.scheduler:
