@@ -655,6 +655,43 @@ class ConfigManager:
             
             return config
     
+    def reload_config(self) -> None:
+        """
+        Force reload configuration from disk.
+        
+        This should be called after any direct disk writes to ensure
+        the in-memory cache is synchronized with the file system.
+        """
+        with self._lock:
+            try:
+                if not self.config_path.exists():
+                    logger.warning(f"Cannot reload: config file not found at {self.config_path}")
+                    return
+                
+                with open(self.config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                
+                if config is None or not isinstance(config, dict):
+                    logger.error(f"Cannot reload: invalid config file format at {self.config_path}")
+                    return
+                
+                # Apply environment variable overrides (same as during initialization)
+                config, env_overridden_paths = self._apply_env_overrides(config)
+                
+                # Validate reloaded config
+                self._validate_config(config)
+                
+                # Update in-memory config
+                self._config = config
+                self._env_overridden_paths = env_overridden_paths
+                self._config_last_modified = datetime.now()
+                
+                logger.debug("Configuration reloaded from disk")
+                
+            except Exception as e:
+                logger.error(f"Failed to reload configuration from disk: {e}", exc_info=True)
+                # Keep existing config if reload fails
+    
     def _filter_secrets(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Filter out secret values from configuration.
