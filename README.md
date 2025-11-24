@@ -77,20 +77,17 @@ After starting the container:
 ### Web UI & API
 - **Browser-based Interface**: Monitor and configure your system from any device
   - Real-time status dashboard showing device states and weather info
-  - **Groups tab** - Control automation flags for each device group from the Web UI
+  - **Groups tab** - View and control device groups
+    - Enable/disable entire groups
+    - View all configured schedules with times, conditions, and priorities
+    - See which schedules are enabled/disabled
   - **Manual device control** on Health page - Turn devices/outlets ON/OFF instantly
-  - Configuration editor with syntax validation
-  - **Environment override visibility**: See which settings are controlled by env vars
-  - Clear separation between editable (YAML) and read-only (env) configuration
+  - **Configuration editor** with syntax validation
+    - **Environment override visibility**: See which settings are controlled by env vars
+    - Clear separation between editable (YAML) and read-only (env) configuration
+    - Simplified to show only essential global settings
   - Clear error messages and success notifications
   - Security warnings when binding to non-local addresses
-- **Automation Control** (NEW): Toggle automation flags per group via Web UI
-  - Control weather_control, precipitation_control, morning_mode, schedule_control for each group
-  - Changes apply immediately without restarting the scheduler
-  - Overrides stored in `state/automation_overrides.json`
-  - `config.yaml` remains the base configuration; Web UI changes override temporarily
-  - Visual indicators show when a flag is overridden vs. base config
-  - Schedule times remain configured in `config.yaml` (read-only in Web UI)
 - **JSON REST API**: Programmatic access to system status and configuration
   - `GET /api/status` - System status, device states, weather info
   - `GET /api/config` - Current configuration with source metadata (env/yaml)
@@ -138,15 +135,11 @@ After starting the container:
   - **Outage Alerts**: Notifications when service is offline too long
   - **State Tracking**: ONLINE → DEGRADED (using cache) → OFFLINE (fail-safe)
   - Fully configurable cache duration, retry intervals, and alert thresholds
-- **Weather-Based Automation**: Intelligent control based on weather conditions
-  - Turns mats on 60 minutes before precipitation when temperature is below 34°F
-  - Keeps mats on during precipitation
-  - Turns mats off 60 minutes after precipitation ends
-  - All thresholds and timings fully configurable via YAML
-- **Morning Frost/Black Ice Protection**: Optional early morning mode
-  - Activates between 6-8 AM (configurable)
-  - Enables mats if temperature is below threshold
-  - Separate temperature threshold for morning mode
+- **Weather-Based Automation**: Intelligent control using schedule conditions
+  - Schedules can require specific weather conditions (temperature, precipitation)
+  - Per-schedule temperature thresholds and precipitation detection
+  - Automatic OFF when weather service is offline for extended periods
+  - See the [Scheduling Guide](SCHEDULING.md) for examples
 
 ### Unified Conditional Scheduling System
 - **Multiple Schedule Types**: Flexible scheduling to meet any automation need
@@ -235,6 +228,47 @@ After starting the container:
 - Tapo account credentials (username/email and password)
 - Network access to the smart plug (local network)
 - Internet access for Tapo cloud authentication (required for device control)
+
+## ⚠️ Deprecated Features
+
+The following features have been **deprecated** and replaced with the unified conditional scheduling system:
+
+### Removed from UI (as of latest version)
+- **Legacy automation toggles**: `weather_control`, `precipitation_control`, `morning_mode` toggles in Groups tab
+- **Threshold configuration**: `lead_time_minutes`, `trailing_time_minutes`, `temperature_f` in Configuration tab
+- **Morning mode settings**: `morning_mode.enabled`, `start_hour`, `end_hour` in Configuration tab
+
+### Migration to New System
+All automation is now handled via **schedules** in `config.yaml`. The new system provides:
+- ✅ More flexibility with multiple schedules per group
+- ✅ Per-schedule temperature and precipitation conditions
+- ✅ Solar-based timing (sunrise/sunset with offsets)
+- ✅ Priority system for conflict resolution
+- ✅ Day-of-week filtering
+
+**Example**: To replace morning mode with a schedule:
+```yaml
+schedules:
+  - name: "Morning Black Ice Protection"
+    enabled: true
+    priority: "critical"
+    days: [1,2,3,4,5]  # Weekdays
+    on:
+      type: "time"
+      value: "06:00"
+    off:
+      type: "time"
+      value: "08:00"
+    conditions:
+      temperature_max: 32  # Only run if temp <= 32°F
+```
+
+See the [Scheduling Guide](SCHEDULING.md) for complete documentation and migration examples.
+
+### Backward Compatibility
+- Old `thresholds` and `morning_mode` config sections are still parsed but **not required**
+- Backend code that uses these sections continues to work for existing configurations
+- **Recommendation**: Migrate to schedule-based system for new deployments
 
 ## Setup Mode
 
