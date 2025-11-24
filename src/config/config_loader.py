@@ -376,7 +376,7 @@ class Config:
             threshold_fields = ['temperature_f', 'lead_time_minutes', 'trailing_time_minutes']
             for field in threshold_fields:
                 if field not in thresholds:
-                    logger.warning(f"Thresholds configuration missing field: {field} (field is deprecated)")
+                    logger.warning(f"DEPRECATED: thresholds.{field} is missing. Thresholds section is deprecated; use schedule-based conditions instead.")
                     continue
                 
                 # Validate numeric values

@@ -527,7 +527,7 @@ class ConfigManager:
             
             for field in ['temperature_f', 'lead_time_minutes', 'trailing_time_minutes']:
                 if field not in thresholds:
-                    logger.warning(f"thresholds.{field} is missing but deprecated, ignoring")
+                    logger.warning(f"DEPRECATED: thresholds.{field} is missing. Thresholds section is deprecated; use schedule-based conditions instead.")
                     continue
                 try:
                     value = float(thresholds[field])

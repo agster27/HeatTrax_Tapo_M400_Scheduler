@@ -223,6 +223,9 @@ async function refreshGroups() {
             // Fetch schedules for this group
             try {
                 const schedulesResponse = await fetch(`/api/groups/${groupName}/schedules`);
+                if (!schedulesResponse.ok) {
+                    throw new Error(`HTTP ${schedulesResponse.status}: ${schedulesResponse.statusText}`);
+                }
                 const schedulesData = await schedulesResponse.json();
                 
                 if (schedulesData.error) {
@@ -258,14 +261,22 @@ async function refreshGroups() {
                         const enabledBadge = schedule.enabled ? '<span class="badge-enabled">✓ Enabled</span>' : '<span class="badge-disabled">Disabled</span>';
                         const priorityBadge = schedule.priority ? `<span class="badge-priority">${schedule.priority}</span>` : '';
                         
+                        // Helper function to format solar time with offset
+                        const formatSolarTime = (icon, type, offset) => {
+                            if (!offset || offset === 0) return `${icon} ${type}`;
+                            const sign = offset > 0 ? '+' : '-';
+                            const absOffset = Math.abs(offset);
+                            return `${icon} ${type} ${sign} ${absOffset}m`;
+                        };
+                        
                         // Format ON time
                         let onTime = '';
                         if (schedule.on?.type === 'time') {
                             onTime = schedule.on.value;
                         } else if (schedule.on?.type === 'sunrise') {
-                            onTime = `🌅 Sunrise${schedule.on.offset ? ' + ' + schedule.on.offset + 'm' : ''}`;
+                            onTime = formatSolarTime('🌅', 'Sunrise', schedule.on.offset);
                         } else if (schedule.on?.type === 'sunset') {
-                            onTime = `🌇 Sunset${schedule.on.offset ? ' + ' + schedule.on.offset + 'm' : ''}`;
+                            onTime = formatSolarTime('🌇', 'Sunset', schedule.on.offset);
                         }
                         
                         // Format OFF time
@@ -273,9 +284,9 @@ async function refreshGroups() {
                         if (schedule.off?.type === 'time') {
                             offTime = schedule.off.value;
                         } else if (schedule.off?.type === 'sunrise') {
-                            offTime = `🌅 Sunrise${schedule.off.offset ? ' + ' + schedule.off.offset + 'm' : ''}`;
+                            offTime = formatSolarTime('🌅', 'Sunrise', schedule.off.offset);
                         } else if (schedule.off?.type === 'sunset') {
-                            offTime = `🌇 Sunset${schedule.off.offset ? ' + ' + schedule.off.offset + 'm' : ''}`;
+                            offTime = formatSolarTime('🌇', 'Sunset', schedule.off.offset);
                         } else if (schedule.off?.type === 'duration') {
                             offTime = `Duration: ${schedule.off.hours}h`;
                         }
