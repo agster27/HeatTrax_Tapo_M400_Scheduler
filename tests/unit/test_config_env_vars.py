@@ -47,7 +47,8 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
         self.assertEqual(config.location['latitude'], 40.7128)
         # Multi-device config uses devices.credentials instead of device
         self.assertIn('credentials', config.devices)
-        self.assertEqual(config.thresholds['temperature_f'], 34)
+        # Thresholds section is now optional and returns defaults if not present
+        self.assertEqual(config.thresholds['temperature_f'], 32)
     
     def test_env_var_overrides_location(self):
         """Test location settings can be overridden with env vars."""
@@ -100,29 +101,28 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
         self.assertEqual(config.scheduler['forecast_hours'], 24)
     
     def test_env_var_overrides_morning_mode(self):
-        """Test morning mode settings can be overridden with env vars."""
-        os.environ['HEATTRAX_MORNING_MODE_ENABLED'] = 'false'
-        os.environ['HEATTRAX_MORNING_MODE_START_HOUR'] = '7'
-        os.environ['HEATTRAX_MORNING_MODE_END_HOUR'] = '9'
-        
+        """Test morning mode returns defaults (morning_mode is deprecated, env vars not supported)."""
+        # Morning mode is deprecated in favor of schedule-based automation
+        # Env var overrides for morning_mode are not supported
         config = Config('config.example.yaml')
+        # Should return defaults even if env vars are set
         self.assertEqual(config.morning_mode['enabled'], False)
-        self.assertEqual(config.morning_mode['start_hour'], 7)
-        self.assertEqual(config.morning_mode['end_hour'], 9)
+        self.assertEqual(config.morning_mode['start_hour'], 6)
+        self.assertEqual(config.morning_mode['end_hour'], 8)
     
     def test_env_var_boolean_values(self):
-        """Test boolean environment variable conversion."""
-        # Test true values
+        """Test boolean environment variable conversion (using vacation_mode instead of deprecated morning_mode)."""
+        # Test true values with vacation_mode (morning_mode env vars are deprecated)
         for true_val in ['true', 'TRUE', '1', 'yes', 'YES', 'on', 'ON']:
-            os.environ['HEATTRAX_MORNING_MODE_ENABLED'] = true_val
+            os.environ['HEATTRAX_VACATION_MODE'] = true_val
             config = Config('config.example.yaml')
-            self.assertTrue(config.morning_mode['enabled'], f"Failed for value: {true_val}")
+            self.assertTrue(config.vacation_mode, f"Failed for value: {true_val}")
         
         # Test false values
         for false_val in ['false', 'FALSE', '0', 'no', 'NO', 'off', 'OFF']:
-            os.environ['HEATTRAX_MORNING_MODE_ENABLED'] = false_val
+            os.environ['HEATTRAX_VACATION_MODE'] = false_val
             config = Config('config.example.yaml')
-            self.assertFalse(config.morning_mode['enabled'], f"Failed for value: {false_val}")
+            self.assertFalse(config.vacation_mode, f"Failed for value: {false_val}")
     
     def test_env_var_overrides_logging(self):
         """Test logging settings can be overridden with env vars."""

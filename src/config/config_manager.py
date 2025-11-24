@@ -431,8 +431,8 @@ class ConfigManager:
         Raises:
             ConfigValidationError: If validation fails
         """
-        # Required sections
-        required_sections = ['location', 'devices', 'thresholds', 'safety', 'scheduler']
+        # Required sections (thresholds and morning_mode are now optional for backward compatibility)
+        required_sections = ['location', 'devices', 'safety', 'scheduler']
         for section in required_sections:
             if section not in config:
                 raise ConfigValidationError(f"Missing required section: {section}")
@@ -519,20 +519,22 @@ class ConfigManager:
                                         f"devices.groups.{group_name}.items[{idx}].outlets[{outlet_idx}] must be a non-negative integer"
                                     )
         
-        # Validate thresholds
-        thresholds = config['thresholds']
-        if not isinstance(thresholds, dict):
-            raise ConfigValidationError("thresholds must be a dictionary")
-        
-        for field in ['temperature_f', 'lead_time_minutes', 'trailing_time_minutes']:
-            if field not in thresholds:
-                raise ConfigValidationError(f"thresholds must include {field}")
-            try:
-                value = float(thresholds[field])
-                if field in ['lead_time_minutes', 'trailing_time_minutes'] and value < 0:
-                    raise ConfigValidationError(f"{field} must be non-negative")
-            except (ValueError, TypeError):
-                raise ConfigValidationError(f"Invalid {field} value")
+        # Validate thresholds if present (optional for backward compatibility, deprecated)
+        if 'thresholds' in config:
+            thresholds = config['thresholds']
+            if not isinstance(thresholds, dict):
+                raise ConfigValidationError("thresholds must be a dictionary")
+            
+            for field in ['temperature_f', 'lead_time_minutes', 'trailing_time_minutes']:
+                if field not in thresholds:
+                    logger.warning(f"DEPRECATED: thresholds.{field} is missing. Thresholds section is deprecated; use schedule-based conditions instead.")
+                    continue
+                try:
+                    value = float(thresholds[field])
+                    if field in ['lead_time_minutes', 'trailing_time_minutes'] and value < 0:
+                        raise ConfigValidationError(f"{field} must be non-negative")
+                except (ValueError, TypeError):
+                    raise ConfigValidationError(f"Invalid {field} value")
         
         # Validate safety
         safety = config['safety']

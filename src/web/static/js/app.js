@@ -220,43 +220,104 @@ async function refreshGroups() {
         let html = '';
         
         for (const [groupName, groupConfig] of Object.entries(groups)) {
-            // Fetch automation data for this group
+            // Fetch schedules for this group
             try {
-                const automationResponse = await fetch(`/api/groups/${groupName}/automation`);
-                const automationData = await automationResponse.json();
+                const schedulesResponse = await fetch(`/api/groups/${groupName}/schedules`);
+                if (!schedulesResponse.ok) {
+                    throw new Error(`HTTP ${schedulesResponse.status}: ${schedulesResponse.statusText}`);
+                }
+                const schedulesData = await schedulesResponse.json();
                 
-                if (automationData.error) {
+                if (schedulesData.error) {
                     html += `<div class="group-card">
                         <h3>${groupName}</h3>
-                        <p class="error">${automationData.error}</p>
+                        <p class="error">${schedulesData.error}</p>
                     </div>`;
                     continue;
                 }
                 
-                const base = automationData.base || {};
-                const overrides = automationData.overrides || {};
-                const effective = automationData.effective || {};
-                const schedule = automationData.schedule || {};
+                const schedules = schedulesData.schedules || [];
+                const enabled = groupConfig.enabled !== false;
                 
                 html += `<div class="group-card">
                     <h3>${groupName}</h3>
-                    <div class="automation-panel">
-                        ${createAutomationToggle('weather_control', 'Weather Control', groupName, effective.weather_control, base.weather_control, overrides.weather_control !== undefined)}
-                        ${createAutomationToggle('precipitation_control', 'Precipitation Control', groupName, effective.precipitation_control, base.precipitation_control, overrides.precipitation_control !== undefined)}
-                        ${createAutomationToggle('morning_mode', 'Morning Mode', groupName, effective.morning_mode, base.morning_mode, overrides.morning_mode !== undefined)}
-                        ${createAutomationToggle('schedule_control', 'Schedule Control', groupName, effective.schedule_control, base.schedule_control, overrides.schedule_control !== undefined)}
+                    <div class="group-control-row">
+                        <div class="group-control-item">
+                            <label class="automation-toggle">
+                                <input type="checkbox" ${enabled ? 'checked' : ''} 
+                                       onchange="toggleGroupEnabled('${groupName}', this.checked)">
+                                <span class="automation-slider"></span>
+                            </label>
+                            <span class="control-label">Group Enabled</span>
+                        </div>
                     </div>`;
                 
-                // Show schedule info if available
-                if (schedule.valid) {
-                    html += `<div class="schedule-info">
-                        <strong>📅 Schedule (from config.yaml):</strong>
-                        <code>${schedule.on_time} → ${schedule.off_time}</code>
-                    </div>`;
-                } else if (effective.schedule_control) {
-                    html += `<div class="schedule-info" style="background: #fff3cd;">
-                        <strong>⚠️ Schedule Control Enabled</strong>
-                        <p>No valid schedule configured in config.yaml. Add <code>schedule.on_time</code> and <code>schedule.off_time</code> to enable schedule-based control.</p>
+                // Show schedules
+                if (schedules.length > 0) {
+                    html += `<div class="schedules-list">
+                        <h4>📅 Schedules</h4>`;
+                    
+                    schedules.forEach((schedule, index) => {
+                        const enabledBadge = schedule.enabled ? '<span class="badge-enabled">✓ Enabled</span>' : '<span class="badge-disabled">Disabled</span>';
+                        const priorityBadge = schedule.priority ? `<span class="badge-priority">${schedule.priority}</span>` : '';
+                        
+                        // Helper function to format solar time with offset
+                        const formatSolarTime = (icon, type, offset) => {
+                            if (!offset || offset === 0) return `${icon} ${type}`;
+                            const sign = offset > 0 ? '+' : '-';
+                            const absOffset = Math.abs(offset);
+                            return `${icon} ${type} ${sign} ${absOffset}m`;
+                        };
+                        
+                        // Format ON time
+                        let onTime = '';
+                        if (schedule.on?.type === 'time') {
+                            onTime = schedule.on.value;
+                        } else if (schedule.on?.type === 'sunrise') {
+                            onTime = formatSolarTime('🌅', 'Sunrise', schedule.on.offset);
+                        } else if (schedule.on?.type === 'sunset') {
+                            onTime = formatSolarTime('🌇', 'Sunset', schedule.on.offset);
+                        }
+                        
+                        // Format OFF time
+                        let offTime = '';
+                        if (schedule.off?.type === 'time') {
+                            offTime = schedule.off.value;
+                        } else if (schedule.off?.type === 'sunrise') {
+                            offTime = formatSolarTime('🌅', 'Sunrise', schedule.off.offset);
+                        } else if (schedule.off?.type === 'sunset') {
+                            offTime = formatSolarTime('🌇', 'Sunset', schedule.off.offset);
+                        } else if (schedule.off?.type === 'duration') {
+                            offTime = `Duration: ${schedule.off.hours}h`;
+                        }
+                        
+                        // Format conditions
+                        let conditions = [];
+                        if (schedule.conditions?.temperature_max) {
+                            conditions.push(`Temp ≤ ${schedule.conditions.temperature_max}°F`);
+                        }
+                        if (schedule.conditions?.precipitation_active) {
+                            conditions.push('Precipitation');
+                        }
+                        const conditionsText = conditions.length > 0 ? 
+                            `<div class="schedule-conditions">Conditions: ${conditions.join(', ')}</div>` : '';
+                        
+                        html += `<div class="schedule-item">
+                            <div class="schedule-header">
+                                <strong>${schedule.name || 'Unnamed Schedule'}</strong>
+                                ${enabledBadge} ${priorityBadge}
+                            </div>
+                            <div class="schedule-times">
+                                <span>ON: ${onTime}</span> → <span>OFF: ${offTime}</span>
+                            </div>
+                            ${conditionsText}
+                        </div>`;
+                    });
+                    
+                    html += `</div>`;
+                } else {
+                    html += `<div class="info-text" style="margin-top: 15px;">
+                        No schedules configured. Add schedules in config.yaml to enable automation.
                     </div>`;
                 }
                 
@@ -265,7 +326,7 @@ async function refreshGroups() {
             } catch (e) {
                 html += `<div class="group-card">
                     <h3>${groupName}</h3>
-                    <p class="error">Failed to load automation: ${e.message}</p>
+                    <p class="error">Failed to load group data: ${e.message}</p>
                 </div>`;
             }
         }
@@ -277,52 +338,46 @@ async function refreshGroups() {
     }
 }
 
-function createAutomationToggle(flagName, displayName, groupName, effectiveValue, baseValue, isOverridden) {
-    const toggleId = `toggle-${groupName}-${flagName}`;
-    const checked = effectiveValue ? 'checked' : '';
-    const overrideBadge = isOverridden ? '<span class="override-badge">overridden</span>' : '';
-    
-    return `<div class="automation-row">
-        <div class="automation-label">
-            ${displayName}
-            ${overrideBadge}
-        </div>
-        <label class="automation-toggle">
-            <input type="checkbox" id="${toggleId}" ${checked} 
-                   onchange="toggleAutomation('${groupName}', '${flagName}', this.checked)">
-            <span class="automation-slider"></span>
-        </label>
-    </div>`;
-}
-
-async function toggleAutomation(groupName, flagName, value) {
+async function toggleGroupEnabled(groupName, enabled) {
     try {
-        const payload = {};
-        payload[flagName] = value;
+        // Update config to enable/disable the group
+        const configResponse = await fetch('/api/config');
+        const annotatedConfig = await configResponse.json();
+        const config = extractConfigValues(annotatedConfig);
         
-        const response = await fetch(`/api/groups/${groupName}/automation`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            alert(`Failed to update automation: ${error.error || 'Unknown error'}`);
-            // Revert the toggle
-            document.getElementById(`toggle-${groupName}-${flagName}`).checked = !value;
+        if (!config.devices?.groups?.[groupName]) {
+            alert(`Group '${groupName}' not found`);
+            await refreshGroups();
             return;
         }
         
-        // Refresh groups to update override badges
+        // Update the enabled flag
+        config.devices.groups[groupName].enabled = enabled;
+        
+        // Save config
+        const saveResponse = await fetch('/api/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(config)
+        });
+        
+        if (!saveResponse.ok) {
+            const error = await saveResponse.json();
+            alert(`Failed to update group: ${error.error || 'Unknown error'}`);
+            await refreshGroups();
+            return;
+        }
+        
+        showMessage('config-message', `Group '${groupName}' ${enabled ? 'enabled' : 'disabled'}`, 'success');
+        
+        // Refresh to show updated state
         await refreshGroups();
         
     } catch (e) {
-        alert(`Failed to update automation: ${e.message}`);
-        // Revert the toggle
-        document.getElementById(`toggle-${groupName}-${flagName}`).checked = !value;
+        alert(`Failed to update group: ${e.message}`);
+        await refreshGroups();
     }
 }
 
@@ -1411,19 +1466,17 @@ const FORM_FIELDS = {
         { path: 'devices.credentials.password', label: 'Tapo Password', type: 'password',
           helper: '🔧 Enter your Tapo account password. Changes require restart to apply.' }
     ],
-    'Thresholds & Scheduler': [
-        { path: 'thresholds.temperature_f', label: 'Threshold Temperature (°F)', type: 'number', step: '0.1' },
-        { path: 'thresholds.lead_time_minutes', label: 'Lead Time (minutes)', type: 'number' },
-        { path: 'thresholds.trailing_time_minutes', label: 'Trailing Time (minutes)', type: 'number' },
-        { path: 'scheduler.check_interval_minutes', label: 'Check Interval (minutes)', type: 'number' },
-        { path: 'scheduler.forecast_hours', label: 'Forecast Hours', type: 'number' }
+    'Scheduler': [
+        { path: 'scheduler.check_interval_minutes', label: 'Check Interval (minutes)', type: 'number',
+          helper: 'How often the scheduler checks weather and evaluates schedules (default: 10)' },
+        { path: 'scheduler.forecast_hours', label: 'Forecast Hours', type: 'number',
+          helper: 'How far ahead to look for weather conditions (default: 12)' }
     ],
-    'Safety & Morning Mode': [
-        { path: 'safety.max_runtime_hours', label: 'Max Runtime (hours)', type: 'number', step: '0.1' },
-        { path: 'safety.cooldown_minutes', label: 'Cooldown (minutes)', type: 'number' },
-        { path: 'morning_mode.enabled', label: 'Morning Mode Enabled', type: 'checkbox' },
-        { path: 'morning_mode.start_hour', label: 'Morning Mode Start Hour', type: 'number', min: '0', max: '23' },
-        { path: 'morning_mode.end_hour', label: 'Morning Mode End Hour', type: 'number', min: '0', max: '23' }
+    'Safety Limits': [
+        { path: 'safety.max_runtime_hours', label: 'Max Runtime (hours)', type: 'number', step: '0.1',
+          helper: 'Global default maximum continuous runtime. Can be overridden per schedule.' },
+        { path: 'safety.cooldown_minutes', label: 'Cooldown (minutes)', type: 'number',
+          helper: 'Global default cooldown period after max runtime. Can be overridden per schedule.' }
     ],
     'Logging': [
         { path: 'logging.level', label: 'Log Level', type: 'select', options: ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] }

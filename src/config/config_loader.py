@@ -364,31 +364,33 @@ class Config:
                             logger.error(f"Device in group '{group_name}' item {i} missing or empty ip_address")
                             raise ConfigError(f"All devices must have non-empty 'ip_address'")
         
-        # Validate thresholds
-        logger.debug("Validating thresholds configuration")
-        thresholds = self._config['thresholds']
-        
-        if not isinstance(thresholds, dict):
-            logger.error(f"Thresholds must be a dictionary, got: {type(thresholds)}")
-            raise ConfigError(f"Thresholds configuration must be a dictionary")
-        
-        threshold_fields = ['temperature_f', 'lead_time_minutes', 'trailing_time_minutes']
-        for field in threshold_fields:
-            if field not in thresholds:
-                logger.error(f"Thresholds configuration missing required field: {field}")
-                logger.error(f"Available threshold fields: {list(thresholds.keys())}")
-                raise ConfigError(f"Thresholds configuration missing required field: {field}")
+        # Validate thresholds (optional, deprecated but supported for backward compatibility)
+        if 'thresholds' in self._config:
+            logger.debug("Validating thresholds configuration (deprecated)")
+            thresholds = self._config['thresholds']
             
-            # Validate numeric values
-            try:
-                value = float(thresholds[field])
-                if field in ['lead_time_minutes', 'trailing_time_minutes'] and value < 0:
-                    logger.error(f"Invalid {field}: {value} (must be non-negative)")
-                    raise ConfigError(f"{field} must be non-negative, got: {value}")
-                logger.debug(f"Threshold {field}={value}")
-            except (ValueError, TypeError) as e:
-                logger.error(f"Invalid value for {field}: {thresholds[field]}")
-                raise ConfigError(f"{field} must be a valid number: {e}")
+            if not isinstance(thresholds, dict):
+                logger.error(f"Thresholds must be a dictionary, got: {type(thresholds)}")
+                raise ConfigError(f"Thresholds configuration must be a dictionary")
+            
+            threshold_fields = ['temperature_f', 'lead_time_minutes', 'trailing_time_minutes']
+            for field in threshold_fields:
+                if field not in thresholds:
+                    logger.warning(f"DEPRECATED: thresholds.{field} is missing. Thresholds section is deprecated; use schedule-based conditions instead.")
+                    continue
+                
+                # Validate numeric values
+                try:
+                    value = float(thresholds[field])
+                    if field in ['lead_time_minutes', 'trailing_time_minutes'] and value < 0:
+                        logger.error(f"Invalid {field}: {value} (must be non-negative)")
+                        raise ConfigError(f"{field} must be non-negative, got: {value}")
+                    logger.debug(f"Threshold {field}={value}")
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Invalid value for {field}: {thresholds[field]}")
+                    raise ConfigError(f"{field} must be a valid number: {e}")
+        else:
+            logger.debug("Thresholds section not present (using new schedule-based system)")
         
         # Validate safety
         logger.debug("Validating safety configuration")
@@ -437,13 +439,26 @@ class Config:
     
     @property
     def thresholds(self) -> Dict[str, Any]:
-        """Get threshold configuration."""
-        return self._config['thresholds']
+        """Get threshold configuration (deprecated, returns defaults if not present)."""
+        return self._config.get('thresholds', {
+            'temperature_f': 32,
+            'lead_time_minutes': 60,
+            'trailing_time_minutes': 60
+        })
     
     @property
     def morning_mode(self) -> Dict[str, Any]:
-        """Get morning mode configuration."""
-        return self._config.get('morning_mode', {'enabled': False})
+        """Get morning mode configuration (deprecated, returns defaults if not present)."""
+        return self._config.get('morning_mode', {
+            'enabled': False,
+            'start_hour': 6,
+            'end_hour': 8
+        })
+    
+    @property
+    def vacation_mode(self) -> bool:
+        """Get vacation mode status."""
+        return self._config.get('vacation_mode', False)
     
     @property
     def safety(self) -> Dict[str, Any]:
