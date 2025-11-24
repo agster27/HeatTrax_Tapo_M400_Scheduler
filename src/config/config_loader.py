@@ -448,8 +448,17 @@ class Config:
     
     @property
     def morning_mode(self) -> Dict[str, Any]:
-        """Get morning mode configuration."""
-        return self._config.get('morning_mode', {'enabled': False})
+        """Get morning mode configuration (deprecated, returns defaults if not present)."""
+        return self._config.get('morning_mode', {
+            'enabled': False,
+            'start_hour': 6,
+            'end_hour': 8
+        })
+    
+    @property
+    def vacation_mode(self) -> bool:
+        """Get vacation mode status."""
+        return self._config.get('vacation_mode', False)
     
     @property
     def safety(self) -> Dict[str, Any]:
