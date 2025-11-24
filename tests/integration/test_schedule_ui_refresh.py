@@ -179,22 +179,29 @@ class TestScheduleUIRefresh(unittest.TestCase):
         if Path(self.test_dir).exists():
             shutil.rmtree(self.test_dir)
     
+    def _get_schedules_from_config(self, config_data: dict) -> list:
+        """
+        Helper to extract schedules from annotated config data.
+        
+        The config may have schedules wrapped in value/source metadata
+        or as direct values depending on how it's returned.
+        """
+        groups = config_data.get('devices', {}).get('groups', {})
+        test_group = groups.get('test_group', {})
+        
+        # The schedules might be wrapped in value/source metadata or be direct
+        if isinstance(test_group.get('schedules'), dict):
+            return test_group.get('schedules', {}).get('value', [])
+        else:
+            return test_group.get('schedules', [])
+    
     def test_add_schedule_refreshes_config(self):
         """Test that adding a schedule immediately reflects in GET /api/config."""
         # Get initial config - should have no schedules
         response = self.client.get('/api/config')
         self.assertEqual(response.status_code, 200)
         initial_data = json.loads(response.data)
-        
-        # Navigate to schedules in the annotated config structure
-        groups = initial_data.get('devices', {}).get('groups', {})
-        test_group = groups.get('test_group', {})
-        
-        # The schedules might be wrapped in value/source metadata or be direct
-        if isinstance(test_group.get('schedules'), dict):
-            initial_schedules = test_group.get('schedules', {}).get('value', [])
-        else:
-            initial_schedules = test_group.get('schedules', [])
+        initial_schedules = self._get_schedules_from_config(initial_data)
         
         self.assertEqual(len(initial_schedules), 0, "Should start with no schedules")
         
@@ -228,15 +235,7 @@ class TestScheduleUIRefresh(unittest.TestCase):
         response = self.client.get('/api/config')
         self.assertEqual(response.status_code, 200)
         updated_data = json.loads(response.data)
-        
-        groups = updated_data.get('devices', {}).get('groups', {})
-        test_group = groups.get('test_group', {})
-        
-        # The schedules might be wrapped in value/source metadata or be direct
-        if isinstance(test_group.get('schedules'), dict):
-            updated_schedules = test_group.get('schedules', {}).get('value', [])
-        else:
-            updated_schedules = test_group.get('schedules', [])
+        updated_schedules = self._get_schedules_from_config(updated_data)
         
         self.assertEqual(len(updated_schedules), 1, "Should have 1 schedule after adding")
         self.assertEqual(updated_schedules[0]['name'], 'Test Schedule')
@@ -294,14 +293,7 @@ class TestScheduleUIRefresh(unittest.TestCase):
         response = self.client.get('/api/config')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        
-        groups = data.get('devices', {}).get('groups', {})
-        test_group = groups.get('test_group', {})
-        
-        if isinstance(test_group.get('schedules'), dict):
-            schedules = test_group.get('schedules', {}).get('value', [])
-        else:
-            schedules = test_group.get('schedules', [])
+        schedules = self._get_schedules_from_config(data)
         
         self.assertEqual(len(schedules), 1)
         self.assertEqual(schedules[0]['name'], 'Updated Schedule')
@@ -336,13 +328,7 @@ class TestScheduleUIRefresh(unittest.TestCase):
         # Verify it's there
         response = self.client.get('/api/config')
         data = json.loads(response.data)
-        groups = data.get('devices', {}).get('groups', {})
-        test_group = groups.get('test_group', {})
-        
-        if isinstance(test_group.get('schedules'), dict):
-            schedules = test_group.get('schedules', {}).get('value', [])
-        else:
-            schedules = test_group.get('schedules', [])
+        schedules = self._get_schedules_from_config(data)
         
         self.assertEqual(len(schedules), 1)
         
@@ -354,14 +340,7 @@ class TestScheduleUIRefresh(unittest.TestCase):
         response = self.client.get('/api/config')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        
-        groups = data.get('devices', {}).get('groups', {})
-        test_group = groups.get('test_group', {})
-        
-        if isinstance(test_group.get('schedules'), dict):
-            schedules = test_group.get('schedules', {}).get('value', [])
-        else:
-            schedules = test_group.get('schedules', [])
+        schedules = self._get_schedules_from_config(data)
         
         self.assertEqual(len(schedules), 0, "Should have no schedules after deletion")
     
@@ -402,14 +381,7 @@ class TestScheduleUIRefresh(unittest.TestCase):
         response = self.client.get('/api/config')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        
-        groups = data.get('devices', {}).get('groups', {})
-        test_group = groups.get('test_group', {})
-        
-        if isinstance(test_group.get('schedules'), dict):
-            schedules = test_group.get('schedules', {}).get('value', [])
-        else:
-            schedules = test_group.get('schedules', [])
+        schedules = self._get_schedules_from_config(data)
         
         self.assertEqual(len(schedules), 1)
         self.assertFalse(schedules[0]['enabled'], "Schedule should be disabled")
