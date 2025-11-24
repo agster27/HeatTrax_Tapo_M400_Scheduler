@@ -1255,6 +1255,9 @@ class WebServer:
                     # Save config
                     self.config_manager._write_config_to_disk(config)
                     
+                    # Reload config from disk to sync in-memory cache
+                    self.config_manager.reload_config()
+                    
                     # Reload scheduler schedules
                     if self.scheduler:
                         from src.scheduler.schedule_types import parse_schedules
@@ -1323,6 +1326,9 @@ class WebServer:
                     # Save config
                     self.config_manager._write_config_to_disk(config)
                     
+                    # Reload config from disk to sync in-memory cache
+                    self.config_manager.reload_config()
+                    
                     # Reload scheduler schedules
                     if self.scheduler:
                         from src.scheduler.schedule_types import parse_schedules
@@ -1342,6 +1348,9 @@ class WebServer:
                     
                     # Save config
                     self.config_manager._write_config_to_disk(config)
+                    
+                    # Reload config from disk to sync in-memory cache
+                    self.config_manager.reload_config()
                     
                     # Reload scheduler schedules
                     if self.scheduler:
@@ -1393,6 +1402,9 @@ class WebServer:
                 
                 # Save config
                 self.config_manager._write_config_to_disk(config)
+                
+                # Reload config from disk to sync in-memory cache
+                self.config_manager.reload_config()
                 
                 # Reload scheduler schedules
                 if self.scheduler:
