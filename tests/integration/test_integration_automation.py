@@ -2,6 +2,9 @@
 """
 Integration test for automation overrides with scheduler.
 Tests that the scheduler correctly uses effective automation values.
+
+Note: The schedule_control automation flag has been removed.
+All schedule-based automation now uses the unified schedules: array format.
 """
 
 import sys
@@ -30,7 +33,7 @@ def test_scheduler_integration():
         config_file = Path(tmpdir) / "test_config.yaml"
         state_file = Path(tmpdir) / "automation_overrides.json"
         
-        # Write test config
+        # Write test config (using unified schedules: array, no schedule_control)
         config_yaml = """
 location:
   latitude: 40.7128
@@ -51,7 +54,6 @@ devices:
         weather_control: true
         precipitation_control: true
         morning_mode: true
-        schedule_control: false
       items: []
 
 thresholds:
@@ -113,7 +115,7 @@ web:
         
         assert effective['weather_control'] == True, "weather_control should be True"
         assert effective['morning_mode'] == True, "morning_mode should be True"
-        assert effective['schedule_control'] == False, "schedule_control should be False"
+        assert effective['precipitation_control'] == True, "precipitation_control should be True"
         print("   ✓ Initial state correct")
         
         # Set an override
@@ -132,7 +134,7 @@ web:
         
         assert effective['weather_control'] == True, "weather_control should still be True"
         assert effective['morning_mode'] == False, "morning_mode should now be False (overridden)"
-        assert effective['schedule_control'] == False, "schedule_control should still be False"
+        assert effective['precipitation_control'] == True, "precipitation_control should still be True"
         print("   ✓ Override applied correctly")
         
         # Load overrides in a new instance (simulating restart)
@@ -150,34 +152,6 @@ web:
         
         assert effective['morning_mode'] == True, "morning_mode should be back to base value"
         print("   ✓ Override cleared successfully")
-        
-        # Verify schedule validation
-        print("\n8. Testing schedule validation...")
-        schedule = {
-            'on_time': '17:00',
-            'off_time': '23:00'
-        }
-        
-        # Create a minimal scheduler instance just for validation
-        # We'll mock most of it since we don't need full initialization
-        mock_scheduler = Mock(spec=EnhancedScheduler)
-        mock_scheduler.config = config
-        mock_scheduler.logger = Mock()
-        
-        # Bind the validate_schedule method from EnhancedScheduler
-        mock_scheduler.validate_schedule = lambda s: EnhancedScheduler.validate_schedule(mock_scheduler, s)
-        
-        valid, on_time, off_time = mock_scheduler.validate_schedule(schedule)
-        assert valid == True, "Valid schedule should be accepted"
-        assert on_time == '17:00', "on_time should be parsed"
-        assert off_time == '23:00', "off_time should be parsed"
-        print("   ✓ Schedule validation works")
-        
-        # Test invalid schedule
-        invalid_schedule = {'on_time': 'invalid', 'off_time': '23:00'}
-        valid, _, _ = mock_scheduler.validate_schedule(invalid_schedule)
-        assert valid == False, "Invalid schedule should be rejected"
-        print("   ✓ Invalid schedule rejected")
         
         print("\n" + "="*60)
         print("ALL INTEGRATION TESTS PASSED ✓")

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
 Integration tests for automation override API endpoints.
+
+Note: The schedule_control automation flag has been removed.
+All schedule-based automation now uses the unified schedules: array format.
 """
 
 import os
@@ -39,7 +42,7 @@ class TestAutomationAPI(unittest.TestCase):
             if key.startswith('HEATTRAX_'):
                 del os.environ[key]
         
-        # Create a test config with groups
+        # Create a test config with groups using unified schedules: array
         test_config = {
             'location': {
                 'latitude': 40.7128,
@@ -57,8 +60,7 @@ class TestAutomationAPI(unittest.TestCase):
                         'automation': {
                             'weather_control': True,
                             'precipitation_control': True,
-                            'morning_mode': False,
-                            'schedule_control': False
+                            'morning_mode': False
                         },
                         'items': []
                     },
@@ -67,13 +69,18 @@ class TestAutomationAPI(unittest.TestCase):
                         'automation': {
                             'weather_control': False,
                             'precipitation_control': False,
-                            'morning_mode': False,
-                            'schedule_control': True
+                            'morning_mode': False
                         },
-                        'schedule': {
-                            'on_time': '17:00',
-                            'off_time': '23:00'
-                        },
+                        'schedules': [
+                            {
+                                'name': 'Evening Lights',
+                                'enabled': True,
+                                'priority': 'normal',
+                                'days': [1, 2, 3, 4, 5, 6, 7],
+                                'on': {'type': 'time', 'value': '17:00'},
+                                'off': {'type': 'time', 'value': '23:00'}
+                            }
+                        ],
                         'items': []
                     }
                 }
@@ -112,18 +119,6 @@ class TestAutomationAPI(unittest.TestCase):
             state_file=str(self.state_dir / "automation_overrides.json")
         )
         
-        # Add validate_schedule method to mock scheduler
-        def mock_validate_schedule(schedule):
-            if not schedule:
-                return (False, None, None)
-            on_time = schedule.get('on_time')
-            off_time = schedule.get('off_time')
-            if on_time and off_time:
-                return (True, on_time, off_time)
-            return (False, None, None)
-        
-        self.mock_scheduler.validate_schedule = mock_validate_schedule
-        
         # Create web server with mock scheduler
         self.web_server = WebServer(self.config_manager, scheduler=self.mock_scheduler)
         
@@ -154,19 +149,17 @@ class TestAutomationAPI(unittest.TestCase):
         self.assertEqual(data['base']['morning_mode'], False)
         self.assertEqual(data['overrides'], {})
         self.assertEqual(data['effective'], data['base'])
-        self.assertFalse(data['schedule']['valid'])
+        self.assertEqual(data['schedules_count'], 0)
     
-    def test_get_automation_with_schedule(self):
-        """Test GET /api/groups/{group}/automation with valid schedule."""
+    def test_get_automation_with_schedules(self):
+        """Test GET /api/groups/{group}/automation with unified schedules."""
         response = self.client.get('/api/groups/christmas_lights/automation')
         
         self.assertEqual(response.status_code, 200)
         
         data = json.loads(response.data)
         self.assertEqual(data['group'], 'christmas_lights')
-        self.assertTrue(data['schedule']['valid'])
-        self.assertEqual(data['schedule']['on_time'], '17:00')
-        self.assertEqual(data['schedule']['off_time'], '23:00')
+        self.assertEqual(data['schedules_count'], 1)
     
     def test_get_automation_nonexistent_group(self):
         """Test GET /api/groups/{group}/automation for nonexistent group."""
@@ -181,7 +174,7 @@ class TestAutomationAPI(unittest.TestCase):
         """Test PATCH /api/groups/{group}/automation to set override."""
         payload = {
             'morning_mode': True,
-            'schedule_control': True
+            'precipitation_control': False
         }
         
         response = self.client.patch(
@@ -195,12 +188,12 @@ class TestAutomationAPI(unittest.TestCase):
         data = json.loads(response.data)
         self.assertEqual(data['group'], 'heattrax')
         self.assertEqual(data['overrides']['morning_mode'], True)
-        self.assertEqual(data['overrides']['schedule_control'], True)
+        self.assertEqual(data['overrides']['precipitation_control'], False)
         self.assertEqual(data['effective']['morning_mode'], True)
-        self.assertEqual(data['effective']['schedule_control'], True)
+        self.assertEqual(data['effective']['precipitation_control'], False)
         # Base values unchanged
         self.assertEqual(data['base']['morning_mode'], False)
-        self.assertEqual(data['base']['schedule_control'], False)
+        self.assertEqual(data['base']['precipitation_control'], True)
     
     def test_patch_automation_clear_override(self):
         """Test PATCH /api/groups/{group}/automation to clear override."""
@@ -271,8 +264,7 @@ class TestAutomationAPI(unittest.TestCase):
         payload = {
             'weather_control': False,
             'precipitation_control': False,
-            'morning_mode': True,
-            'schedule_control': True
+            'morning_mode': True
         }
         
         response = self.client.patch(
@@ -287,7 +279,6 @@ class TestAutomationAPI(unittest.TestCase):
         self.assertEqual(data['effective']['weather_control'], False)
         self.assertEqual(data['effective']['precipitation_control'], False)
         self.assertEqual(data['effective']['morning_mode'], True)
-        self.assertEqual(data['effective']['schedule_control'], True)
     
     def test_patch_automation_persists(self):
         """Test that PATCH overrides persist across requests."""
@@ -312,7 +303,8 @@ class TestAutomationAPI(unittest.TestCase):
         """Test PATCH /api/groups/{group}/automation ignores unknown flags."""
         payload = {
             'morning_mode': True,
-            'unknown_flag': True
+            'unknown_flag': True,
+            'schedule_control': True  # Legacy flag, should be ignored
         }
         
         response = self.client.patch(
@@ -326,6 +318,7 @@ class TestAutomationAPI(unittest.TestCase):
         data = json.loads(response.data)
         self.assertIn('morning_mode', data['overrides'])
         self.assertNotIn('unknown_flag', data['overrides'])
+        self.assertNotIn('schedule_control', data['overrides'])
 
 
 if __name__ == "__main__":

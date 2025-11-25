@@ -592,30 +592,8 @@ class EnhancedScheduler:
                 except WeatherServiceError as e:
                     self.logger.error(f"Weather service error: {e}")
         
-        # Schedule-based control
-        if automation.get('schedule_control', False):
-            schedule = group_config.get('schedule', {})
-            if schedule:
-                current_time = now_local.time()
-                
-                # Parse on_time and off_time
-                on_time_str = schedule.get('on_time')
-                off_time_str = schedule.get('off_time')
-                
-                if on_time_str and off_time_str:
-                    try:
-                        on_time = datetime.strptime(on_time_str, "%H:%M").time()
-                        off_time = datetime.strptime(off_time_str, "%H:%M").time()
-                        
-                        # Check if current time is within schedule
-                        if on_time <= current_time < off_time:
-                            self.logger.info(
-                                f"Group '{group_name}': Within schedule window "
-                                f"({on_time_str} - {off_time_str}), local time {current_time.strftime('%H:%M')}"
-                            )
-                            return True
-                    except ValueError as e:
-                        self.logger.error(f"Invalid time format in schedule: {e}")
+        # Legacy schedule_control has been removed - use unified schedules: array instead
+        # (Any group using old schedule_control should migrate to schedules: array)
         
         return False
     
@@ -789,30 +767,8 @@ class EnhancedScheduler:
                 except WeatherServiceError as e:
                     self.logger.error(f"Weather service error: {e}")
         
-        # Schedule-based control
-        if automation.get('schedule_control', False):
-            schedule = group_config.get('schedule', {})
-            if schedule:
-                current_time = now_local.time()
-                
-                # Parse off_time
-                off_time_str = schedule.get('off_time')
-                on_time_str = schedule.get('on_time')
-                
-                if off_time_str and on_time_str:
-                    try:
-                        off_time = datetime.strptime(off_time_str, "%H:%M").time()
-                        on_time = datetime.strptime(on_time_str, "%H:%M").time()
-                        
-                        # Check if current time is outside schedule
-                        if not (on_time <= current_time < off_time):
-                            self.logger.info(
-                                f"Group '{group_name}': Outside schedule window "
-                                f"({on_time_str} - {off_time_str}), local time {current_time.strftime('%H:%M')}"
-                            )
-                            return True
-                    except ValueError as e:
-                        self.logger.error(f"Invalid time format in schedule: {e}")
+        # Legacy schedule_control has been removed - use unified schedules: array instead
+        # (Any group using old schedule_control should migrate to schedules: array)
         
         return False
     
@@ -956,64 +912,56 @@ class EnhancedScheduler:
                 # Get current state from state manager
                 current_state = "on" if state.device_on else "off"
                 
-                # Get timing information
+                # Get timing information from unified schedules
                 expected_on_from = None
                 expected_off_at = None
                 
-                # For schedule-based control, calculate expected times
-                base_automation = group_config.get('automation', {})
-                automation = self.automation_overrides.get_effective_automation(group_name, base_automation)
-                if automation.get('schedule_control', False):
-                    schedule = group_config.get('schedule', {})
-                    if schedule:
-                        on_time_str = schedule.get('on_time')
-                        off_time_str = schedule.get('off_time')
+                # Use unified schedules system for timing information
+                schedules = self.group_schedules.get(group_name, [])
+                if schedules and self.schedule_evaluator:
+                    now_local = self._get_local_now()
+                    today = now_local.date()
+                    
+                    # Find the currently active or next active schedule
+                    for schedule in schedules:
+                        if not schedule.enabled:
+                            continue
                         
-                        if on_time_str and off_time_str:
-                            try:
-                                # Build datetime objects for today in local timezone
-                                now_local = self._get_local_now()
-                                today = now_local.date()
-                                on_time = datetime.combine(today, datetime.strptime(on_time_str, "%H:%M").time())
-                                off_time = datetime.combine(today, datetime.strptime(off_time_str, "%H:%M").time())
-                                
-                                # If we're past the on time today, schedule is for today
-                                # If we're before the on time, it's also for today
-                                if now_local.time() < on_time.time():
-                                    expected_on_from = on_time.isoformat()
-                                    expected_off_at = off_time.isoformat()
-                                elif on_time.time() <= now_local.time() < off_time.time():
-                                    expected_on_from = on_time.isoformat()
-                                    expected_off_at = off_time.isoformat()
-                                else:
-                                    # Past off time, schedule is for tomorrow
-                                    tomorrow = today + timedelta(days=1)
-                                    expected_on_from = datetime.combine(tomorrow, on_time.time()).isoformat()
-                                    expected_off_at = datetime.combine(tomorrow, off_time.time()).isoformat()
-                            except ValueError:
-                                pass
-                
-                # For weather-based control with precipitation, try to estimate times
-                if automation.get('weather_control', False) and automation.get('precipitation_control', False):
-                    if self.weather_enabled and self.weather:
+                        # Check if schedule is for today
+                        current_day = now_local.isoweekday()
+                        if current_day not in schedule.days:
+                            continue
+                        
                         try:
-                            result = await self.weather.check_precipitation_forecast(
-                                hours_ahead=self.config.scheduler['forecast_hours'],
-                                temperature_threshold_f=self.config.thresholds['temperature_f']
+                            on_time, off_time = self.schedule_evaluator._get_schedule_times(
+                                schedule, today, now_local
                             )
                             
-                            if result and result != (False, None, None):
-                                has_precip, precip_time, temp = result
-                                if has_precip and precip_time:
-                                    lead_time = timedelta(minutes=self.config.thresholds['lead_time_minutes'])
-                                    turn_on_time = precip_time - lead_time
-                                    expected_on_from = turn_on_time.isoformat()
-                                    
-                                    # Expected off time is trailing time after precipitation ends
-                                    trailing_time = timedelta(minutes=self.config.thresholds['trailing_time_minutes'])
-                                    expected_off_at = (precip_time + trailing_time).isoformat()
+                            if on_time and off_time:
+                                # Convert to full datetime objects
+                                on_dt = datetime.combine(today, on_time)
+                                off_dt = datetime.combine(today, off_time)
+                                
+                                # Handle day-spanning schedules
+                                if off_time < on_time:
+                                    # Schedule spans midnight
+                                    if now_local.time() >= on_time or now_local.time() < off_time:
+                                        expected_on_from = on_dt.isoformat()
+                                        expected_off_at = datetime.combine(today + timedelta(days=1), off_time).isoformat()
+                                        break
+                                else:
+                                    # Normal schedule (same day)
+                                    if on_time <= now_local.time() < off_time:
+                                        expected_on_from = on_dt.isoformat()
+                                        expected_off_at = off_dt.isoformat()
+                                        break
+                                    elif now_local.time() < on_time:
+                                        # Schedule is upcoming today
+                                        expected_on_from = on_dt.isoformat()
+                                        expected_off_at = off_dt.isoformat()
+                                        break
                         except Exception as e:
-                            self.logger.debug(f"Could not get weather forecast for expectations: {e}")
+                            self.logger.debug(f"Could not calculate schedule times: {e}")
                 
                 # Get last state change time
                 last_state_change = None
@@ -1074,12 +1022,12 @@ class EnhancedScheduler:
         """
         Predict per-group ON/OFF windows over the next horizon_hours, stepping in step_minutes increments.
         
-        Uses the same decision logic that the live scheduler uses to determine whether mats should be on or off
-        at a given time, including:
-        - Weather-based conditions (forecast temp vs thresholds, precipitation, etc.)
-        - Schedule control (on_time / off_time for groups if schedule_control is enabled)
-        - Morning mode if relevant
-        - Any other automation flags that contribute to "should this group be ON now?"
+        Uses the unified scheduling system (schedules: array) with ScheduleEvaluator to determine
+        whether devices should be on or off at a given time, including:
+        - Time-based schedules (clock times and solar times)
+        - Weather conditions (temperature thresholds, precipitation)
+        - Day-of-week filtering
+        - Priority-based conflict resolution
         
         Must NOT talk to devices or external systems.
         Only uses current config, current in-memory weather state, and scheduler-internal helper methods.
@@ -1162,6 +1110,9 @@ class EnhancedScheduler:
         """
         Predict if a group should be ON at a given time (synchronous helper for predictions).
         
+        Uses the unified scheduling system with ScheduleEvaluator to determine if
+        any schedule wants the device ON at the given time.
+        
         Args:
             group_name: Name of the group
             group_config: Group configuration dictionary
@@ -1170,87 +1121,56 @@ class EnhancedScheduler:
         Returns:
             Tuple of (should_be_on, reason_string)
         """
-        base_automation = group_config.get('automation', {})
-        automation = self.automation_overrides.get_effective_automation(group_name, base_automation)
+        # Check vacation mode first
+        if self.vacation_mode:
+            return (False, "vacation_mode")
         
-        # Schedule-based control check
-        if automation.get('schedule_control', False):
-            schedule = group_config.get('schedule', {})
-            if schedule:
-                on_time_str = schedule.get('on_time')
-                off_time_str = schedule.get('off_time')
+        # Check if group has unified schedules
+        schedules = self.group_schedules.get(group_name, [])
+        
+        if schedules and self.schedule_evaluator:
+            # Use unified schedule evaluation
+            # Get weather conditions from cache if available
+            weather_conditions = None
+            weather_offline = False
+            
+            if self.weather_enabled and self.weather:
+                # Check if weather service is offline
+                weather_offline = self.weather.is_offline() if hasattr(self.weather, 'is_offline') else False
                 
-                if on_time_str and off_time_str:
+                if not weather_offline:
                     try:
-                        on_time = datetime.strptime(on_time_str, "%H:%M").time()
-                        off_time = datetime.strptime(off_time_str, "%H:%M").time()
-                        check_time_only = check_time.time()
-                        
-                        if on_time <= check_time_only < off_time:
-                            return (True, "schedule")
-                    except ValueError:
-                        pass
-        
-        # Weather-based control check
-        if automation.get('weather_control', False):
-            if not self.weather_enabled:
-                return (False, "weather_disabled")
+                        # Get weather conditions at check_time from cache
+                        if hasattr(self.weather, 'cache') and self.weather.cache:
+                            snapshot = self.weather.cache.get_weather_at(check_time)
+                            if snapshot:
+                                # Check for precipitation active (precipitation_mm > 0)
+                                precip_active = snapshot.precipitation_mm > 0 if hasattr(snapshot, 'precipitation_mm') else False
+                                
+                                weather_conditions = {
+                                    'temperature_f': snapshot.temperature_f if hasattr(snapshot, 'temperature_f') else None,
+                                    'precipitation_active': precip_active
+                                }
+                    except Exception as e:
+                        self.logger.debug(f"Could not get weather at time {check_time}: {e}")
             
-            # Morning mode check
-            if automation.get('morning_mode', False):
-                morning_mode = self.config.morning_mode
-                if morning_mode.get('enabled', False):
-                    start_hour = morning_mode.get('start_hour', 6)
-                    end_hour = morning_mode.get('end_hour', 8)
-                    check_hour = check_time.hour
-                    
-                    if start_hour <= check_hour < end_hour:
-                        # Check temperature from cache at this time
-                        try:
-                            if self.weather and hasattr(self.weather, 'cache'):
-                                snapshot = self.weather.cache.get_weather_at(check_time)
-                                if snapshot:
-                                    morning_temp_threshold = morning_mode.get(
-                                        'temperature_f',
-                                        self.config.thresholds['temperature_f']
-                                    )
-                                    if snapshot.temperature_f < morning_temp_threshold:
-                                        return (True, "below_temp_threshold")
-                        except Exception as e:
-                            self.logger.debug(f"Could not get weather at time {check_time}: {e}")
+            # Evaluate schedules using ScheduleEvaluator
+            should_on, winning_schedule, reason = self.schedule_evaluator.should_turn_on(
+                schedules,
+                check_time,
+                weather_conditions,
+                weather_offline
+            )
             
-            # Precipitation control check
-            if automation.get('precipitation_control', False):
-                try:
-                    if self.weather and hasattr(self.weather, 'cache') and self.weather.cache.cache_data:
-                        # Check if there's precipitation forecast around this time
-                        snapshot = self.weather.cache.get_weather_at(check_time)
-                        if snapshot and snapshot.precipitation_mm > 0:
-                            # Check temperature threshold
-                            if snapshot.temperature_f <= self.config.thresholds['temperature_f']:
-                                # Apply lead time
-                                lead_time_minutes = self.config.thresholds.get('lead_time_minutes', 60)
-                                trailing_time_minutes = self.config.thresholds.get('trailing_time_minutes', 60)
-                                
-                                # Turn on if within lead time before or trailing time after precipitation
-                                precip_time = datetime.fromisoformat(snapshot.timestamp)
-                                # Ensure precip_time is timezone-aware for comparison
-                                if precip_time.tzinfo is None:
-                                    # Convert naive datetime to timezone-aware using scheduler's timezone
-                                    precip_time = precip_time.replace(tzinfo=self.timezone)
-                                
-                                # Also ensure check_time is timezone-aware (use local copy to avoid modifying input)
-                                check_time_aware = check_time.replace(tzinfo=self.timezone) if check_time.tzinfo is None else check_time
-                                
-                                turn_on_time = precip_time - timedelta(minutes=lead_time_minutes)
-                                turn_off_time = precip_time + timedelta(minutes=trailing_time_minutes)
-                                
-                                if turn_on_time <= check_time_aware <= turn_off_time:
-                                    return (True, "snow_forecast")
-                except Exception as e:
-                    self.logger.debug(f"Error checking precipitation at {check_time}: {e}")
+            if should_on and winning_schedule:
+                # Return with the schedule name as the reason
+                return (True, f"schedule:{winning_schedule.name}")
+            else:
+                # No active schedule
+                return (False, "no_active_schedule")
         
-        return (False, "conditions_not_met")
+        # No schedules configured for this group
+        return (False, "no_schedules_configured")
     
     def run_coro_in_loop(self, coro):
         """

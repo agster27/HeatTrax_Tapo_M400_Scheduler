@@ -49,7 +49,7 @@ The Web UI includes a dedicated "Health" tab that provides a visual interface fo
 
 The Health tab displays device expectations calculated by the scheduler based on:
 
-1. **Schedule-based control**: If a device has `schedule_control` enabled, expectations are derived from the configured `on_time` and `off_time`
+1. **Unified schedules**: If a device group has `schedules:` array configured, expectations are derived from the schedule times, priorities, and conditions
 
 2. **Weather-based control**: If `precipitation_control` is enabled, expectations are based on:
    - Precipitation forecast times
