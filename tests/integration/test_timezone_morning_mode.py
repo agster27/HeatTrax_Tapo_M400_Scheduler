@@ -290,9 +290,10 @@ health_server:
             Path(state_file).unlink(missing_ok=True)
     
     @pytest.mark.asyncio
-    async def test_schedule_control_uses_local_timezone(self):
-        """Test that schedule control uses configured timezone."""
-        # Create a new config file with schedule control
+    async def test_schedule_uses_local_timezone(self):
+        """Test that unified schedules use configured timezone."""
+        # Create a new config file with unified schedules
+        # Note: 'on' and 'off' must be quoted as strings in YAML to avoid boolean interpretation
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write("""
 location:
@@ -312,10 +313,17 @@ devices:
       enabled: true
       automation:
         weather_control: false
-        schedule_control: true
-      schedule:
-        on_time: "17:00"
-        off_time: "23:00"
+      schedules:
+        - name: "Evening Lights"
+          enabled: true
+          priority: "normal"
+          days: [1, 2, 3, 4, 5, 6, 7]
+          "on":
+            type: "time"
+            value: "17:00"
+          "off":
+            type: "time"
+            value: "23:00"
       items:
         - name: "test_lights"
           ip_address: "192.168.1.110"
@@ -367,18 +375,22 @@ health_server:
             eastern_6pm = datetime(2025, 11, 20, 18, 0, 0, tzinfo=ZoneInfo("America/New_York"))
             
             with patch.object(scheduler, '_get_local_now', return_value=eastern_6pm):
-                # Mock device manager and state
+                # Mock device manager
                 scheduler.device_manager = MagicMock()
                 scheduler.device_manager.get_group_config = MagicMock(return_value={
                     'automation': {
-                        'weather_control': False,
-                        'schedule_control': True
+                        'weather_control': False
                     },
-                    'schedule': {
-                        'on_time': '17:00',
-                        'off_time': '23:00'
-                    }
+                    'schedules': [{
+                        'name': 'Evening Lights',
+                        'enabled': True,
+                        'priority': 'normal',
+                        'days': [1, 2, 3, 4, 5, 6, 7],
+                        'on': {'type': 'time', 'value': '17:00'},
+                        'off': {'type': 'time', 'value': '23:00'}
+                    }]
                 })
+                scheduler.device_manager.get_all_groups = MagicMock(return_value=['christmas_lights'])
                 
                 from src.scheduler.state_manager import StateManager
                 with tempfile.NamedTemporaryFile(delete=False) as f:
@@ -389,7 +401,7 @@ health_server:
                 # Test should_turn_on_group at 6 PM Eastern (within 17:00-23:00)
                 result = await scheduler.should_turn_on_group('christmas_lights')
                 
-                assert result is True, "Schedule control should be active at 6 PM (within 17:00-23:00)"
+                assert result is True, "Schedule should be active at 6 PM (within 17:00-23:00)"
                 
                 # Cleanup
                 Path(state_file).unlink(missing_ok=True)
