@@ -1002,22 +1002,15 @@ class WebServer:
                     group_name, base_automation
                 )
                 
-                # Get schedule info
-                schedule = group_config.get('schedule', {})
-                schedule_valid, on_time, off_time = self.scheduler.validate_schedule(schedule)
-                
-                schedule_info = {
-                    'on_time': on_time,
-                    'off_time': off_time,
-                    'valid': schedule_valid
-                }
+                # Return schedules info from the new unified format
+                schedules = group_config.get('schedules', [])
                 
                 return jsonify({
                     'group': group_name,
                     'base': base_automation,
                     'overrides': overrides,
                     'effective': effective,
-                    'schedule': schedule_info
+                    'schedules_count': len(schedules)
                 })
                 
             except Exception as e:
@@ -1072,12 +1065,11 @@ class WebServer:
                 
                 data = request.get_json()
                 
-                # Valid automation flags
+                # Valid automation flags (schedule_control removed - use unified schedules: array)
                 valid_flags = [
                     'weather_control',
                     'precipitation_control',
-                    'morning_mode',
-                    'schedule_control'
+                    'morning_mode'
                 ]
                 
                 # Update each flag in the request
@@ -1104,21 +1096,15 @@ class WebServer:
                     group_name, base_automation
                 )
                 
-                schedule = group_config.get('schedule', {})
-                schedule_valid, on_time, off_time = self.scheduler.validate_schedule(schedule)
-                
-                schedule_info = {
-                    'on_time': on_time,
-                    'off_time': off_time,
-                    'valid': schedule_valid
-                }
+                # Return schedules info from the new unified format
+                schedules = group_config.get('schedules', [])
                 
                 return jsonify({
                     'group': group_name,
                     'base': base_automation,
                     'overrides': overrides,
                     'effective': effective,
-                    'schedule': schedule_info
+                    'schedules_count': len(schedules)
                 })
                 
             except Exception as e:
@@ -1878,27 +1864,14 @@ class WebServer:
                                 if not isinstance(automation, dict):
                                     errors.append(f"devices.groups.{group_name}.automation must be a dictionary")
                                 else:
-                                    # Validate boolean flags
-                                    bool_flags = ['weather_control', 'precipitation_control', 'morning_mode', 'schedule_control']
+                                    # Validate boolean flags (schedule_control removed - use schedules: array)
+                                    bool_flags = ['weather_control', 'precipitation_control', 'morning_mode']
                                     for flag in bool_flags:
                                         if flag in automation and not isinstance(automation[flag], bool):
                                             errors.append(f"devices.groups.{group_name}.automation.{flag} must be a boolean")
                             
-                            # Validate schedule if present
-                            if 'schedule' in group_config:
-                                schedule = group_config['schedule']
-                                if not isinstance(schedule, dict):
-                                    errors.append(f"devices.groups.{group_name}.schedule must be a dictionary")
-                                else:
-                                    # Validate time format
-                                    time_pattern = r'^([01]?\d|2[0-3]):([0-5]\d)$'
-                                    for time_field in ['on_time', 'off_time']:
-                                        if time_field in schedule:
-                                            time_val = schedule[time_field]
-                                            if not isinstance(time_val, str):
-                                                errors.append(f"devices.groups.{group_name}.schedule.{time_field} must be a string")
-                                            elif not re.match(time_pattern, time_val):
-                                                errors.append(f"Invalid time format for devices.groups.{group_name}.schedule.{time_field}: {time_val} (expected HH:MM)")
+                            # Note: Legacy schedule: block is still allowed for backwards compatibility
+                            # but new configurations should use the schedules: array format
         
         # Validate thresholds section if present
         if 'thresholds' in config:

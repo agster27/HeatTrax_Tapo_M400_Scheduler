@@ -133,8 +133,7 @@ class TestAutomationOverrides:
             base = {
                 "weather_control": True,
                 "precipitation_control": True,
-                "morning_mode": False,
-                "schedule_control": False
+                "morning_mode": False
             }
             
             effective = overrides.get_effective_automation("heattrax", base)
@@ -149,19 +148,17 @@ class TestAutomationOverrides:
             base = {
                 "weather_control": True,
                 "precipitation_control": True,
-                "morning_mode": False,
-                "schedule_control": False
+                "morning_mode": False
             }
             
             overrides.set_flag("heattrax", "morning_mode", True)
-            overrides.set_flag("heattrax", "schedule_control", True)
+            overrides.set_flag("heattrax", "precipitation_control", False)
             
             effective = overrides.get_effective_automation("heattrax", base)
             
             assert effective["weather_control"] == True  # From base
-            assert effective["precipitation_control"] == True  # From base
+            assert effective["precipitation_control"] == False  # Overridden
             assert effective["morning_mode"] == True  # Overridden
-            assert effective["schedule_control"] == True  # Overridden
     
     def test_get_effective_automation_partial_overrides(self):
         """Test that partial overrides only affect specified flags."""
@@ -202,14 +199,14 @@ class TestAutomationOverrides:
             overrides = AutomationOverrides(state_file=str(state_file))
             
             overrides.set_flag("heattrax", "weather_control", True)
-            overrides.set_flag("lights", "schedule_control", False)
+            overrides.set_flag("lights", "precipitation_control", False)
             
             all_overrides = overrides.get_all_overrides()
             
             assert "heattrax" in all_overrides
             assert "lights" in all_overrides
             assert all_overrides["heattrax"]["weather_control"] == True
-            assert all_overrides["lights"]["schedule_control"] == False
+            assert all_overrides["lights"]["precipitation_control"] == False
     
     def test_persistence_across_instances(self):
         """Test that overrides persist across instances."""
@@ -231,11 +228,11 @@ class TestAutomationOverrides:
             overrides = AutomationOverrides(state_file=str(state_file))
             
             overrides.set_flag("heattrax", "weather_control", True)
-            overrides.set_flag("lights", "schedule_control", False)
+            overrides.set_flag("lights", "precipitation_control", False)
             overrides.set_flag("pool", "morning_mode", True)
             
             assert overrides.get_group_overrides("heattrax") == {"weather_control": True}
-            assert overrides.get_group_overrides("lights") == {"schedule_control": False}
+            assert overrides.get_group_overrides("lights") == {"precipitation_control": False}
             assert overrides.get_group_overrides("pool") == {"morning_mode": True}
 
 
