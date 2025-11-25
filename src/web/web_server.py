@@ -1036,9 +1036,11 @@ class WebServer:
                 {
                     "weather_control": true/false/null,
                     "precipitation_control": true/false/null,
-                    "morning_mode": true/false/null,
-                    "schedule_control": true/false/null
+                    "morning_mode": true/false/null
                 }
+            
+            Note: schedule_control has been removed. Schedule-based automation
+            is now handled via the unified schedules: array in config.yaml.
             
             Returns:
                 JSON: Same structure as GET endpoint with updated values
