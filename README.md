@@ -436,6 +436,19 @@ devices:
         weather_control: true
         precipitation_control: true
         morning_mode: true
+      schedules:
+        - name: "Morning Black Ice Protection"
+          enabled: true
+          priority: "critical"
+          days: [1, 2, 3, 4, 5, 6, 7]
+          "on":
+            type: "time"
+            value: "05:00"
+          "off":
+            type: "time"
+            value: "08:00"
+          conditions:
+            temperature_max: 36
       items:
         - name: "Front Walkway Mat"
           ip_address: "192.168.1.100"
@@ -443,15 +456,22 @@ devices:
         - name: "Driveway Mat"
           ip_address: "192.168.1.101"
     
-    # Schedule-controlled Christmas lights
+    # Schedule-controlled Christmas lights using unified schedules
     christmas_lights:
       enabled: true
       automation:
         weather_control: false
-        schedule_control: true
-      schedule:
-        on_time: "17:00"
-        off_time: "23:00"
+      schedules:
+        - name: "Evening Lights"
+          enabled: true
+          priority: "normal"
+          days: [1, 2, 3, 4, 5, 6, 7]
+          "on":
+            type: "time"
+            value: "17:00"
+          "off":
+            type: "time"
+            value: "23:00"
       items:
         - name: "Front Yard Lights"
           ip_address: "192.168.1.110"
@@ -462,7 +482,7 @@ devices:
 
 **Key Features:**
 - **Groups**: Organize devices by function (mats, lights, etc.)
-- **Automation Rules**: Different rules per group (weather vs schedule)
+- **Unified Schedules**: All scheduling uses the `schedules:` array format with priority, conditions, and day-of-week filtering
 - **Outlet Control**: Control individual outlets on multi-outlet plugs
 - **Group Actions**: Turn entire groups on/off together
 - **Independent State**: Each group tracks its own runtime and cooldown
@@ -509,19 +529,20 @@ If you have an old single-device configuration (using `device:` instead of `devi
 
 ### Automation Control via Web UI
 
-**NEW**: Automation flags can now be toggled via the Web UI without editing `config.yaml`:
+Automation flags can be toggled via the Web UI without editing `config.yaml`:
 
 1. Navigate to the **Groups** tab in the Web UI
 2. Each group displays toggles for:
    - **Weather Control**: Enable/disable weather-based automation
    - **Precipitation Control**: Enable/disable precipitation forecasting
    - **Morning Mode**: Enable/disable early morning black ice protection
-   - **Schedule Control**: Enable/disable time-based scheduling
 3. Toggle any flag to override the base configuration from `config.yaml`
 4. Changes apply immediately (no restart required)
 5. Overrides are stored in `state/automation_overrides.json`
 6. Overridden flags show an "overridden" badge in the UI
 7. To clear an override and return to `config.yaml` value, toggle back to the base value
+
+**Note**: Schedule-based automation is now controlled via the `schedules:` array in `config.yaml`. See the [Scheduling Guide](SCHEDULING.md) for details on configuring schedules.
 
 **Example workflow:**
 - Configure base automation in `config.yaml`:
@@ -532,11 +553,23 @@ If you have an old single-device configuration (using `device:` instead of `devi
       weather_control: true
       precipitation_control: true
       morning_mode: true
-      schedule_control: false
+    schedules:
+      - name: "Morning Heat"
+        enabled: true
+        priority: "critical"
+        days: [1, 2, 3, 4, 5, 6, 7]
+        "on":
+          type: "time"
+          value: "05:00"
+        "off":
+          type: "time"
+          value: "08:00"
+        conditions:
+          temperature_max: 36
   ```
 - Temporarily disable morning mode via Web UI toggle
 - Override persists across scheduler restarts
-- Schedule times (`on_time`, `off_time`) remain configured in `config.yaml`
+- Schedule configuration remains in `config.yaml` and cannot be overridden via Web UI
 
 **State file location:** `state/automation_overrides.json`
 ```json
@@ -799,13 +832,26 @@ devices:
   
   # Define device groups
   groups:
-    # Weather-controlled heated mats
+    # Weather-controlled heated mats with schedule
     heated_mats:
       enabled: true
       automation:
         weather_control: true          # Enable weather-based control
         precipitation_control: true    # Turn on before precipitation
         morning_mode: true             # Enable black ice protection
+      schedules:
+        - name: "Morning Heat"
+          enabled: true
+          priority: "critical"
+          days: [1, 2, 3, 4, 5, 6, 7]
+          "on":
+            type: "time"
+            value: "05:00"
+          "off":
+            type: "time"
+            value: "08:00"
+          conditions:
+            temperature_max: 36
       items:
         - name: "Front Walkway Mat"
           ip_address: "192.168.1.100"
@@ -822,11 +868,17 @@ devices:
       enabled: true
       automation:
         weather_control: false         # Disable weather control
-        schedule_control: true         # Enable schedule control
-      schedule:
-        on_time: "17:00"               # Turn on at 5:00 PM
-        off_time: "23:00"              # Turn off at 11:00 PM
-        # days: [5, 6]                 # Optional: only Sat/Sun (0=Mon, 6=Sun)
+      schedules:
+        - name: "Evening Lights"
+          enabled: true
+          priority: "normal"
+          days: [1, 2, 3, 4, 5, 6, 7]
+          "on":
+            type: "time"
+            value: "17:00"             # Turn on at 5:00 PM
+          "off":
+            type: "time"
+            value: "23:00"             # Turn off at 11:00 PM
       items:
         - name: "Front Yard Lights"
           ip_address: "192.168.1.110"
@@ -837,7 +889,7 @@ devices:
 
 **Multi-Device Features:**
 - **Groups**: Organize devices by function
-- **Automation Rules**: Different per group (weather/schedule/both)
+- **Unified Schedules**: All scheduling uses the `schedules:` array with priority, conditions, and day filtering
 - **Outlet Control**: Control individual outlets on multi-outlet plugs
 - **Independent State**: Each group tracks its own runtime/cooldown
 

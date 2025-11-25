@@ -347,11 +347,17 @@ devices:
         weather_control: false       # Disable weather control
         precipitation_control: false
         morning_mode: false
-        schedule_control: true       # Enable schedule control
-      schedule:
-        on_time: "17:00"   # Turn on at 5:00 PM
-        off_time: "23:00"  # Turn off at 11:00 PM
-        # Optional: days: [5, 6]  # Saturday and Sunday only
+      schedules:
+        - name: "Evening Lights"
+          enabled: true
+          priority: "normal"
+          days: [1, 2, 3, 4, 5, 6, 7]  # All days, or [5, 6] for weekend only
+          "on":
+            type: "time"
+            value: "17:00"   # Turn on at 5:00 PM
+          "off":
+            type: "time"
+            value: "23:00"  # Turn off at 11:00 PM
       items:
         - name: "Christmas Lights"
           ip_address: "192.168.1.110"
@@ -363,7 +369,7 @@ Schedule times respect the `location.timezone` setting.
 
 **Important**: The `location.timezone` setting controls how all time-of-day automation rules are interpreted. This includes:
 - **Morning mode hours** (`morning_mode.start_hour` and `end_hour`)
-- **Schedule times** (`schedule.on_time` and `off_time`)
+- **Schedule times** (in the `schedules:` array)
 
 ```yaml
 location:
