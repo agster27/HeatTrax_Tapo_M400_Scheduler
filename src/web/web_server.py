@@ -1508,8 +1508,10 @@ class WebServer:
                     else:
                         weather_state = str(state)
                 
-                # Get configured forecast hours from scheduler config
+                # Get configured forecast hours from scheduler config and validate
                 forecast_hours = config.get('scheduler', {}).get('forecast_hours', 12)
+                if not isinstance(forecast_hours, int) or forecast_hours < 1:
+                    forecast_hours = 12
                 
                 return jsonify({
                     'status': 'ok',
