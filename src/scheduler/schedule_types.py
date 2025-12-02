@@ -58,17 +58,24 @@ class Schedule:
         if not isinstance(self.days, list) or not all(1 <= d <= 7 for d in self.days):
             raise ValueError(f"Invalid days specification: {self.days}")
         
-        # Parse on time
-        self.on_config = schedule_dict.get('on', {})
-        if not self.on_config:
-            raise ValueError("Schedule must have 'on' time configuration")
-        self._validate_time_config(self.on_config, 'on')
+        # All day flag (new feature for 24-hour schedules)
+        self.all_day = schedule_dict.get('all_day', False)
+        if not isinstance(self.all_day, bool):
+            raise ValueError("all_day must be true or false")
         
-        # Parse off time
+        # Parse on time (not required if all_day is true)
+        self.on_config = schedule_dict.get('on', {})
+        if not self.all_day:
+            if not self.on_config:
+                raise ValueError("Schedule must have 'on' time configuration")
+            self._validate_time_config(self.on_config, 'on')
+        
+        # Parse off time (not required if all_day is true)
         self.off_config = schedule_dict.get('off', {})
-        if not self.off_config:
-            raise ValueError("Schedule must have 'off' time configuration")
-        self._validate_time_config(self.off_config, 'off')
+        if not self.all_day:
+            if not self.off_config:
+                raise ValueError("Schedule must have 'off' time configuration")
+            self._validate_time_config(self.off_config, 'off')
         
         # Conditions (optional)
         self.conditions = schedule_dict.get('conditions', {})
@@ -177,6 +184,10 @@ class Schedule:
         """Check if schedule has weather conditions."""
         return bool(self.conditions)
     
+    def is_all_day(self) -> bool:
+        """Check if this is an all-day schedule."""
+        return self.all_day
+    
     def get_max_runtime_hours(self, default: float) -> float:
         """Get max runtime hours (schedule-specific or default)."""
         return self.safety.get('max_runtime_hours', default)
@@ -187,18 +198,27 @@ class Schedule:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert schedule to dictionary representation."""
-        return {
+        result = {
             'name': self.name,
             'enabled': self.enabled,
             'priority': self.priority.value,
             'days': self.days,
-            'on': self.on_config,
-            'off': self.off_config,
+            'all_day': self.all_day,
             'conditions': self.conditions if self.conditions else {},
             'safety': self.safety if self.safety else {}
         }
+        # Only include on/off configs if not an all_day schedule
+        if not self.all_day:
+            result['on'] = self.on_config
+            result['off'] = self.off_config
+        return result
     
     def __repr__(self) -> str:
+        if self.all_day:
+            return (
+                f"Schedule(name='{self.name}', enabled={self.enabled}, "
+                f"priority={self.priority.value}, days={self.days}, all_day=True)"
+            )
         return (
             f"Schedule(name='{self.name}', enabled={self.enabled}, "
             f"priority={self.priority.value}, days={self.days})"

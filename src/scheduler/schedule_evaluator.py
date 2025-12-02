@@ -77,39 +77,46 @@ class ScheduleEvaluator:
                 )
                 continue
             
-            # Get schedule time range
-            try:
-                on_time, off_time = self._get_schedule_times(
-                    schedule, current_date, current_time
-                )
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to calculate times for schedule '{schedule.name}': {e}"
-                )
-                continue
-            
-            # Check if current time is within schedule window
-            # Handle day-spanning schedules (e.g., 23:00 to 02:00)
-            in_range = False
-            if off_time and on_time < off_time:
-                # Normal case: on < off (same day)
-                in_range = on_time <= current_time_only < off_time
-            elif off_time:
-                # Day-spanning case: on > off (crosses midnight)
-                in_range = current_time_only >= on_time or current_time_only < off_time
-            else:
-                # Duration-based: only check if we've passed on_time
-                # (off_time will be None for duration schedules during evaluation)
-                in_range = current_time_only >= on_time
-            
-            if not in_range:
+            # Handle all_day schedules - skip time range check
+            if schedule.is_all_day():
                 self.logger.debug(
-                    f"Schedule '{schedule.name}' not in time range: "
-                    f"current={current_time_only.strftime('%H:%M')}, "
-                    f"range={on_time.strftime('%H:%M')}-"
-                    f"{off_time.strftime('%H:%M') if off_time else 'duration'}"
+                    f"Schedule '{schedule.name}' is an all_day schedule, skipping time check"
                 )
-                continue
+                in_range = True
+            else:
+                # Get schedule time range
+                try:
+                    on_time, off_time = self._get_schedule_times(
+                        schedule, current_date, current_time
+                    )
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to calculate times for schedule '{schedule.name}': {e}"
+                    )
+                    continue
+                
+                # Check if current time is within schedule window
+                # Handle day-spanning schedules (e.g., 23:00 to 02:00)
+                in_range = False
+                if off_time and on_time < off_time:
+                    # Normal case: on < off (same day)
+                    in_range = on_time <= current_time_only < off_time
+                elif off_time:
+                    # Day-spanning case: on > off (crosses midnight)
+                    in_range = current_time_only >= on_time or current_time_only < off_time
+                else:
+                    # Duration-based: only check if we've passed on_time
+                    # (off_time will be None for duration schedules during evaluation)
+                    in_range = current_time_only >= on_time
+                
+                if not in_range:
+                    self.logger.debug(
+                        f"Schedule '{schedule.name}' not in time range: "
+                        f"current={current_time_only.strftime('%H:%M')}, "
+                        f"range={on_time.strftime('%H:%M')}-"
+                        f"{off_time.strftime('%H:%M') if off_time else 'duration'}"
+                    )
+                    continue
             
             # Check weather conditions if schedule has them
             if schedule.has_conditions():
