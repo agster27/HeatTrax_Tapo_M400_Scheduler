@@ -1508,6 +1508,9 @@ class WebServer:
                     else:
                         weather_state = str(state)
                 
+                # Get configured forecast hours from scheduler config
+                forecast_hours = config.get('scheduler', {}).get('forecast_hours', 12)
+                
                 return jsonify({
                     'status': 'ok',
                     'last_updated': last_updated,
@@ -1515,6 +1518,7 @@ class WebServer:
                     'timezone': timezone,
                     'cache_age_hours': cache_age_hours,
                     'cache_valid_hours': cache_valid_hours,
+                    'forecast_hours': forecast_hours,
                     'hours': hours,
                     'alerts': [],  # Would need additional data source for alerts
                     'weather_state': weather_state

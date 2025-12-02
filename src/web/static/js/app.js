@@ -1072,7 +1072,7 @@ async function refreshWeather() {
                 </div>
                 <div class="status-item">
                     <label>Forecast Hours</label>
-                    <value>${forecastData.hours ? forecastData.hours.length : 0}</value>
+                    <value>${forecastData.forecast_hours || (forecastData.hours ? forecastData.hours.length : 0)}</value>
                 </div>
             `;
             
@@ -1102,6 +1102,7 @@ async function refreshWeather() {
         // Update forecast table
         if (forecastData.status === 'ok' && forecastData.hours && forecastData.hours.length > 0) {
             // Build a map of times to mat ON status from mat forecast
+            // Use Unix timestamp (milliseconds) as key for reliable matching
             const matOnByTime = {};
             if (matForecastData.status === 'ok' && matForecastData.groups) {
                 for (const [groupName, windows] of Object.entries(matForecastData.groups)) {
@@ -1114,7 +1115,8 @@ async function refreshWeather() {
                             for (const hour of forecastData.hours) {
                                 const hourTime = new Date(hour.time);
                                 if (hourTime >= start && hourTime <= end) {
-                                    matOnByTime[hour.time] = true;
+                                    // Use getTime() for reliable timestamp matching
+                                    matOnByTime[hourTime.getTime()] = true;
                                 }
                             }
                         }
@@ -1137,11 +1139,13 @@ async function refreshWeather() {
             `;
             
             for (const hour of forecastData.hours) {
-                const time = new Date(hour.time).toLocaleString();
+                const hourTime = new Date(hour.time);
+                const time = hourTime.toLocaleString();
                 const temp = hour.temp_f !== null ? hour.temp_f.toFixed(1) : 'N/A';
                 const precip = hour.precip_intensity !== null ? hour.precip_intensity.toFixed(2) : '0.00';
                 const precipType = hour.precip_type || '-';
-                const matsOn = matOnByTime[hour.time] ? '✅' : '-';
+                // Use getTime() for reliable timestamp matching
+                const matsOn = matOnByTime[hourTime.getTime()] ? '✅' : '-';
                 
                 tableHtml += `
                     <tr style="border-bottom: 1px solid #eee;">
