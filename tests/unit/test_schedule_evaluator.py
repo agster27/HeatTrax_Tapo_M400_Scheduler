@@ -450,3 +450,164 @@ class TestDayOfWeekMatching:
         )
         
         assert should_on is False
+
+
+class TestAllDayScheduleEvaluation:
+    """Test all_day schedule evaluation."""
+    
+    def test_all_day_schedule_active_at_midnight(self, schedule_evaluator, timezone_ny):
+        """Test all_day schedule is active at midnight."""
+        config = {
+            'name': 'All Day Schedule',
+            'enabled': True,
+            'all_day': True,
+            'days': [1, 2, 3, 4, 5, 6, 7]
+        }
+        schedule = Schedule(config)
+        
+        # Monday at 00:00
+        test_time = datetime(2024, 6, 17, 0, 0, tzinfo=timezone_ny)
+        
+        should_on, active_schedule, reason = schedule_evaluator.should_turn_on(
+            schedules=[schedule],
+            current_time=test_time
+        )
+        
+        assert should_on is True
+        assert active_schedule == schedule
+    
+    def test_all_day_schedule_active_at_noon(self, schedule_evaluator, timezone_ny):
+        """Test all_day schedule is active at noon."""
+        config = {
+            'name': 'All Day Schedule',
+            'enabled': True,
+            'all_day': True,
+            'days': [1, 2, 3, 4, 5, 6, 7]
+        }
+        schedule = Schedule(config)
+        
+        # Monday at 12:00
+        test_time = datetime(2024, 6, 17, 12, 0, tzinfo=timezone_ny)
+        
+        should_on, active_schedule, reason = schedule_evaluator.should_turn_on(
+            schedules=[schedule],
+            current_time=test_time
+        )
+        
+        assert should_on is True
+        assert active_schedule == schedule
+    
+    def test_all_day_schedule_active_at_end_of_day(self, schedule_evaluator, timezone_ny):
+        """Test all_day schedule is active at 23:59."""
+        config = {
+            'name': 'All Day Schedule',
+            'enabled': True,
+            'all_day': True,
+            'days': [1, 2, 3, 4, 5, 6, 7]
+        }
+        schedule = Schedule(config)
+        
+        # Monday at 23:59
+        test_time = datetime(2024, 6, 17, 23, 59, tzinfo=timezone_ny)
+        
+        should_on, active_schedule, reason = schedule_evaluator.should_turn_on(
+            schedules=[schedule],
+            current_time=test_time
+        )
+        
+        assert should_on is True
+        assert active_schedule == schedule
+    
+    def test_all_day_schedule_respects_day_of_week(self, schedule_evaluator, timezone_ny):
+        """Test all_day schedule respects day-of-week filter."""
+        config = {
+            'name': 'Weekday All Day',
+            'enabled': True,
+            'all_day': True,
+            'days': [1, 2, 3, 4, 5]  # Weekdays only
+        }
+        schedule = Schedule(config)
+        
+        # Saturday at 12:00 - should NOT be active
+        test_time = datetime(2024, 6, 22, 12, 0, tzinfo=timezone_ny)
+        
+        should_on, schedule_obj, reason = schedule_evaluator.should_turn_on(
+            schedules=[schedule],
+            current_time=test_time
+        )
+        
+        assert should_on is False
+    
+    def test_all_day_schedule_with_weather_conditions_met(
+        self, schedule_evaluator, timezone_ny, weather_cold_snowing
+    ):
+        """Test all_day schedule with weather conditions met."""
+        config = {
+            'name': 'Snow Event',
+            'enabled': True,
+            'all_day': True,
+            'days': [1, 2, 3, 4, 5, 6, 7],
+            'conditions': {
+                'temperature_max': 32,
+                'precipitation_active': True
+            }
+        }
+        schedule = Schedule(config)
+        
+        # Monday at any time with cold snowing weather
+        test_time = datetime(2024, 6, 17, 14, 30, tzinfo=timezone_ny)
+        
+        should_on, active_schedule, reason = schedule_evaluator.should_turn_on(
+            schedules=[schedule],
+            current_time=test_time,
+            weather_conditions=weather_cold_snowing
+        )
+        
+        assert should_on is True
+        assert active_schedule == schedule
+    
+    def test_all_day_schedule_with_weather_conditions_not_met(
+        self, schedule_evaluator, timezone_ny, weather_warm
+    ):
+        """Test all_day schedule with weather conditions not met."""
+        config = {
+            'name': 'Snow Event',
+            'enabled': True,
+            'all_day': True,
+            'days': [1, 2, 3, 4, 5, 6, 7],
+            'conditions': {
+                'temperature_max': 32,
+                'precipitation_active': True
+            }
+        }
+        schedule = Schedule(config)
+        
+        # Monday at any time with warm weather
+        test_time = datetime(2024, 6, 17, 14, 30, tzinfo=timezone_ny)
+        
+        should_on, schedule_obj, reason = schedule_evaluator.should_turn_on(
+            schedules=[schedule],
+            current_time=test_time,
+            weather_conditions=weather_warm
+        )
+        
+        assert should_on is False
+    
+    def test_all_day_schedule_disabled(self, schedule_evaluator, timezone_ny):
+        """Test disabled all_day schedule is not active."""
+        config = {
+            'name': 'Disabled All Day',
+            'enabled': False,
+            'all_day': True,
+            'days': [1, 2, 3, 4, 5, 6, 7]
+        }
+        schedule = Schedule(config)
+        
+        test_time = datetime(2024, 6, 17, 12, 0, tzinfo=timezone_ny)
+        
+        should_on, schedule_obj, reason = schedule_evaluator.should_turn_on(
+            schedules=[schedule],
+            current_time=test_time
+        )
+        
+        assert should_on is False

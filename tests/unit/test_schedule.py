@@ -334,3 +334,137 @@ class TestSchedulePriority:
         
         # Should default to normal without raising error
         assert schedule.priority == SchedulePriority.NORMAL
+
+
+class TestAllDaySchedule:
+    """Test all_day schedule functionality."""
+    
+    def test_all_day_schedule_creation(self):
+        """Test creating an all_day schedule without on/off times."""
+        config = {
+            'name': 'Snow Event',
+            'enabled': True,
+            'priority': 'critical',
+            'days': [1, 2, 3, 4, 5, 6, 7],
+            'all_day': True,
+            'conditions': {
+                'precipitation_active': True
+            }
+        }
+        schedule = Schedule(config)
+        
+        assert schedule.name == 'Snow Event'
+        assert schedule.all_day is True
+        assert schedule.is_all_day() is True
+        assert schedule.priority == SchedulePriority.CRITICAL
+        assert schedule.days == [1, 2, 3, 4, 5, 6, 7]
+        assert schedule.conditions['precipitation_active'] is True
+        # on_config and off_config should be empty dicts for all_day
+        assert schedule.on_config == {}
+        assert schedule.off_config == {}
+    
+    def test_all_day_schedule_defaults_to_false(self):
+        """Test that all_day defaults to False for normal schedules."""
+        config = {
+            'name': 'Normal Schedule',
+            'on': {'type': 'time', 'value': '06:00'},
+            'off': {'type': 'time', 'value': '08:00'}
+        }
+        schedule = Schedule(config)
+        
+        assert schedule.all_day is False
+        assert schedule.is_all_day() is False
+    
+    def test_all_day_schedule_to_dict(self):
+        """Test all_day schedule converts to dict correctly."""
+        config = {
+            'name': 'All Day Schedule',
+            'enabled': True,
+            'priority': 'normal',
+            'days': [1, 2, 3, 4, 5],
+            'all_day': True
+        }
+        schedule = Schedule(config)
+        schedule_dict = schedule.to_dict()
+        
+        assert schedule_dict['all_day'] is True
+        assert schedule_dict['name'] == 'All Day Schedule'
+        assert schedule_dict['days'] == [1, 2, 3, 4, 5]
+        # on/off should not be in dict for all_day schedules
+        assert 'on' not in schedule_dict
+        assert 'off' not in schedule_dict
+    
+    def test_regular_schedule_to_dict_includes_all_day_false(self):
+        """Test regular schedule includes all_day: false in dict."""
+        config = {
+            'name': 'Regular Schedule',
+            'on': {'type': 'time', 'value': '06:00'},
+            'off': {'type': 'time', 'value': '08:00'}
+        }
+        schedule = Schedule(config)
+        schedule_dict = schedule.to_dict()
+        
+        assert schedule_dict['all_day'] is False
+        assert 'on' in schedule_dict
+        assert 'off' in schedule_dict
+    
+    def test_all_day_invalid_type_raises_error(self):
+        """Test that invalid all_day value raises error."""
+        config = {
+            'name': 'Invalid',
+            'days': [1, 2, 3],
+            'all_day': 'yes',  # Invalid type
+            'on': {'type': 'time', 'value': '06:00'},
+            'off': {'type': 'time', 'value': '08:00'}
+        }
+        
+        with pytest.raises(ValueError, match="all_day must be true or false"):
+            Schedule(config)
+    
+    def test_all_day_repr(self):
+        """Test string representation of all_day schedule."""
+        config = {
+            'name': 'All Day Schedule',
+            'all_day': True,
+            'days': [1, 2, 3, 4, 5, 6, 7]
+        }
+        schedule = Schedule(config)
+        repr_str = repr(schedule)
+        
+        assert 'all_day=True' in repr_str
+        assert 'All Day Schedule' in repr_str
+    
+    def test_all_day_with_conditions(self):
+        """Test all_day schedule with weather conditions."""
+        config = {
+            'name': 'Snow Watch',
+            'all_day': True,
+            'days': [1, 2, 3, 4, 5, 6, 7],
+            'conditions': {
+                'temperature_max': 32,
+                'precipitation_active': True
+            }
+        }
+        schedule = Schedule(config)
+        
+        assert schedule.all_day is True
+        assert schedule.has_conditions() is True
+        assert schedule.conditions['temperature_max'] == 32
+        assert schedule.conditions['precipitation_active'] is True
+    
+    def test_all_day_with_safety_overrides(self):
+        """Test all_day schedule with safety overrides."""
+        config = {
+            'name': 'All Day With Safety',
+            'all_day': True,
+            'days': [1, 2, 3, 4, 5, 6, 7],
+            'safety': {
+                'max_runtime_hours': 12,
+                'cooldown_minutes': 30
+            }
+        }
+        schedule = Schedule(config)
+        
+        assert schedule.all_day is True
+        assert schedule.get_max_runtime_hours(default=10) == 12
+        assert schedule.get_cooldown_minutes(default=15) == 30

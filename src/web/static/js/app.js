@@ -2258,10 +2258,31 @@ function renderScheduleCard(groupName, schedule, index, solarTimes) {
     const priority = schedule.priority || 'normal';
     const days = schedule.days || [1,2,3,4,5,6,7];
     const daysText = formatDays(days);
+    const isAllDay = schedule.all_day === true;
     
-    // Format ON time
-    const onTime = formatScheduleTime(schedule.on, 'on', solarTimes);
-    const offTime = formatScheduleTime(schedule.off, 'off', solarTimes);
+    // Format ON/OFF time
+    let timeHtml = '';
+    if (isAllDay) {
+        timeHtml = `
+            <div class="schedule-time-row">
+                <span class="schedule-time-label">Time:</span>
+                <span class="schedule-time-value all-day-badge">🕐 All Day (24 hours)</span>
+            </div>
+        `;
+    } else {
+        const onTime = formatScheduleTime(schedule.on, 'on', solarTimes);
+        const offTime = formatScheduleTime(schedule.off, 'off', solarTimes);
+        timeHtml = `
+            <div class="schedule-time-row">
+                <span class="schedule-time-label">ON:</span>
+                <span class="schedule-time-value">${onTime}</span>
+            </div>
+            <div class="schedule-time-row">
+                <span class="schedule-time-label">OFF:</span>
+                <span class="schedule-time-value">${offTime}</span>
+            </div>
+        `;
+    }
     
     // Format conditions
     const conditions = schedule.conditions || {};
@@ -2294,14 +2315,7 @@ function renderScheduleCard(groupName, schedule, index, solarTimes) {
                 </label>
             </div>
             <div class="schedule-details">
-                <div class="schedule-time-row">
-                    <span class="schedule-time-label">ON:</span>
-                    <span class="schedule-time-value">${onTime}</span>
-                </div>
-                <div class="schedule-time-row">
-                    <span class="schedule-time-label">OFF:</span>
-                    <span class="schedule-time-value">${offTime}</span>
-                </div>
+                ${timeHtml}
                 <div class="schedule-days">
                     <strong>Days:</strong> ${daysText}
                 </div>
@@ -2407,10 +2421,20 @@ function showAddScheduleDialog(groupName) {
     document.getElementById('schedule-enabled').checked = true;
     document.getElementById('schedule-priority').value = 'normal';
     
+    // Reset all_day checkbox and show time config section
+    document.getElementById('schedule-all-day').checked = false;
+    document.getElementById('time-config-section').style.display = 'block';
+    
     // Check all days by default
     document.querySelectorAll('.days-selector input[type="checkbox"]').forEach(cb => {
         cb.checked = true;
     });
+    
+    // Reset time type fields to default state
+    document.getElementById('on-type').value = 'time';
+    document.getElementById('off-type').value = 'time';
+    updateOnTimeFields();
+    updateOffTimeFields();
     
     // Show modal
     document.getElementById('schedule-modal').style.display = 'flex';
@@ -2442,8 +2466,13 @@ async function editSchedule(groupName, scheduleIndex) {
             cb.checked = schedule.days && schedule.days.includes(parseInt(cb.value));
         });
         
-        // Set ON time
-        if (schedule.on) {
+        // Set all_day flag
+        const isAllDay = schedule.all_day === true;
+        document.getElementById('schedule-all-day').checked = isAllDay;
+        toggleAllDay(isAllDay);
+        
+        // Set ON time (only if not all_day)
+        if (!isAllDay && schedule.on) {
             document.getElementById('on-type').value = schedule.on.type || 'time';
             updateOnTimeFields();
             
@@ -2455,8 +2484,8 @@ async function editSchedule(groupName, scheduleIndex) {
             }
         }
         
-        // Set OFF time
-        if (schedule.off) {
+        // Set OFF time (only if not all_day)
+        if (!isAllDay && schedule.off) {
             document.getElementById('off-type').value = schedule.off.type || 'time';
             updateOffTimeFields();
             
@@ -2538,18 +2567,42 @@ function updateOffTimeFields() {
     }
 }
 
+function toggleAllDay(checked) {
+    const timeConfigSection = document.getElementById('time-config-section');
+    const onTimeValue = document.getElementById('on-time-value');
+    const offTimeValue = document.getElementById('off-time-value');
+    
+    if (checked) {
+        // Hide ON/OFF time sections
+        timeConfigSection.style.display = 'none';
+        // Remove required attributes when hidden
+        onTimeValue.required = false;
+        offTimeValue.required = false;
+    } else {
+        // Show ON/OFF time sections
+        timeConfigSection.style.display = 'block';
+        // Restore required attributes based on current type selections
+        updateOnTimeFields();
+        updateOffTimeFields();
+    }
+}
+
 async function saveSchedule() {
     if (!currentScheduleGroupName) {
         alert('Error: No group selected');
         return;
     }
     
+    // Check if all_day is enabled
+    const isAllDay = document.getElementById('schedule-all-day').checked;
+    
     // Collect form data
     const schedule = {
         name: document.getElementById('schedule-name').value,
         priority: document.getElementById('schedule-priority').value,
         enabled: document.getElementById('schedule-enabled').checked,
-        days: []
+        days: [],
+        all_day: isAllDay
     };
     
     // Collect selected days
@@ -2562,47 +2615,50 @@ async function saveSchedule() {
         return;
     }
     
-    // ON time
-    const onType = document.getElementById('on-type').value;
-    schedule.on = { type: onType };
-    
-    if (onType === 'time') {
-        schedule.on.value = document.getElementById('on-time-value').value;
-        if (!schedule.on.value) {
-            alert('Please specify ON time');
-            return;
+    // Only collect ON/OFF times if not all_day
+    if (!isAllDay) {
+        // ON time
+        const onType = document.getElementById('on-type').value;
+        schedule.on = { type: onType };
+        
+        if (onType === 'time') {
+            schedule.on.value = document.getElementById('on-time-value').value;
+            if (!schedule.on.value) {
+                alert('Please specify ON time');
+                return;
+            }
+        } else {
+            schedule.on.offset = parseInt(document.getElementById('on-offset').value) || 0;
+            schedule.on.fallback = document.getElementById('on-fallback').value;
+            if (!schedule.on.fallback) {
+                alert('Please specify fallback time for ON');
+                return;
+            }
         }
-    } else {
-        schedule.on.offset = parseInt(document.getElementById('on-offset').value) || 0;
-        schedule.on.fallback = document.getElementById('on-fallback').value;
-        if (!schedule.on.fallback) {
-            alert('Please specify fallback time for ON');
-            return;
-        }
-    }
-    
-    // OFF time
-    const offType = document.getElementById('off-type').value;
-    schedule.off = { type: offType };
-    
-    if (offType === 'time') {
-        schedule.off.value = document.getElementById('off-time-value').value;
-        if (!schedule.off.value) {
-            alert('Please specify OFF time');
-            return;
-        }
-    } else if (offType === 'duration') {
-        schedule.off.value = parseFloat(document.getElementById('off-duration').value);
-        if (!schedule.off.value || schedule.off.value <= 0) {
-            alert('Please specify a valid duration');
-            return;
-        }
-    } else {
-        schedule.off.offset = parseInt(document.getElementById('off-offset').value) || 0;
-        schedule.off.fallback = document.getElementById('off-fallback').value;
-        if (!schedule.off.fallback) {
-            alert('Please specify fallback time for OFF');
-            return;
+        
+        // OFF time
+        const offType = document.getElementById('off-type').value;
+        schedule.off = { type: offType };
+        
+        if (offType === 'time') {
+            schedule.off.value = document.getElementById('off-time-value').value;
+            if (!schedule.off.value) {
+                alert('Please specify OFF time');
+                return;
+            }
+        } else if (offType === 'duration') {
+            schedule.off.value = parseFloat(document.getElementById('off-duration').value);
+            if (!schedule.off.value || schedule.off.value <= 0) {
+                alert('Please specify a valid duration');
+                return;
+            }
+        } else {
+            schedule.off.offset = parseInt(document.getElementById('off-offset').value) || 0;
+            schedule.off.fallback = document.getElementById('off-fallback').value;
+            if (!schedule.off.fallback) {
+                alert('Please specify fallback time for OFF');
+                return;
+            }
         }
     }
     

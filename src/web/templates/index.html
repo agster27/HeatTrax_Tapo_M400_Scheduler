@@ -235,39 +235,48 @@
                     
                     <hr style="margin: 20px 0;">
                     
-                    <h3>ON Time</h3>
                     <div class="form-group">
-                        <label for="on-type">Time Type</label>
-                        <select id="on-type" onchange="updateOnTimeFields()">
-                            <option value="time">Fixed Time (HH:MM)</option>
-                            <option value="sunrise">Sunrise</option>
-                            <option value="sunset">Sunset</option>
-                        </select>
+                        <label class="all-day-toggle">
+                            <input type="checkbox" id="schedule-all-day" onchange="toggleAllDay(this.checked)">
+                            <strong>Run All Day</strong>
+                        </label>
+                        <div class="helper-text">When enabled, the schedule runs for 24 hours on selected days. Useful for all-day weather events like snow storms.</div>
                     </div>
                     
-                    <div id="on-time-field" class="form-group">
-                        <label for="on-time-value">Time (24-hour format)</label>
-                        <input type="time" id="on-time-value" required>
-                    </div>
-                    
-                    <div id="on-solar-fields" style="display: none;">
+                    <div id="time-config-section">
+                        <h3>ON Time</h3>
                         <div class="form-group">
-                            <label for="on-offset">Offset (minutes)</label>
-                            <input type="number" id="on-offset" value="0" min="-180" max="180" step="1">
-                            <div class="helper-text">Positive = after sunrise/sunset, Negative = before</div>
+                            <label for="on-type">Time Type</label>
+                            <select id="on-type" onchange="updateOnTimeFields()">
+                                <option value="time">Fixed Time (HH:MM)</option>
+                                <option value="sunrise">Sunrise</option>
+                                <option value="sunset">Sunset</option>
+                            </select>
                         </div>
+                        
+                        <div id="on-time-field" class="form-group">
+                            <label for="on-time-value">Time (24-hour format)</label>
+                            <input type="time" id="on-time-value" required>
+                        </div>
+                        
+                        <div id="on-solar-fields" style="display: none;">
+                            <div class="form-group">
+                                <label for="on-offset">Offset (minutes)</label>
+                                <input type="number" id="on-offset" value="0" min="-180" max="180" step="1">
+                                <div class="helper-text">Positive = after sunrise/sunset, Negative = before</div>
+                            </div>
+                            <div class="form-group">
+                                <label for="on-fallback">Fallback Time</label>
+                                <input type="time" id="on-fallback">
+                                <div class="helper-text">Used if solar calculation fails</div>
+                            </div>
+                        </div>
+                        
+                        <hr style="margin: 20px 0;">
+                        
+                        <h3>OFF Time</h3>
                         <div class="form-group">
-                            <label for="on-fallback">Fallback Time</label>
-                            <input type="time" id="on-fallback">
-                            <div class="helper-text">Used if solar calculation fails</div>
-                        </div>
-                    </div>
-                    
-                    <hr style="margin: 20px 0;">
-                    
-                    <h3>OFF Time</h3>
-                    <div class="form-group">
-                        <label for="off-type">Time Type</label>
+                            <label for="off-type">Time Type</label>
                         <select id="off-type" onchange="updateOffTimeFields()">
                             <option value="time">Fixed Time (HH:MM)</option>
                             <option value="sunrise">Sunrise</option>
@@ -298,6 +307,7 @@
                         <label for="off-duration">Duration (hours)</label>
                         <input type="number" id="off-duration" value="1" min="0.1" max="24" step="0.1">
                     </div>
+                    </div><!-- End time-config-section -->
                     
                     <hr style="margin: 20px 0;">
                     
