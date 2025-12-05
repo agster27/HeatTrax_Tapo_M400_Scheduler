@@ -1117,7 +1117,11 @@ async function refreshWeather() {
                     <tbody>
             `;
             
-            for (const hour of forecastData.hours) {
+            // Limit the number of hours displayed to forecast_hours
+            const forecastHours = forecastData.forecast_hours || forecastData.hours.length;
+            const hoursToDisplay = forecastData.hours.slice(0, forecastHours);
+            
+            for (const hour of hoursToDisplay) {
                 const hourTime = new Date(hour.time);
                 const time = hourTime.toLocaleString();
                 const temp = hour.temp_f !== null ? hour.temp_f.toFixed(1) : 'N/A';
