@@ -1118,7 +1118,8 @@ async function refreshWeather() {
             `;
             
             // Limit the number of hours displayed to forecast_hours
-            const forecastHours = forecastData.forecast_hours || forecastData.hours.length;
+            // Use configured forecast_hours, with fallback to default of 12 hours
+            const forecastHours = forecastData.forecast_hours ?? 12;
             const hoursToDisplay = forecastData.hours.slice(0, forecastHours);
             
             for (const hour of hoursToDisplay) {
