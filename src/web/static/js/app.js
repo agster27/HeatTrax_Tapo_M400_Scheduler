@@ -1038,6 +1038,8 @@ async function refreshWeather() {
     
     // Conversion factor for precipitation units (25.4 mm per inch)
     const MM_PER_INCH = 25.4;
+    // Default forecast hours if not configured
+    const DEFAULT_FORECAST_HOURS = 12;
     
     try {
         // Fetch both weather forecast and mat forecast in parallel
@@ -1118,11 +1120,11 @@ async function refreshWeather() {
             `;
             
             // Limit the number of hours displayed to forecast_hours
-            // Use configured forecast_hours, with fallback to default of 12 hours
+            // Use configured forecast_hours, with fallback to default
             // Ensure we have a positive integer value
-            let forecastHours = forecastData.forecast_hours ?? 12;
+            let forecastHours = forecastData.forecast_hours ?? DEFAULT_FORECAST_HOURS;
             if (!Number.isInteger(forecastHours) || forecastHours < 1) {
-                forecastHours = 12;
+                forecastHours = DEFAULT_FORECAST_HOURS;
             }
             const hoursToDisplay = forecastData.hours.slice(0, forecastHours);
             
