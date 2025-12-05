@@ -1036,6 +1036,9 @@ async function refreshWeather() {
     const weatherForecastTable = document.getElementById('weather-forecast-table');
     const weatherMatTimelines = document.getElementById('weather-mat-timelines');
     
+    // Conversion factor for precipitation units
+    const MM_TO_INCHES = 25.4;
+    
     try {
         // Fetch both weather forecast and mat forecast in parallel
         const [forecastResponse, matForecastResponse] = await Promise.all([
@@ -1118,9 +1121,9 @@ async function refreshWeather() {
                 const hourTime = new Date(hour.time);
                 const time = hourTime.toLocaleString();
                 const temp = hour.temp_f !== null ? hour.temp_f.toFixed(1) : 'N/A';
-                // Convert precipitation from mm to inches (1 inch = 25.4 mm)
+                // Convert precipitation from mm to inches
                 const precipMm = hour.precip_intensity !== null ? hour.precip_intensity : 0;
-                const precipInches = precipMm / 25.4;
+                const precipInches = precipMm / MM_TO_INCHES;
                 const precip = precipInches.toFixed(2);
                 const precipType = hour.precip_type || '-';
                 
