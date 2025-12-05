@@ -1119,7 +1119,11 @@ async function refreshWeather() {
             
             // Limit the number of hours displayed to forecast_hours
             // Use configured forecast_hours, with fallback to default of 12 hours
-            const forecastHours = forecastData.forecast_hours ?? 12;
+            // Ensure we have a positive integer value
+            let forecastHours = forecastData.forecast_hours ?? 12;
+            if (!Number.isInteger(forecastHours) || forecastHours < 1) {
+                forecastHours = 12;
+            }
             const hoursToDisplay = forecastData.hours.slice(0, forecastHours);
             
             for (const hour of hoursToDisplay) {
