@@ -1036,7 +1036,7 @@ async function refreshWeather() {
     const weatherForecastTable = document.getElementById('weather-forecast-table');
     const weatherMatTimelines = document.getElementById('weather-mat-timelines');
     
-    // Conversion factor for precipitation units (1 inch = 25.4 mm)
+    // Conversion factor for precipitation units (25.4 mm per inch)
     const MM_PER_INCH = 25.4;
     
     try {
