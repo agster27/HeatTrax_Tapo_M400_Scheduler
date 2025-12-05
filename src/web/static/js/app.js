@@ -1036,6 +1036,9 @@ async function refreshWeather() {
     const weatherForecastTable = document.getElementById('weather-forecast-table');
     const weatherMatTimelines = document.getElementById('weather-mat-timelines');
     
+    // Conversion factor for precipitation units (25.4 mm per inch)
+    const MM_PER_INCH = 25.4;
+    
     try {
         // Fetch both weather forecast and mat forecast in parallel
         const [forecastResponse, matForecastResponse] = await Promise.all([
@@ -1101,38 +1104,14 @@ async function refreshWeather() {
         
         // Update forecast table
         if (forecastData.status === 'ok' && forecastData.hours && forecastData.hours.length > 0) {
-            // Build a map of times to mat ON status from mat forecast
-            // Use Unix timestamp (milliseconds) as key for reliable matching
-            const matOnByTime = {};
-            if (matForecastData.status === 'ok' && matForecastData.groups) {
-                for (const [groupName, windows] of Object.entries(matForecastData.groups)) {
-                    for (const window of windows) {
-                        if (window.state === 'on') {
-                            const start = new Date(window.start);
-                            const end = new Date(window.end);
-                            
-                            // Mark all hours in this window as having mats ON
-                            for (const hour of forecastData.hours) {
-                                const hourTime = new Date(hour.time);
-                                if (hourTime >= start && hourTime <= end) {
-                                    // Use getTime() for reliable timestamp matching
-                                    matOnByTime[hourTime.getTime()] = true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
             let tableHtml = `
                 <table style="width: 100%; border-collapse: collapse;">
                     <thead>
                         <tr style="background: #f8f9fa; border-bottom: 2px solid #ddd;">
                             <th style="padding: 10px; text-align: left;">Time</th>
                             <th style="padding: 10px; text-align: left;">Temp (°F)</th>
-                            <th style="padding: 10px; text-align: left;">Precip (mm)</th>
+                            <th style="padding: 10px; text-align: left;">Precip (in)</th>
                             <th style="padding: 10px; text-align: left;">Type</th>
-                            <th style="padding: 10px; text-align: center;">Mats ON?</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1142,10 +1121,11 @@ async function refreshWeather() {
                 const hourTime = new Date(hour.time);
                 const time = hourTime.toLocaleString();
                 const temp = hour.temp_f !== null ? hour.temp_f.toFixed(1) : 'N/A';
-                const precip = hour.precip_intensity !== null ? hour.precip_intensity.toFixed(2) : '0.00';
+                // Convert precipitation from mm to inches
+                const precipMm = hour.precip_intensity !== null ? hour.precip_intensity : 0;
+                const precipInches = precipMm / MM_PER_INCH;
+                const precip = precipInches.toFixed(2);
                 const precipType = hour.precip_type || '-';
-                // Use getTime() for reliable timestamp matching
-                const matsOn = matOnByTime[hourTime.getTime()] ? '✅' : '-';
                 
                 tableHtml += `
                     <tr style="border-bottom: 1px solid #eee;">
@@ -1153,7 +1133,6 @@ async function refreshWeather() {
                         <td style="padding: 8px;">${temp}</td>
                         <td style="padding: 8px;">${precip}</td>
                         <td style="padding: 8px;">${precipType}</td>
-                        <td style="padding: 8px; text-align: center;">${matsOn}</td>
                     </tr>
                 `;
             }
