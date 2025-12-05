@@ -23,7 +23,7 @@ def test_predict_group_windows_precipitation_timezone_aware():
     1. predict_group_windows uses timezone-aware datetime for the 'now' variable
     2. check_time passed to _predict_group_state_at_time is timezone-aware
     3. No TypeError is raised when comparing offset-naive and offset-aware datetimes
-    4. The "Mats ON?" column shows properly when precipitation is forecasted
+    4. Mats are predicted to be ON when precipitation is forecasted
     """
     
     # Create config file with precipitation control enabled
