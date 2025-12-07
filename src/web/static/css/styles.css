@@ -1968,8 +1968,11 @@ button:hover {
 }
 
 .collapsible-section-content.expanded {
-    /* Use a very large value to accommodate any content size
-       This is a common CSS-only accordion pattern */
+    /* Use a very large value to accommodate any content size.
+       This is a common CSS-only accordion pattern that provides smooth animations
+       without JavaScript height calculations. 5000px should be sufficient for
+       all practical form content in the modal. If content exceeds this, it will
+       still be scrollable via the modal body overflow. */
     max-height: 5000px;
     transition: max-height 0.5s ease-in;
 }

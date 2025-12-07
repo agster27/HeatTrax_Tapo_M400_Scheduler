@@ -3081,20 +3081,30 @@ function refreshCurrentTab() {
         return;
     }
     
-    const tabName = activeTab.textContent.trim().toLowerCase();
+    // Extract tab name from onclick attribute for more reliable identification
+    const onclickAttr = activeTab.getAttribute('onclick');
+    if (!onclickAttr) {
+        refreshStatus();
+        return;
+    }
     
-    if (tabName.includes('status')) {
+    // Parse switchTab('tabname') to get the tab name
+    const match = onclickAttr.match(/switchTab\('([^']+)'\)/);
+    const tabName = match ? match[1] : 'status';
+    
+    // Call appropriate refresh function based on tab name
+    if (tabName === 'status') {
         refreshStatus();
         refreshVacationMode();
-    } else if (tabName.includes('schedule')) {
+    } else if (tabName === 'schedules') {
         refreshSchedules();
-    } else if (tabName.includes('group')) {
+    } else if (tabName === 'groups') {
         refreshGroups();
-    } else if (tabName.includes('config')) {
+    } else if (tabName === 'config') {
         loadConfig();
-    } else if (tabName.includes('health')) {
+    } else if (tabName === 'health') {
         refreshHealth();
-    } else if (tabName.includes('weather')) {
+    } else if (tabName === 'weather') {
         refreshWeather();
     } else {
         refreshStatus();
