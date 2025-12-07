@@ -171,11 +171,12 @@ class EnhancedScheduler:
                     self.group_schedules[group_name] = []
             else:
                 self.group_schedules[group_name] = []
-                # Check for old automation format (backward compatibility)
-                if automation:
+                # Check for legacy schedule format (backward compatibility)
+                # Only warn if group has the old 'schedule' (singular) format
+                if 'schedule' in group_config:
                     self.logger.warning(
-                        f"Group '{group_name}' uses old automation format - "
-                        f"migration to unified schedules recommended"
+                        f"Group '{group_name}' uses legacy 'schedule' format - "
+                        f"migration to unified 'schedules:' array recommended"
                     )
     
     async def initialize(self):
