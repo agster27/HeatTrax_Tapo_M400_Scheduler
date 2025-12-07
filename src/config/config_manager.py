@@ -65,8 +65,7 @@ class ConfigManager:
                     'automation': {
                         'weather_control': True,
                         'precipitation_control': True,
-                        'morning_mode': True,
-                        'schedule_control': False
+                        'morning_mode': True
                     },
                     'items': [
                         {
@@ -82,8 +81,7 @@ class ConfigManager:
                     'automation': {
                         'weather_control': False,
                         'precipitation_control': False,
-                        'morning_mode': False,
-                        'schedule_control': True
+                        'morning_mode': False
                     },
                     'schedule': {
                         'on_time': '17:00',

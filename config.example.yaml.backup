@@ -84,8 +84,6 @@ devices:
         precipitation_control: true
         # Early morning black ice protection
         morning_mode: true
-        # Schedule-based control (disabled for weather-controlled groups)
-        schedule_control: false
       
       # Devices in this group
       items:
@@ -112,8 +110,6 @@ devices:
         weather_control: false
         precipitation_control: false
         morning_mode: false
-        # Schedule-based control
-        schedule_control: true
       
       # Schedule for this group
       schedule:

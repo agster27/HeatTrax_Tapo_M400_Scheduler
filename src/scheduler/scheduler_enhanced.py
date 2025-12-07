@@ -164,6 +164,13 @@ class EnhancedScheduler:
                 # Check for old automation format (backward compatibility)
                 automation = group_config.get('automation', {})
                 if automation:
+                    # Warn if deprecated schedule_control flag is present
+                    if 'schedule_control' in automation:
+                        self.logger.warning(
+                            f"Group '{group_name}' has deprecated 'schedule_control' flag in automation config. "
+                            f"This flag is ignored - use 'schedules:' array instead for schedule-based automation. "
+                            f"Remove 'schedule_control' from your config to clear this warning."
+                        )
                     self.logger.warning(
                         f"Group '{group_name}' uses old automation format - "
                         f"migration to unified schedules recommended"
