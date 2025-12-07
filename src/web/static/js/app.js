@@ -3055,3 +3055,81 @@ function showConfigUploadMessage(type, message, append = false) {
         }, 5000);
     }
 }
+
+// Collapsible section toggle
+function toggleCollapsible(header) {
+    const section = header.parentElement;
+    const content = section.querySelector('.collapsible-section-content');
+    const toggle = header.querySelector('.collapsible-section-toggle');
+    
+    const isExpanded = content.classList.contains('expanded');
+    
+    if (isExpanded) {
+        content.classList.remove('expanded');
+        toggle.classList.remove('expanded');
+    } else {
+        content.classList.add('expanded');
+        toggle.classList.add('expanded');
+    }
+}
+
+// Refresh current tab (for FAB button)
+function refreshCurrentTab() {
+    const activeTab = document.querySelector('.tab.active');
+    if (!activeTab) {
+        refreshStatus();
+        return;
+    }
+    
+    const tabName = activeTab.textContent.trim().toLowerCase();
+    
+    if (tabName.includes('status')) {
+        refreshStatus();
+        refreshVacationMode();
+    } else if (tabName.includes('schedule')) {
+        refreshSchedules();
+    } else if (tabName.includes('group')) {
+        refreshGroups();
+    } else if (tabName.includes('config')) {
+        loadConfig();
+    } else if (tabName.includes('health')) {
+        refreshHealth();
+    } else if (tabName.includes('weather')) {
+        refreshWeather();
+    } else {
+        refreshStatus();
+    }
+    
+    // Show feedback
+    showToast('Refreshed!', 'success');
+}
+
+// Mobile menu toggle functions
+function toggleMobileMenu() {
+    const tabs = document.getElementById('main-tabs');
+    const overlay = document.querySelector('.mobile-nav-overlay');
+    
+    if (tabs.classList.contains('mobile-menu-open')) {
+        closeMobileMenu();
+    } else {
+        tabs.classList.add('mobile-menu-open');
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeMobileMenu() {
+    const tabs = document.getElementById('main-tabs');
+    const overlay = document.querySelector('.mobile-nav-overlay');
+    
+    tabs.classList.remove('mobile-menu-open');
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+// Override switchTab to close mobile menu after selection
+const originalSwitchTab = switchTab;
+switchTab = function(tabName) {
+    closeMobileMenu();
+    originalSwitchTab(tabName);
+};
