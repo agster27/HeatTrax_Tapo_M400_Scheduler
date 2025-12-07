@@ -495,3 +495,90 @@ class ResilientWeatherService:
             Cache age in hours, or None if no cache exists
         """
         return self.cache.get_cache_age_hours()
+    
+    async def check_black_ice_risk(
+        self,
+        hours_ahead: int = 12,
+        temperature_max_f: float = 36.0,
+        dew_point_spread_f: float = 4.0,
+        humidity_min_percent: float = 80.0
+    ) -> Tuple[bool, Optional[datetime], Optional[float], Optional[float]]:
+        """
+        Check if black ice risk conditions are present in forecast.
+        
+        Returns data from cache if available, otherwise returns (False, None, None, None)
+        to signal that weather data is unavailable.
+        
+        Args:
+            hours_ahead: Number of hours to look ahead
+            temperature_max_f: Maximum temperature to consider risk (default 36°F)
+            dew_point_spread_f: Max temp-dewpoint spread for risk (default 4°F)
+            humidity_min_percent: Minimum humidity for risk (default 80%)
+            
+        Returns:
+            Tuple of (risk_detected, first_risk_time, temperature, dewpoint)
+        """
+        if self.state == WeatherServiceState.OFFLINE_NO_WEATHER_DATA:
+            logger.warning("No weather data available for black ice risk check")
+            return (False, None, None, None)
+        
+        # Check cache for black ice risk conditions
+        if not self.cache.cache_data:
+            logger.warning("No cached forecast data available")
+            return (False, None, None, None)
+        
+        try:
+            forecast = self.cache.cache_data['forecast']
+            # Use timezone-aware datetime from cache
+            now = datetime.now(self.cache.tz)
+            cutoff_time = now + timedelta(hours=hours_ahead)
+            
+            for entry in forecast:
+                try:
+                    forecast_time = datetime.fromisoformat(entry['timestamp'])
+                    # Ensure forecast_time is timezone-aware
+                    if forecast_time.tzinfo is None:
+                        forecast_time = forecast_time.replace(tzinfo=self.cache.tz)
+                    
+                    if forecast_time > cutoff_time:
+                        break
+                    
+                    if forecast_time < now:
+                        continue
+                    
+                    temp = entry.get('temperature_f')
+                    dewpoint = entry.get('dewpoint_f')
+                    humidity = entry.get('humidity_percent')
+                    
+                    # Skip if required data is missing
+                    if temp is None or dewpoint is None or humidity is None:
+                        logger.debug(f"Missing data at {forecast_time}, skipping black ice check")
+                        continue
+                    
+                    # Check black ice conditions
+                    dew_spread = temp - dewpoint
+                    
+                    if (temp <= temperature_max_f and 
+                        dew_spread <= dew_point_spread_f and 
+                        humidity >= humidity_min_percent):
+                        logger.info(
+                            f"BLACK ICE RISK DETECTED (from cache) at {forecast_time}: "
+                            f"temp={temp}°F (≤{temperature_max_f}°F), "
+                            f"dewpoint={dewpoint}°F, spread={dew_spread:.1f}°F (≤{dew_point_spread_f}°F), "
+                            f"humidity={humidity}% (≥{humidity_min_percent}%)"
+                        )
+                        return (True, forecast_time, temp, dewpoint)
+                
+                except (KeyError, ValueError) as e:
+                    logger.warning(f"Error processing cached forecast entry: {e}")
+                    continue
+            
+            logger.info(
+                f"No black ice risk detected in next {hours_ahead} hours (from cache) "
+                f"(temp≤{temperature_max_f}°F, spread≤{dew_point_spread_f}°F, humidity≥{humidity_min_percent}%)"
+            )
+            return (False, None, None, None)
+        
+        except Exception as e:
+            logger.error(f"Error checking black ice risk from cache: {type(e).__name__}: {e}")
+            return (False, None, None, None)

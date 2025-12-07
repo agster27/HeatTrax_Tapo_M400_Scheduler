@@ -51,7 +51,7 @@ class WeatherService:
         params = {
             'latitude': self.latitude,
             'longitude': self.longitude,
-            'hourly': 'temperature_2m,precipitation',
+            'hourly': 'temperature_2m,precipitation,dewpoint_2m,relative_humidity_2m',
             'temperature_unit': 'fahrenheit',
             'timezone': self.timezone,
             'forecast_days': max(2, ((hours_ahead + 23) // 24))
@@ -262,3 +262,157 @@ class WeatherService:
             logger.error(f"Unexpected error getting current conditions: {type(e).__name__}: {e}")
             logger.exception("Full traceback:")
             raise WeatherServiceError(f"Error getting current conditions: {e}")
+    
+    async def check_black_ice_risk(
+        self,
+        hours_ahead: int = 12,
+        temperature_max_f: float = 36.0,
+        dew_point_spread_f: float = 4.0,
+        humidity_min_percent: float = 80.0
+    ) -> Tuple[bool, Optional[datetime], Optional[float], Optional[float]]:
+        """
+        Check if black ice risk conditions are present in forecast.
+        
+        Black ice can form when:
+        - Temperature is near or below freezing
+        - Dew point is close to temperature (small spread indicates high moisture)
+        - High relative humidity
+        
+        Args:
+            hours_ahead: Number of hours to look ahead
+            temperature_max_f: Maximum temperature to consider risk (default 36°F)
+            dew_point_spread_f: Max temp-dewpoint spread for risk (default 4°F)
+            humidity_min_percent: Minimum humidity for risk (default 80%)
+            
+        Returns:
+            Tuple of (risk_detected, first_risk_time, temperature, dewpoint)
+        """
+        logger.info(
+            f"Checking black ice risk: hours_ahead={hours_ahead}, "
+            f"temp_max={temperature_max_f}°F, dew_spread={dew_point_spread_f}°F, "
+            f"humidity_min={humidity_min_percent}%"
+        )
+        
+        # Validate input parameters
+        if not isinstance(temperature_max_f, (int, float)):
+            logger.error(f"Invalid temperature_max_f: {temperature_max_f}")
+            raise WeatherServiceError(f"temperature_max_f must be a number, got: {temperature_max_f}")
+        
+        if not isinstance(dew_point_spread_f, (int, float)):
+            logger.error(f"Invalid dew_point_spread_f: {dew_point_spread_f}")
+            raise WeatherServiceError(f"dew_point_spread_f must be a number, got: {dew_point_spread_f}")
+        
+        if not isinstance(humidity_min_percent, (int, float)):
+            logger.error(f"Invalid humidity_min_percent: {humidity_min_percent}")
+            raise WeatherServiceError(f"humidity_min_percent must be a number, got: {humidity_min_percent}")
+        
+        try:
+            forecast = await self.get_forecast(hours_ahead)
+            
+            if 'hourly' not in forecast:
+                logger.error("No hourly data in forecast response")
+                logger.error(f"Available keys in response: {list(forecast.keys())}")
+                return False, None, None, None
+            
+            hourly = forecast['hourly']
+            times = hourly.get('time', [])
+            temperatures = hourly.get('temperature_2m', [])
+            dewpoints = hourly.get('dewpoint_2m', [])
+            humidities = hourly.get('relative_humidity_2m', [])
+            
+            logger.debug(f"Received {len(times)} hourly forecast entries")
+            
+            if not times or not temperatures or not dewpoints or not humidities:
+                logger.error("Missing data in forecast response")
+                logger.error(
+                    f"Times count: {len(times)}, Temps count: {len(temperatures)}, "
+                    f"Dewpoints count: {len(dewpoints)}, Humidities count: {len(humidities)}"
+                )
+                return False, None, None, None
+            
+            # Validate data consistency
+            if not (len(times) == len(temperatures) == len(dewpoints) == len(humidities)):
+                logger.error(
+                    f"Data length mismatch: times={len(times)}, "
+                    f"temperatures={len(temperatures)}, dewpoints={len(dewpoints)}, "
+                    f"humidities={len(humidities)}"
+                )
+                return False, None, None, None
+            
+            now = datetime.now()
+            cutoff_time = now + timedelta(hours=hours_ahead)
+            logger.debug(f"Checking forecast from {now} to {cutoff_time}")
+            
+            for i, time_str in enumerate(times):
+                try:
+                    # Validate time string
+                    if not time_str:
+                        logger.warning(f"Empty time string at index {i}, skipping")
+                        continue
+                    
+                    forecast_time = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                    # Convert to naive datetime for comparison
+                    forecast_time = forecast_time.replace(tzinfo=None)
+                    
+                    if forecast_time > cutoff_time:
+                        logger.debug(f"Reached cutoff time at index {i}")
+                        break
+                    
+                    if forecast_time < now:
+                        continue
+                    
+                    # Validate values
+                    temp = temperatures[i]
+                    dewpoint = dewpoints[i]
+                    humidity = humidities[i]
+                    
+                    if temp is None or dewpoint is None or humidity is None:
+                        logger.warning(f"Null values at index {i}, skipping")
+                        continue
+                    
+                    if not isinstance(temp, (int, float)) or not isinstance(dewpoint, (int, float)) or not isinstance(humidity, (int, float)):
+                        logger.warning(f"Invalid data types at index {i}: temp={type(temp)}, dewpoint={type(dewpoint)}, humidity={type(humidity)}")
+                        continue
+                    
+                    logger.debug(
+                        f"Forecast at {forecast_time}: temp={temp}°F, dewpoint={dewpoint}°F, "
+                        f"spread={temp-dewpoint:.1f}°F, humidity={humidity}%"
+                    )
+                    
+                    # Check black ice conditions:
+                    # 1. Temperature at or below threshold
+                    # 2. Small dew point spread (moisture in air close to condensing)
+                    # 3. High humidity
+                    dew_spread = temp - dewpoint
+                    
+                    if (temp <= temperature_max_f and 
+                        dew_spread <= dew_point_spread_f and 
+                        humidity >= humidity_min_percent):
+                        logger.info(
+                            f"BLACK ICE RISK DETECTED at {forecast_time}: "
+                            f"temp={temp}°F (≤{temperature_max_f}°F), "
+                            f"dewpoint={dewpoint}°F, spread={dew_spread:.1f}°F (≤{dew_point_spread_f}°F), "
+                            f"humidity={humidity}% (≥{humidity_min_percent}%)"
+                        )
+                        return True, forecast_time, temp, dewpoint
+                
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"Error parsing forecast data at index {i}: {type(e).__name__}: {e}")
+                    continue
+                except Exception as e:
+                    logger.error(f"Unexpected error processing forecast at index {i}: {type(e).__name__}: {e}")
+                    continue
+            
+            logger.info(
+                f"No black ice risk detected in next {hours_ahead} hours "
+                f"(temp≤{temperature_max_f}°F, spread≤{dew_point_spread_f}°F, humidity≥{humidity_min_percent}%)"
+            )
+            return False, None, None, None
+            
+        except WeatherServiceError as e:
+            logger.error(f"Weather service error in check_black_ice_risk: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in check_black_ice_risk: {type(e).__name__}: {e}")
+            logger.exception("Full traceback:")
+            raise WeatherServiceError(f"Error checking black ice risk: {e}")

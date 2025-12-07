@@ -112,6 +112,26 @@ safety:
 scheduler:
   check_interval_minutes: 10
   forecast_hours: 12
+thresholds:
+  # Temperature threshold for precipitation-based mat activation (°F)
+  temperature_f: 34
+  # Lead time before forecasted precipitation to turn on mats (minutes)
+  lead_time_minutes: 60
+  # Time to keep mats on after precipitation ends (minutes)
+  trailing_time_minutes: 60
+  # Black ice detection configuration
+  black_ice_detection:
+    # Enable or disable black ice detection
+    enabled: true
+    # Maximum temperature to consider black ice risk (°F)
+    # Black ice typically forms when temp is at or below freezing
+    temperature_max_f: 36
+    # Maximum dew point spread for risk detection (°F)
+    # When temp - dewpoint ≤ this value, moisture is near condensation
+    dew_point_spread_f: 4
+    # Minimum relative humidity to consider risk (%)
+    # High humidity indicates moisture available for black ice formation
+    humidity_min_percent: 80
 logging:
   level: INFO
   max_file_size_mb: 10
