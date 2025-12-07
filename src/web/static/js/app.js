@@ -483,6 +483,9 @@ async function refreshGroups() {
                         if (schedule.conditions?.precipitation_active) {
                             conditions.push('Precipitation');
                         }
+                        if (schedule.conditions?.black_ice_risk) {
+                            conditions.push('🧊 Black ice risk');
+                        }
                         const conditionsText = conditions.length > 0 ? 
                             `<div class="schedule-conditions">Conditions: ${conditions.join(', ')}</div>` : '';
                         
@@ -1666,6 +1669,16 @@ const FORM_FIELDS = {
         { path: 'safety.cooldown_minutes', label: 'Cooldown (minutes)', type: 'number',
           helper: 'Global default cooldown period after max runtime. Can be overridden per schedule.' }
     ],
+    'Black Ice Detection': [
+        { path: 'thresholds.black_ice_detection.enabled', label: 'Enable Black Ice Detection', type: 'checkbox',
+          helper: 'Enable automatic black ice risk detection based on weather conditions' },
+        { path: 'thresholds.black_ice_detection.temperature_max_f', label: 'Max Temperature (°F)', type: 'number',
+          helper: 'Maximum temperature to consider black ice risk (default: 36°F)' },
+        { path: 'thresholds.black_ice_detection.dew_point_spread_f', label: 'Dew Point Spread (°F)', type: 'number',
+          helper: 'Maximum temp-dewpoint spread for risk detection (default: 4°F)' },
+        { path: 'thresholds.black_ice_detection.humidity_min_percent', label: 'Min Humidity (%)', type: 'number',
+          helper: 'Minimum humidity percentage for risk detection (default: 80%)' }
+    ],
     'Logging': [
         { path: 'logging.level', label: 'Log Level', type: 'select', options: ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] }
     ],
@@ -2485,6 +2498,9 @@ function renderScheduleCard(groupName, schedule, index, solarTimes) {
         if (conditions.precipitation_active) {
             condParts.push('Precipitation active');
         }
+        if (conditions.black_ice_risk) {
+            condParts.push('🧊 Black ice risk');
+        }
         conditionsHtml += condParts.join(', ');
         conditionsHtml += '</div>';
     }
@@ -2691,6 +2707,7 @@ async function editSchedule(groupName, scheduleIndex) {
         if (schedule.conditions) {
             document.getElementById('condition-temp-max').value = schedule.conditions.temperature_max || '';
             document.getElementById('condition-precip').checked = schedule.conditions.precipitation_active || false;
+            document.getElementById('condition-black-ice').checked = schedule.conditions.black_ice_risk || false;
         }
         
         // Set safety
@@ -2853,14 +2870,18 @@ async function saveSchedule() {
     // Conditions
     const tempMax = document.getElementById('condition-temp-max').value;
     const precip = document.getElementById('condition-precip').checked;
+    const blackIce = document.getElementById('condition-black-ice').checked;
     
-    if (tempMax || precip) {
+    if (tempMax || precip || blackIce) {
         schedule.conditions = {};
         if (tempMax) {
             schedule.conditions.temperature_max = parseFloat(tempMax);
         }
         if (precip) {
             schedule.conditions.precipitation_active = true;
+        }
+        if (blackIce) {
+            schedule.conditions.black_ice_risk = true;
         }
     }
     
