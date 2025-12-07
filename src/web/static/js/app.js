@@ -259,8 +259,9 @@ async function refreshGroupControls() {
                         }
                     } else {
                         // Device without outlets (single power state)
+                        // Note: Current API doesn't provide power state for non-outlet devices
+                        // We treat them as OFF until API is enhanced to provide this information
                         groupPowerStates[groupName].total++;
-                        // Assume device is off if we can't determine state
                         groupPowerStates[groupName].off++;
                     }
                 }
@@ -363,10 +364,12 @@ async function controlGroupFromStatus(groupName, action) {
                 }, 3000);
             }
             
-            // Refresh group controls after 1 second
+            // Refresh group controls after delay to allow devices to update state
+            // 1 second provides reasonable UX without overwhelming the API
+            const REFRESH_DELAY_MS = 1000;
             setTimeout(() => {
                 refreshGroupControls();
-            }, 1000);
+            }, REFRESH_DELAY_MS);
         } else {
             if (messageDiv) {
                 messageDiv.className = 'group-control-message error';

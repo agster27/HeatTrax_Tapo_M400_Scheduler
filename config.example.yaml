@@ -1,327 +1,159 @@
-# HeatTrax Tapo M400 Scheduler Configuration
-#
-# All settings can be overridden using environment variables with the HEATTRAX_ prefix.
-# Environment variables take precedence over values in this file.
-# This is useful for Docker deployments and keeping secrets secure.
-
-# Location settings for weather data
-# Environment variables: HEATTRAX_LATITUDE, HEATTRAX_LONGITUDE, HEATTRAX_TIMEZONE
 location:
-  latitude: 40.7128          # ENV: HEATTRAX_LATITUDE
-  longitude: -74.0060        # ENV: HEATTRAX_LONGITUDE
-  timezone: "America/New_York"  # ENV: HEATTRAX_TIMEZONE
-
-# Weather API Configuration
-# Supports both OpenWeatherMap and Open-Meteo APIs
+  latitude: 40.7128
+  longitude: -74.006
+  timezone: America/New_York
 weather_api:
-  # Enable/disable weather-based scheduling (default: true)
-  # When disabled, uses fixed schedule behavior instead of weather forecasts
-  enabled: true  # ENV: HEATTRAX_WEATHER_ENABLED
-  
-  # Provider: 'openweathermap' or 'open-meteo' (default: open-meteo)
-  provider: "open-meteo"  # ENV: HEATTRAX_WEATHER_PROVIDER
-  
-  # OpenWeatherMap settings (required if provider is 'openweathermap')
+  enabled: true
+  provider: open-meteo
   openweathermap:
-    api_key: "your_api_key_here"  # ENV: HEATTRAX_OPENWEATHERMAP_API_KEY
-    # Optional: API endpoint (defaults to official API)
-    # api_url: "https://api.openweathermap.org/data/2.5"
-  
-  # Open-Meteo settings (no API key required)
-  # Open-Meteo is free and doesn't require an API key
-  open_meteo:
-    # Optional: API endpoint (defaults to official API)
-    # api_url: "https://api.open-meteo.com/v1"
-  
-  # Weather Resilience & Caching Configuration
-  # Provides reliable operation during temporary internet/API outages
+    api_key: your_api_key_here
+  open_meteo: null
   resilience:
-    # Path to weather cache file (stores last successful forecast)
-    cache_file: "state/weather_cache.json"  # ENV: HEATTRAX_WEATHER_CACHE_FILE
-    
-    # How long cached data is trusted for decision-making (in hours)
-    # During an outage, cached data within this horizon will be used
-    # After this time, system reverts to static schedule
-    cache_valid_hours: 6.0  # ENV: HEATTRAX_WEATHER_CACHE_VALID_HOURS
-    
-    # How many hours of forecast to store in cache (should be >= cache_valid_hours)
-    forecast_horizon_hours: 12  # ENV: HEATTRAX_WEATHER_FORECAST_HORIZON_HOURS
-    
-    # Normal polling interval when service is online (in minutes)
-    refresh_interval_minutes: 10  # ENV: HEATTRAX_WEATHER_REFRESH_INTERVAL_MINUTES
-    
-    # Initial retry delay after a failure (in minutes)
-    retry_interval_minutes: 5  # ENV: HEATTRAX_WEATHER_RETRY_INTERVAL_MINUTES
-    
-    # Maximum backoff interval for retries (in minutes)
-    # Uses exponential backoff: 5min, 10min, 20min, 40min, up to this max
-    max_retry_interval_minutes: 60  # ENV: HEATTRAX_WEATHER_MAX_RETRY_INTERVAL_MINUTES
-    
-    # How long service can be offline before triggering an alert (in minutes)
-    outage_alert_after_minutes: 30  # ENV: HEATTRAX_WEATHER_OUTAGE_ALERT_AFTER_MINUTES
-
-# Vacation Mode - disables all schedules when enabled
-# When active: All schedules disabled, devices turned OFF, manual control still works
-# Environment variable: HEATTRAX_VACATION_MODE (true/false)
-vacation_mode: false  # ENV: HEATTRAX_VACATION_MODE
-
-# Device Configuration
-# Multi-device mode with groups for organizing devices by function
-
-# Global credentials for all Kasa/Tapo devices
-# These credentials apply to all devices configured in the groups below
+    cache_file: state/weather_cache.json
+    cache_valid_hours: 6.0
+    forecast_horizon_hours: 12
+    refresh_interval_minutes: 10
+    retry_interval_minutes: 5
+    max_retry_interval_minutes: 60
+    outage_alert_after_minutes: 30
+vacation_mode: false
 devices:
-  # Global credentials for all Kasa/Tapo devices
   credentials:
-    username: "your_tapo_username"   # ENV: HEATTRAX_TAPO_USERNAME
-    password: "your_tapo_password"   # ENV: HEATTRAX_TAPO_PASSWORD
-  
-  # Device groups - organize devices by function
-  # Each group can have multiple schedules with optional weather conditions
+    username: test@example.com
+    password: test123
   groups:
-    # Driveway heating with multiple schedules
     driveway_heating:
       enabled: true
-      
-      # Devices in this group
       items:
-        - name: "Driveway Mat"
-          ip_address: "192.168.1.100"
-          # For EP40M with 2 outlets, specify which outlets to control
-          outlets: [0, 1]  # Control both outlets
-      
-      # Multiple schedules - device turns ON if ANY schedule is active
+      - name: Driveway Mat
+        ip_address: 192.168.1.100
+        outlets:
+        - 0
+        - 1
       schedules:
-        # Morning black ice protection (weekdays only)
-        - name: "Morning Black Ice Protection"
-          enabled: true
-          priority: "critical"  # critical, normal, or low
-          days: [1,2,3,4,5]  # 1=Monday, 7=Sunday
-          on:
-            type: "time"  # time, sunrise, sunset
-            value: "06:00"
-          off:
-            type: "sunrise"
-            offset: 30  # minutes after sunrise
-            fallback: "08:00"  # fallback if solar calculation fails
-          conditions:  # Optional weather conditions
-            temperature_max: 32  # Only run if temp <= 32°F
-          safety:  # Optional per-schedule overrides
-            max_runtime_hours: 3
-            cooldown_minutes: 30
-        
-        # All-day storm protection (any day with precipitation)
-        - name: "All Day Storm Protection"
-          enabled: true
-          priority: "critical"
-          days: [1,2,3,4,5,6,7]  # Every day
-          on:
-            type: "time"
-            value: "00:00"
-          off:
-            type: "time"
-            value: "23:59"
-          conditions:
-            temperature_max: 32
-            precipitation_active: true  # Only when precipitation detected
-          safety:
-            max_runtime_hours: 6
-            cooldown_minutes: 30
-    
-    # Christmas lights group - sunset-based schedule
+      - name: Morning Black Ice Protection
+        enabled: true
+        priority: critical
+        days:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        true:
+          type: time
+          value: 06:00
+        false:
+          type: sunrise
+          offset: 30
+          fallback: 08:00
+        conditions:
+          temperature_max: 32
+        safety:
+          max_runtime_hours: 3
+          cooldown_minutes: 30
+      - name: All Day Storm Protection
+        enabled: true
+        priority: critical
+        days:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        true:
+          type: time
+          value: 00:00
+        false:
+          type: time
+          value: '23:59'
+        conditions:
+          temperature_max: 32
+          precipitation_active: true
+        safety:
+          max_runtime_hours: 6
+          cooldown_minutes: 30
     christmas_lights:
       enabled: true
-      
       items:
-        - name: "Front Yard Lights"
-          ip_address: "192.168.1.110"
-          outlets: [0, 1]
-        
-        - name: "Tree Lights"
-          ip_address: "192.168.1.111"
-      
+      - name: Front Yard Lights
+        ip_address: 192.168.1.110
+        outlets:
+        - 0
+        - 1
+      - name: Tree Lights
+        ip_address: 192.168.1.111
       schedules:
-        - name: "Evening Display"
-          enabled: true
-          priority: "normal"
-          days: [1,2,3,4,5,6,7]  # Every day
-          on:
-            type: "sunset"
-            offset: -30  # 30 minutes before sunset
-            fallback: "17:00"
-          off:
-            type: "time"
-            value: "01:00"
-          # No conditions - always run during time window
-          safety:
-            max_runtime_hours: 8
-
-# Global safety settings (can be overridden per-schedule)
-# Environment variables: HEATTRAX_MAX_RUNTIME_HOURS, HEATTRAX_COOLDOWN_MINUTES
+      - name: Evening Display
+        enabled: true
+        priority: normal
+        days:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        true:
+          type: sunset
+          offset: -30
+          fallback: '17:00'
+        false:
+          type: time
+          value: 01:00
+        safety:
+          max_runtime_hours: 8
 safety:
-  # Maximum continuous runtime in hours (default for all schedules)
-  max_runtime_hours: 6       # ENV: HEATTRAX_MAX_RUNTIME_HOURS
-  # Cooldown period after max runtime in minutes (default for all schedules)
-  cooldown_minutes: 30       # ENV: HEATTRAX_COOLDOWN_MINUTES
-
-# Scheduler settings
-# Environment variables: HEATTRAX_CHECK_INTERVAL_MINUTES, HEATTRAX_FORECAST_HOURS
+  max_runtime_hours: 6
+  cooldown_minutes: 30
 scheduler:
-  # How often to check weather in minutes
-  check_interval_minutes: 10   # ENV: HEATTRAX_CHECK_INTERVAL_MINUTES
-  # How far ahead to look for precipitation in hours
-  forecast_hours: 12           # ENV: HEATTRAX_FORECAST_HOURS
-
-# Logging settings
-# Environment variable: HEATTRAX_LOG_LEVEL
+  check_interval_minutes: 10
+  forecast_hours: 12
 logging:
-  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL - ENV: HEATTRAX_LOG_LEVEL
+  level: INFO
   max_file_size_mb: 10
   backup_count: 5
-
-# Health check settings - periodic device monitoring
-# Environment variables: HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS, HEATTRAX_HEALTH_CHECK_MAX_FAILURES
 health_check:
-  interval_hours: 24  # How often to run health checks (ENV: HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS)
-  max_consecutive_failures: 3  # Max failures before triggering re-init (ENV: HEATTRAX_HEALTH_CHECK_MAX_FAILURES)
-
-# Reboot settings - pause before container restart
-# Environment variable: HEATTRAX_REBOOT_PAUSE_SECONDS
+  interval_hours: 24
+  max_consecutive_failures: 3
 reboot:
-  pause_seconds: 60  # Pause duration (in seconds) before container restart on critical failures (ENV: HEATTRAX_REBOOT_PAUSE_SECONDS)
-                     # This allows time for console troubleshooting before automatic restart
-                     # Set to 0 to disable the pause
-
-# Health check HTTP server settings
-# Environment variables: HEATTRAX_HEALTH_SERVER_*
+  pause_seconds: 60
 health_server:
-  enabled: false  # ENV: HEATTRAX_HEALTH_SERVER_ENABLED (true/false)
-                  # Enable HTTP server for health check endpoints
-                  # Default: false (disabled) - enable only if needed for monitoring
-  host: "0.0.0.0"  # ENV: HEATTRAX_HEALTH_SERVER_HOST
-                   # Host to bind to (0.0.0.0 for all interfaces)
-  port: 4329  # ENV: HEATTRAX_HEALTH_SERVER_PORT
-              # Port for health check endpoints (default: 4329)
-              # Endpoints when enabled:
-              #   - GET http://localhost:4329/health - Basic application health
-              #   - GET http://localhost:4329/health/weather - Weather-specific health check
-
-# Notification settings - alerts for device issues (default: all disabled)
-# Email notifications - Environment variables: HEATTRAX_NOTIFICATION_EMAIL_*
+  enabled: false
+  host: 0.0.0.0
+  port: 4329
 notifications:
-  # Global notification settings
-  required: false  # ENV: HEATTRAX_NOTIFICATIONS_REQUIRED (true/false)
-                   # If true, misconfigured enabled providers cause startup failure
-                   # If false (default), log errors but allow startup to continue
-  
-  test_on_startup: false  # ENV: HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP (true/false)
-                          # If true, send test notification on successful startup
-  
-  check_interval_seconds: 60  # ENV: HEATTRAX_NOTIFICATIONS_CHECK_INTERVAL_SECONDS
-                              # Background validation check interval for notification providers
-  
-  # Email provider configuration
+  required: false
+  test_on_startup: false
+  check_interval_seconds: 60
   email:
-    enabled: false  # ENV: HEATTRAX_NOTIFICATION_EMAIL_ENABLED (true/false)
-    smtp_host: "smtp.gmail.com"  # ENV: HEATTRAX_NOTIFICATION_EMAIL_SMTP_HOST
-    smtp_port: 587  # ENV: HEATTRAX_NOTIFICATION_EMAIL_SMTP_PORT
-    smtp_username: "your_email@gmail.com"  # ENV: HEATTRAX_NOTIFICATION_EMAIL_SMTP_USERNAME
-    smtp_password: "your_app_password"  # ENV: HEATTRAX_NOTIFICATION_EMAIL_SMTP_PASSWORD
-    from_email: "your_email@gmail.com"  # ENV: HEATTRAX_NOTIFICATION_EMAIL_FROM
-    to_emails:  # ENV: HEATTRAX_NOTIFICATION_EMAIL_TO (comma-separated)
-      - "recipient1@example.com"
-      - "recipient2@example.com"
-    use_tls: true  # ENV: HEATTRAX_NOTIFICATION_EMAIL_USE_TLS (true/false)
-  
-  # Webhook notifications - Environment variables: HEATTRAX_NOTIFICATION_WEBHOOK_*
+    enabled: false
+    smtp_host: smtp.gmail.com
+    smtp_port: 587
+    smtp_username: your_email@gmail.com
+    smtp_password: your_app_password
+    from_email: your_email@gmail.com
+    to_emails:
+    - recipient1@example.com
+    - recipient2@example.com
+    use_tls: true
   webhook:
-    enabled: false  # ENV: HEATTRAX_NOTIFICATION_WEBHOOK_ENABLED (true/false)
-    url: "https://your-webhook-url.com/notifications"  # ENV: HEATTRAX_NOTIFICATION_WEBHOOK_URL
-    # Optional custom headers can be added here
-  
-  # Forecast summary notifications (optional, default: disabled)
-  # Sends human-friendly forecast summaries via email/webhook after successful weather fetch
+    enabled: false
+    url: https://your-webhook-url.com/notifications
   forecast:
-    enabled: false  # ENV: HEATTRAX_NOTIFICATION_FORECAST_ENABLED (true/false)
-    # Notification mode:
-    #   - "always": Send on every successful forecast fetch (default)
-    #   - "on_change": Only send when forecast changes meaningfully
-    notify_mode: "always"  # ENV: HEATTRAX_NOTIFICATION_FORECAST_NOTIFY_MODE
-    # Thresholds for detecting "meaningful" changes (used when notify_mode=on_change)
-    temp_change_threshold_f: 5.0  # Significant temperature change (°F)
-    precip_change_threshold_mm: 2.0  # Significant precipitation change (mm)
-    # Path to state file for tracking last sent forecast
-    state_file: "state/forecast_notification_state.json"
-  
-  # Per-event routing configuration (optional)
-  # If not specified, all events go to all enabled providers (default behavior)
-  # Use this to control which events go to which providers
-  # routing:
-  #   device_lost:           # Device not found during health check
-  #     email: true
-  #     webhook: true
-  #   device_found:          # New device discovered
-  #     email: false
-  #     webhook: true
-  #   device_ip_changed:     # Device IP address changed (critical)
-  #     email: true
-  #     webhook: true
-  #   connectivity_lost:     # Failed to connect/reinitialize device
-  #     email: true
-  #     webhook: true
-  #   connectivity_restored: # Device connection restored
-  #     email: false
-  #     webhook: true
-  #   weather_service_recovered:  # Weather service came back online
-  #     email: true
-  #     webhook: true
-  #   weather_service_offline:    # Weather service went offline
-  #     email: true
-  #     webhook: true
-  #   forecast_summary:           # New forecast data (if forecast.enabled=true)
-  #     email: true
-  #     webhook: false
-
-# Web UI Configuration
-# Provides a browser-based interface for monitoring and configuration
+    enabled: false
+    notify_mode: always
+    temp_change_threshold_f: 5.0
+    precip_change_threshold_mm: 2.0
+    state_file: state/forecast_notification_state.json
 web:
-  enabled: true  # ENV: HEATTRAX_WEB_ENABLED (true/false)
-                 # Enable or disable the web UI
-  
-  bind_host: "127.0.0.1"  # Host to bind to (default: localhost only)
-                          # Use "0.0.0.0" to allow network access (see security warning)
-                          # SECURITY WARNING: Do not bind to 0.0.0.0 without enabling authentication
-  
-  port: 4328  # Port for web UI (default: 4328)
-              # Access the UI at http://<bind_host>:<port>
-  
-  # Authentication settings (for future use)
+  enabled: true
+  bind_host: 127.0.0.1
+  port: 4328
   auth:
-    enabled: false  # Enable authentication (default: false)
-                    # When false, UI is accessible without password
-                    # SECURITY: Only disable auth if web UI is bound to 127.0.0.1
-    
-    username: "admin"  # Username for web UI login (default: admin)
-    
-    password_hash: ""  # Hashed password for web UI
-                       # Set via HEATTRAX_WEB_PASSWORD environment variable
-                       # Leave empty to disable authentication
-
-# Additional environment variables:
-# - HEATTRAX_CONFIG_PATH: Path to this configuration file (default: /app/config.yaml)
-# - HEATTRAX_WEB_ENABLED: Enable/disable web UI (default: true)
-# - HEATTRAX_WEB_PASSWORD: Set web UI password (hashed and stored in config)
-# - TZ: System timezone (e.g., America/New_York)
-
-# Notification Events:
-# - device_lost: Configured device not found during health check
-# - device_found: New device discovered
-# - device_changed: Device alias or properties changed
-# - device_ip_changed: Device MAC/IP mapping changed (critical)
-# - connectivity_lost: Failed to reinitialize device connection
-# - connectivity_restored: Device connection restored after failures
-# - weather_service_recovered: Weather service came back online
-# - weather_service_degraded: Weather service offline but using cached data
-# - weather_service_offline: Weather service offline with no valid cache
-# - weather_service_outage_alert: Weather service offline too long
-# - forecast_summary: New forecast data fetched (human-friendly summary)
+    enabled: false
+    username: admin
+    password_hash: ''
