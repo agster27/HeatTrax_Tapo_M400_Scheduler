@@ -3127,9 +3127,34 @@ function closeMobileMenu() {
     document.body.style.overflow = '';
 }
 
-// Override switchTab to close mobile menu after selection
-const originalSwitchTab = switchTab;
-switchTab = function(tabName) {
-    closeMobileMenu();
-    originalSwitchTab(tabName);
-};
+// Add event listeners for mobile enhancements
+document.addEventListener('DOMContentLoaded', function() {
+    // Close mobile menu when any tab is clicked
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            closeMobileMenu();
+        });
+    });
+    
+    // Handle day checkbox styling for browsers without :has() support
+    const dayCheckboxes = document.querySelectorAll('.day-checkbox');
+    dayCheckboxes.forEach(dayCheckbox => {
+        const checkbox = dayCheckbox.querySelector('input[type="checkbox"]');
+        if (checkbox) {
+            // Set initial state
+            if (checkbox.checked) {
+                dayCheckbox.classList.add('checked');
+            }
+            
+            // Update on change
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    dayCheckbox.classList.add('checked');
+                } else {
+                    dayCheckbox.classList.remove('checked');
+                }
+            });
+        }
+    });
+});

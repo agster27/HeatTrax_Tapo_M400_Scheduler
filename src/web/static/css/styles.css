@@ -1119,14 +1119,27 @@ button:hover {
     }
     
     .day-checkbox input[type="checkbox"] {
-        display: none;
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
     }
     
-    .day-checkbox:has(input:checked) {
+    /* JavaScript adds .checked class for browsers without :has() support */
+    .day-checkbox.checked {
         background: var(--primary-color);
         color: white;
         border-color: var(--primary-color);
         font-weight: 600;
+    }
+    
+    /* Modern browsers with :has() support - more specific selector */
+    @supports selector(:has(*)) {
+        .day-checkbox:has(input:checked) {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+            font-weight: 600;
+        }
     }
     
     /* Status grid single column */
@@ -1955,7 +1968,10 @@ button:hover {
 }
 
 .collapsible-section-content.expanded {
-    max-height: 1000px;
+    /* Use a very large value to accommodate any content size
+       This is a common CSS-only accordion pattern */
+    max-height: 5000px;
+    transition: max-height 0.5s ease-in;
 }
 
 .collapsible-section-body {
