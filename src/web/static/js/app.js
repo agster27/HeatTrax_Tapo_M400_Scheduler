@@ -196,8 +196,189 @@ async function refreshStatus() {
         
         statusContent.innerHTML = html || '<div class="status-item"><label>No status information available</label></div>';
         
+        // Also refresh group controls
+        await refreshGroupControls();
+        
     } catch (e) {
         statusContent.innerHTML = `<div class="error">Failed to load status: ${e.message}</div>`;
+    }
+}
+
+// Refresh group controls in status tab
+async function refreshGroupControls() {
+    const groupControlsContent = document.getElementById('group-controls-content');
+    
+    if (!groupControlsContent) {
+        return; // Element not found, probably not on status tab
+    }
+    
+    try {
+        // Fetch both status and device status
+        const [statusResponse, devicesResponse] = await Promise.all([
+            fetch('/api/status'),
+            fetch('/api/devices/status')
+        ]);
+        
+        const status = await statusResponse.json();
+        let devicesData = null;
+        
+        // Check if devices endpoint is available (might fail in setup mode)
+        if (devicesResponse.ok) {
+            devicesData = await devicesResponse.json();
+        }
+        
+        const deviceGroups = status.device_groups || {};
+        const setupMode = status.setup_mode || false;
+        
+        if (Object.keys(deviceGroups).length === 0) {
+            groupControlsContent.innerHTML = '<div class="status-item"><label>No device groups configured</label></div>';
+            return;
+        }
+        
+        // Calculate power state for each group
+        const groupPowerStates = {};
+        if (devicesData && devicesData.devices) {
+            for (const device of devicesData.devices) {
+                const groupName = device.group;
+                if (!groupPowerStates[groupName]) {
+                    groupPowerStates[groupName] = { on: 0, off: 0, total: 0, reachable: false };
+                }
+                
+                if (device.reachable && device.initialized) {
+                    groupPowerStates[groupName].reachable = true;
+                    
+                    if (device.outlets && device.outlets.length > 0) {
+                        // Device has outlets
+                        for (const outlet of device.outlets) {
+                            groupPowerStates[groupName].total++;
+                            if (outlet.is_on) {
+                                groupPowerStates[groupName].on++;
+                            } else {
+                                groupPowerStates[groupName].off++;
+                            }
+                        }
+                    } else {
+                        // Device without outlets (single power state)
+                        groupPowerStates[groupName].total++;
+                        // Assume device is off if we can't determine state
+                        groupPowerStates[groupName].off++;
+                    }
+                }
+            }
+        }
+        
+        // Render group controls
+        let html = '<div class="group-controls-grid">';
+        
+        for (const [groupName, groupInfo] of Object.entries(deviceGroups)) {
+            const powerState = groupPowerStates[groupName] || { on: 0, off: 0, total: 0, reachable: false };
+            
+            let statusBadge = '';
+            let statusClass = '';
+            
+            if (powerState.total === 0 || !powerState.reachable) {
+                statusBadge = '<span class="group-status off">Offline</span>';
+                statusClass = 'off';
+            } else if (powerState.on === powerState.total) {
+                statusBadge = '<span class="group-status on">All ON</span>';
+                statusClass = 'on';
+            } else if (powerState.off === powerState.total) {
+                statusBadge = '<span class="group-status off">All OFF</span>';
+                statusClass = 'off';
+            } else {
+                statusBadge = `<span class="group-status mixed">${powerState.on}/${powerState.total} ON</span>`;
+                statusClass = 'mixed';
+            }
+            
+            const disabled = setupMode || !powerState.reachable;
+            const disabledAttr = disabled ? 'disabled' : '';
+            
+            html += `
+                <div class="group-control-item">
+                    <h3>
+                        ${groupName}
+                        ${statusBadge}
+                    </h3>
+                    <div class="group-info">
+                        ${groupInfo.device_count || 0} device(s) • ${powerState.total} outlet(s)
+                    </div>
+                    <div class="group-control-buttons">
+                        <button class="btn-group-control btn-group-on" 
+                                onclick="controlGroupFromStatus('${groupName}', 'on')"
+                                ${disabledAttr}
+                                title="Turn ON all outlets in ${groupName}">
+                            ⚡ Turn ON
+                        </button>
+                        <button class="btn-group-control btn-group-off" 
+                                onclick="controlGroupFromStatus('${groupName}', 'off')"
+                                ${disabledAttr}
+                                title="Turn OFF all outlets in ${groupName}">
+                            🔌 Turn OFF
+                        </button>
+                    </div>
+                    <div id="group-control-msg-${sanitizeDeviceName(groupName)}" class="group-control-message"></div>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+        groupControlsContent.innerHTML = html;
+        
+    } catch (e) {
+        console.error('Failed to refresh group controls:', e);
+        groupControlsContent.innerHTML = `<div class="error">Failed to load group controls: ${e.message}</div>`;
+    }
+}
+
+// Control group from status tab
+async function controlGroupFromStatus(groupName, action) {
+    const messageId = `group-control-msg-${sanitizeDeviceName(groupName)}`;
+    const messageDiv = document.getElementById(messageId);
+    
+    if (messageDiv) {
+        messageDiv.className = 'group-control-message info';
+        messageDiv.style.display = 'block';
+        messageDiv.textContent = `Sending ${action.toUpperCase()} command...`;
+    }
+    
+    try {
+        const response = await fetch(`/api/groups/${groupName}/control`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ action: action })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            if (messageDiv) {
+                messageDiv.className = 'group-control-message success';
+                messageDiv.textContent = `✓ ${result.successful} outlet(s) turned ${action.toUpperCase()}`;
+                
+                // Hide message after 3 seconds
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 3000);
+            }
+            
+            // Refresh group controls after 1 second
+            setTimeout(() => {
+                refreshGroupControls();
+            }, 1000);
+        } else {
+            if (messageDiv) {
+                messageDiv.className = 'group-control-message error';
+                messageDiv.textContent = `✗ Error: ${result.error || 'Failed to control group'}`;
+            }
+        }
+    } catch (e) {
+        console.error('Failed to control group:', e);
+        if (messageDiv) {
+            messageDiv.className = 'group-control-message error';
+            messageDiv.textContent = `✗ Error: ${e.message}`;
+        }
     }
 }
 

@@ -1505,3 +1505,137 @@ button:hover {
         font-size: 13px;
     }
 }
+
+/* Group Controls Styles */
+.group-controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.group-control-item {
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #3498db;
+}
+
+.group-control-item h3 {
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.group-control-item .group-info {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 12px;
+}
+
+.group-control-item .group-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 8px;
+}
+
+.group-control-item .group-status.on {
+    background: #d4edda;
+    color: #155724;
+}
+
+.group-control-item .group-status.off {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.group-control-item .group-status.mixed {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.group-control-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.btn-group-control {
+    flex: 1;
+    min-width: 100px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-group-control:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-group-on {
+    background: #27ae60;
+    color: white;
+}
+
+.btn-group-on:hover:not(:disabled) {
+    background: #229954;
+}
+
+.btn-group-off {
+    background: #e74c3c;
+    color: white;
+}
+
+.btn-group-off:hover:not(:disabled) {
+    background: #c0392b;
+}
+
+.group-control-message {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    display: none;
+}
+
+.group-control-message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.group-control-message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.group-control-message.info {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+/* Mobile responsiveness for group controls */
+@media (max-width: 768px) {
+    .group-controls-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .btn-group-control {
+        min-width: 80px;
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+}
