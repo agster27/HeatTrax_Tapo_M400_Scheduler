@@ -54,8 +54,7 @@ class TestScheduleUIRefresh(unittest.TestCase):
                         'automation': {
                             'weather_control': False,
                             'precipitation_control': False,
-                            'morning_mode': False,
-                            'schedule_control': True
+                            'morning_mode': False
                         },
                         'schedules': [],
                         'items': [

@@ -28,7 +28,7 @@ class TestMultiDeviceConfig(unittest.TestCase):
     
     def test_multi_device_config_loads(self):
         """Test that multi-device config loads correctly."""
-        config = Config('config.example.yaml')
+        config = Config('config.example.yaml.backup')
         
         # Check devices section exists
         self.assertIn('devices', config._config)
@@ -50,6 +50,8 @@ class TestMultiDeviceConfig(unittest.TestCase):
         self.assertTrue(heated_mats['automation']['weather_control'])
         self.assertTrue(heated_mats['automation']['precipitation_control'])
         self.assertTrue(heated_mats['automation']['morning_mode'])
+        # Note: schedule_control flag has been removed - schedules now use unified schedules: array
+        self.assertNotIn('schedule_control', heated_mats['automation'])
         
         # Check heated_mats items
         items = heated_mats['items']
@@ -63,9 +65,10 @@ class TestMultiDeviceConfig(unittest.TestCase):
         lights = groups['christmas_lights']
         self.assertTrue(lights['enabled'])
         self.assertFalse(lights['automation']['weather_control'])
-        self.assertTrue(lights['automation']['schedule_control'])
+        # Note: schedule_control flag has been removed - schedules now use unified schedules: array
+        self.assertNotIn('schedule_control', lights['automation'])
         
-        # Check schedule
+        # Check schedule (legacy format still supported for backward compatibility)
         schedule = lights['schedule']
         self.assertEqual(schedule['on_time'], '17:00')
         self.assertEqual(schedule['off_time'], '23:00')
