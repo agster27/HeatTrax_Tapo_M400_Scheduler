@@ -47,8 +47,8 @@ class TestConfigEnvVarOverrides(unittest.TestCase):
         self.assertEqual(config.location['latitude'], 40.7128)
         # Multi-device config uses devices.credentials instead of device
         self.assertIn('credentials', config.devices)
-        # Thresholds section is now optional and returns defaults if not present
-        self.assertEqual(config.thresholds['temperature_f'], 32)
+        # Thresholds section is now present in example config
+        self.assertEqual(config.thresholds['temperature_f'], 34)
     
     def test_env_var_overrides_location(self):
         """Test location settings can be overridden with env vars."""

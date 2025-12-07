@@ -2,6 +2,7 @@
 
 import aiohttp
 import asyncio
+import math
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import logging
@@ -323,16 +324,22 @@ class OpenWeatherMapService:
                     
                     # Calculate dew point from temperature and humidity
                     # Using Magnus formula approximation
-                    if temp is not None and humidity is not None:
+                    if temp is not None and humidity is not None and humidity > 0:
                         # Convert Fahrenheit to Celsius for dew point calculation
                         temp_c = (temp - 32) * 5/9
                         # Magnus formula constants
                         a = 17.27
                         b = 237.7
                         
-                        # Calculate dew point in Celsius
-                        alpha = ((a * temp_c) / (b + temp_c)) + (humidity / 100.0)
-                        dewpoint_c = (b * alpha) / (a - alpha) if alpha < a else temp_c
+                        # Calculate dew point in Celsius using Magnus formula
+                        # Formula: Td = (b * alpha) / (a - alpha)
+                        # where alpha = ln(RH/100) + (a * T) / (b + T)
+                        try:
+                            alpha = math.log(humidity / 100.0) + ((a * temp_c) / (b + temp_c))
+                            dewpoint_c = (b * alpha) / (a - alpha)
+                        except (ValueError, ZeroDivisionError):
+                            # Fallback: use simplified approximation
+                            dewpoint_c = temp_c - ((100 - humidity) / 5.0)
                         
                         # Convert back to Fahrenheit
                         dewpoint = (dewpoint_c * 9/5) + 32
