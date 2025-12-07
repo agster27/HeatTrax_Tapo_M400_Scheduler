@@ -1296,8 +1296,10 @@ async function refreshWeather() {
                         <tr style="background: #f8f9fa; border-bottom: 2px solid #ddd;">
                             <th style="padding: 10px; text-align: left;">Time</th>
                             <th style="padding: 10px; text-align: left;">Temp (°F)</th>
+                            <th style="padding: 10px; text-align: left;">Dew Point (°F)</th>
+                            <th style="padding: 10px; text-align: left;">Humidity (%)</th>
                             <th style="padding: 10px; text-align: left;">Precip (in)</th>
-                            <th style="padding: 10px; text-align: left;">Type</th>
+                            <th style="padding: 10px; text-align: left;">Black Ice Risk</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1316,18 +1318,26 @@ async function refreshWeather() {
                 const hourTime = new Date(hour.time);
                 const time = hourTime.toLocaleString();
                 const temp = hour.temp_f !== null ? hour.temp_f.toFixed(1) : 'N/A';
+                const dewpoint = hour.dewpoint_f !== null ? hour.dewpoint_f.toFixed(1) : 'N/A';
+                const humidity = hour.humidity_percent !== null ? hour.humidity_percent.toFixed(0) : 'N/A';
                 // Convert precipitation from mm to inches
                 const precipMm = hour.precip_intensity !== null ? hour.precip_intensity : 0;
                 const precipInches = precipMm / MM_PER_INCH;
                 const precip = precipInches.toFixed(2);
-                const precipType = hour.precip_type || '-';
+                
+                // Black ice risk indicator
+                const blackIceRisk = hour.black_ice_risk;
+                const riskIcon = blackIceRisk ? '⚠️🧊' : '-';
+                const riskStyle = blackIceRisk ? 'color: #e74c3c; font-weight: bold;' : '';
                 
                 tableHtml += `
                     <tr style="border-bottom: 1px solid #eee;">
                         <td style="padding: 8px;">${time}</td>
                         <td style="padding: 8px;">${temp}</td>
+                        <td style="padding: 8px;">${dewpoint}</td>
+                        <td style="padding: 8px;">${humidity}</td>
                         <td style="padding: 8px;">${precip}</td>
-                        <td style="padding: 8px;">${precipType}</td>
+                        <td style="padding: 8px; ${riskStyle}">${riskIcon}</td>
                     </tr>
                 `;
             }

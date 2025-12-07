@@ -317,6 +317,19 @@ class ScheduleEvaluator:
                 self.logger.debug("Precipitation not wanted but is active")
                 return False
         
+        # Check black_ice_risk condition
+        if 'black_ice_risk' in conditions:
+            risk_required = conditions['black_ice_risk']
+            risk_active = weather_conditions.get('black_ice_risk', False)
+            
+            if risk_required and not risk_active:
+                self.logger.debug("Black ice risk required but not detected")
+                return False
+            
+            if not risk_required and risk_active:
+                self.logger.debug("Black ice risk not wanted but is detected")
+                return False
+        
         # All conditions met
         return True
     

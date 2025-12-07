@@ -18,6 +18,8 @@ class WeatherSnapshot:
     timestamp: str  # ISO format
     temperature_f: float
     precipitation_mm: float
+    dewpoint_f: Optional[float] = None
+    humidity_percent: Optional[float] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -152,6 +154,8 @@ class WeatherCache:
             times = hourly.get('time', [])
             temperatures = hourly.get('temperature_2m', [])
             precipitations = hourly.get('precipitation', [])
+            dewpoints = hourly.get('dewpoint_2m', [])
+            humidities = hourly.get('relative_humidity_2m', [])
             
             if not times or not temperatures or not precipitations:
                 logger.error("Missing data in forecast")
@@ -179,10 +183,16 @@ class WeatherCache:
                         logger.debug(f"Skipping entry {i}: time={forecast_time}, outside range [{now}, {cutoff}]")
                         continue
                     
+                    # Extract dewpoint and humidity if available
+                    dewpoint = dewpoints[i] if dewpoints and i < len(dewpoints) else None
+                    humidity = humidities[i] if humidities and i < len(humidities) else None
+                    
                     snapshot = WeatherSnapshot(
                         timestamp=forecast_time.isoformat(),
                         temperature_f=temperatures[i],
-                        precipitation_mm=precipitations[i]
+                        precipitation_mm=precipitations[i],
+                        dewpoint_f=dewpoint,
+                        humidity_percent=humidity
                     )
                     forecast_list.append(snapshot.to_dict())
                     

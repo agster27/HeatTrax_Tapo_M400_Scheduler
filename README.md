@@ -32,10 +32,15 @@ HeatTrax Scheduler includes powerful features for automated device control:
 - ✅ **Unified Conditional Scheduling** - Advanced scheduling system combining multiple paradigms
   - Clock-based schedules (fixed times like "06:00")
   - Solar-based schedules (sunrise/sunset with offsets)
-  - Weather conditions (temperature, precipitation)
+  - Weather conditions (temperature, precipitation, **black ice risk**)
   - Priority system (critical, normal, low)
   - Day-of-week filtering
   - See the **[Scheduling Guide](SCHEDULING.md)** for complete documentation
+- ✅ **Black Ice Detection** - Automatically detect black ice formation conditions
+  - Monitors temperature, dew point spread, and humidity
+  - Activates mats even without precipitation when conditions favor black ice
+  - Configurable thresholds for temperature, dew point spread, and humidity
+  - Visual indicators in Web UI when black ice risk detected
 - ✅ **Web UI & JSON API** for monitoring and configuration
 - ✅ **Real-time status** of devices, weather, and scheduler
 - ✅ **Manual device control** - Turn devices and outlets on/off from the Health page

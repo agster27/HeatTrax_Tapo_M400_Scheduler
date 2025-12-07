@@ -1482,14 +1482,37 @@ class WebServer:
                 hours = []
                 forecast_list = cache_data.get('forecast', [])
                 
+                # Get black ice detection config
+                thresholds = config.get('thresholds', {})
+                black_ice_config = thresholds.get('black_ice_detection', {})
+                black_ice_enabled = black_ice_config.get('enabled', True)
+                temp_max = black_ice_config.get('temperature_max_f', 36.0)
+                dew_spread_max = black_ice_config.get('dew_point_spread_f', 4.0)
+                humidity_min = black_ice_config.get('humidity_min_percent', 80.0)
+                
                 for entry in forecast_list:
+                    temp_f = entry.get('temperature_f')
+                    dewpoint_f = entry.get('dewpoint_f')
+                    humidity = entry.get('humidity_percent')
+                    
+                    # Calculate black ice risk
+                    black_ice_risk = False
+                    if black_ice_enabled and temp_f is not None and dewpoint_f is not None and humidity is not None:
+                        dew_spread = temp_f - dewpoint_f
+                        if temp_f <= temp_max and dew_spread <= dew_spread_max and humidity >= humidity_min:
+                            black_ice_risk = True
+                    
                     hour_data = {
                         'time': entry.get('timestamp'),
-                        'temp_f': entry.get('temperature_f'),
-                        'temp_c': round((entry.get('temperature_f', 32) - 32) * 5/9, 1) if entry.get('temperature_f') else None,
+                        'temp_f': temp_f,
+                        'temp_c': round((temp_f - 32) * 5/9, 1) if temp_f else None,
+                        'dewpoint_f': dewpoint_f,
+                        'dewpoint_c': round((dewpoint_f - 32) * 5/9, 1) if dewpoint_f else None,
+                        'humidity_percent': humidity,
+                        'black_ice_risk': black_ice_risk,
                         'precip_prob': None,  # Not stored in current cache format
                         'precip_intensity': entry.get('precipitation_mm'),
-                        'precip_type': 'snow' if entry.get('temperature_f', 32) <= 32 and entry.get('precipitation_mm', 0) > 0 else ('rain' if entry.get('precipitation_mm', 0) > 0 else None),
+                        'precip_type': 'snow' if temp_f and temp_f <= 32 and entry.get('precipitation_mm', 0) > 0 else ('rain' if entry.get('precipitation_mm', 0) > 0 else None),
                         'wind_speed_mph': None,  # Not stored in current cache format
                         'wind_gust_mph': None,  # Not stored in current cache format
                         'alerts': [],

@@ -98,12 +98,35 @@ Weather conditions are optional. When present, they add an additional filter:
 conditions:
   temperature_max: 32          # Must be ≤ 32°F
   precipitation_active: true   # Precipitation must be detected
+  black_ice_risk: true         # Black ice formation conditions detected
 ```
+
+**Available Conditions:**
+- `temperature_max`: Temperature must be at or below this value (°F)
+- `precipitation_active`: Precipitation must be actively forecasted or occurring
+- `black_ice_risk`: Black ice formation conditions detected (temperature near freezing, high humidity, small dew point spread)
 
 **Condition Logic:**
 - **All conditions must be TRUE** for the schedule to be active
 - If weather service is offline, schedules with conditions are **skipped**
 - Schedules without conditions are **always evaluated** (weather-independent)
+
+**Black Ice Detection:**
+
+Black ice can form without precipitation when moisture in the air condenses on cold surfaces and freezes. The system detects black ice risk when:
+- Temperature is at or below threshold (default: 36°F)
+- Dew point spread is small (default: ≤4°F difference between temperature and dew point)
+- Relative humidity is high (default: ≥80%)
+
+Configure detection thresholds in `config.yaml`:
+```yaml
+thresholds:
+  black_ice_detection:
+    enabled: true
+    temperature_max_f: 36        # Max temp for black ice risk
+    dew_point_spread_f: 4        # Max temp-dewpoint spread
+    humidity_min_percent: 80     # Minimum humidity
+```
 
 #### Priority System
 
@@ -417,6 +440,62 @@ conditions:
     precipitation_active: true  # Only when snowing/icing
 ```
 
+#### `black_ice_risk`
+
+**Activate when black ice formation conditions are detected.**
+
+```yaml
+conditions:
+  black_ice_risk: true   # Only when black ice risk detected
+```
+
+**What is Black Ice Risk?**
+
+Black ice forms when:
+1. Moisture in the air condenses on cold surfaces
+2. The temperature drops below freezing
+3. This creates invisible ice without any precipitation
+
+The system detects black ice risk by monitoring:
+- **Temperature:** Near or below freezing (default: ≤36°F)
+- **Dew Point Spread:** Small difference between temperature and dew point (default: ≤4°F)
+- **Relative Humidity:** High moisture in the air (default: ≥80%)
+
+**Use cases:**
+- Early morning black ice protection
+- Clear night frost prevention
+- Proactive mat activation without precipitation
+
+**Example:**
+```yaml
+- name: "Black Ice Protection"
+  enabled: true
+  priority: "critical"
+  days: [1, 2, 3, 4, 5, 6, 7]
+  on:
+    type: "time"
+    value: "00:00"
+  off:
+    type: "sunrise"
+    offset: 60        # Turn off 1 hour after sunrise
+    fallback: "08:00"
+  conditions:
+    black_ice_risk: true  # Only when black ice conditions detected
+```
+
+**Configuration:**
+
+Black ice detection can be customized in `config.yaml`:
+
+```yaml
+thresholds:
+  black_ice_detection:
+    enabled: true
+    temperature_max_f: 36        # Max temp to consider risk
+    dew_point_spread_f: 4        # Trigger when temp - dewpoint ≤ 4°F
+    humidity_min_percent: 80     # Minimum humidity to consider risk
+```
+
 ### Combining Conditions
 
 **All conditions must be TRUE** for the schedule to activate:
@@ -428,6 +507,29 @@ conditions:
 ```
 
 This means: "Only activate when it's cold (≤32°F) AND precipitation is detected."
+
+**Combining Black Ice with Other Conditions:**
+
+You can combine black ice detection with other conditions for more precise control:
+
+```yaml
+- name: "Comprehensive Winter Protection"
+  enabled: true
+  priority: "critical"
+  days: [1, 2, 3, 4, 5, 6, 7]
+  on:
+    type: "time"
+    value: "00:00"
+  off:
+    type: "time"
+    value: "23:59"
+  conditions:
+    temperature_max: 36
+    # This activates when EITHER precipitation OR black ice risk is detected
+    # Note: Use separate schedules for OR logic, not within one schedule
+```
+
+**Pro Tip:** Create separate schedules for different weather scenarios (one for precipitation, one for black ice) rather than trying to combine them in one schedule. This provides more flexibility and clearer logging.
 
 ### Weather Offline Behavior
 
