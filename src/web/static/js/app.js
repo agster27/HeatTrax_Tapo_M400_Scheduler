@@ -2640,6 +2640,10 @@ function showAddScheduleDialog(groupName) {
     updateOnTimeFields();
     updateOffTimeFields();
     
+    // Reset weather condition dropdown to default
+    document.getElementById('condition-weather-type').value = 'none';
+    updateTemperatureFieldState();
+    
     // Show modal
     document.getElementById('schedule-modal').style.display = 'flex';
 }
@@ -2706,9 +2710,21 @@ async function editSchedule(groupName, scheduleIndex) {
         // Set conditions
         if (schedule.conditions) {
             document.getElementById('condition-temp-max').value = schedule.conditions.temperature_max || '';
-            document.getElementById('condition-precip').checked = schedule.conditions.precipitation_active || false;
-            document.getElementById('condition-black-ice').checked = schedule.conditions.black_ice_risk || false;
+            
+            // Convert boolean conditions to dropdown value
+            if (schedule.conditions.precipitation_active) {
+                document.getElementById('condition-weather-type').value = 'precipitation';
+            } else if (schedule.conditions.black_ice_risk) {
+                document.getElementById('condition-weather-type').value = 'black_ice';
+            } else {
+                document.getElementById('condition-weather-type').value = 'none';
+            }
+        } else {
+            document.getElementById('condition-weather-type').value = 'none';
         }
+        
+        // Update temperature field state based on weather type
+        updateTemperatureFieldState();
         
         // Set safety
         if (schedule.safety) {
@@ -2792,6 +2808,19 @@ function toggleAllDay(checked) {
     }
 }
 
+function updateTemperatureFieldState() {
+    const weatherType = document.getElementById('condition-weather-type').value;
+    const tempMaxField = document.getElementById('condition-temp-max');
+    
+    // Disable temperature field when black ice is selected (it has built-in temp threshold of ≤36°F)
+    if (weatherType === 'black_ice') {
+        tempMaxField.disabled = true;
+        tempMaxField.value = ''; // Clear the value when disabled
+    } else {
+        tempMaxField.disabled = false;
+    }
+}
+
 async function saveSchedule() {
     if (!currentScheduleGroupName) {
         alert('Error: No group selected');
@@ -2869,18 +2898,17 @@ async function saveSchedule() {
     
     // Conditions
     const tempMax = document.getElementById('condition-temp-max').value;
-    const precip = document.getElementById('condition-precip').checked;
-    const blackIce = document.getElementById('condition-black-ice').checked;
+    const weatherType = document.getElementById('condition-weather-type').value;
     
-    if (tempMax || precip || blackIce) {
+    if (tempMax || weatherType !== 'none') {
         schedule.conditions = {};
         if (tempMax) {
             schedule.conditions.temperature_max = parseFloat(tempMax);
         }
-        if (precip) {
+        // Convert dropdown value to boolean conditions
+        if (weatherType === 'precipitation') {
             schedule.conditions.precipitation_active = true;
-        }
-        if (blackIce) {
+        } else if (weatherType === 'black_ice') {
             schedule.conditions.black_ice_risk = true;
         }
     }
