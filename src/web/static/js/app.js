@@ -3055,3 +3055,116 @@ function showConfigUploadMessage(type, message, append = false) {
         }, 5000);
     }
 }
+
+// Collapsible section toggle
+function toggleCollapsible(header) {
+    const section = header.parentElement;
+    const content = section.querySelector('.collapsible-section-content');
+    const toggle = header.querySelector('.collapsible-section-toggle');
+    
+    const isExpanded = content.classList.contains('expanded');
+    
+    if (isExpanded) {
+        content.classList.remove('expanded');
+        toggle.classList.remove('expanded');
+    } else {
+        content.classList.add('expanded');
+        toggle.classList.add('expanded');
+    }
+}
+
+// Refresh current tab (for FAB button)
+function refreshCurrentTab() {
+    const activeTab = document.querySelector('.tab.active');
+    if (!activeTab) {
+        refreshStatus();
+        return;
+    }
+    
+    // Extract tab name from onclick attribute for more reliable identification
+    const onclickAttr = activeTab.getAttribute('onclick');
+    if (!onclickAttr) {
+        refreshStatus();
+        return;
+    }
+    
+    // Parse switchTab('tabname') to get the tab name
+    const match = onclickAttr.match(/switchTab\('([^']+)'\)/);
+    const tabName = match ? match[1] : 'status';
+    
+    // Call appropriate refresh function based on tab name
+    if (tabName === 'status') {
+        refreshStatus();
+        refreshVacationMode();
+    } else if (tabName === 'schedules') {
+        refreshSchedules();
+    } else if (tabName === 'groups') {
+        refreshGroups();
+    } else if (tabName === 'config') {
+        loadConfig();
+    } else if (tabName === 'health') {
+        refreshHealth();
+    } else if (tabName === 'weather') {
+        refreshWeather();
+    } else {
+        refreshStatus();
+    }
+    
+    // Show feedback
+    showToast('Refreshed!', 'success');
+}
+
+// Mobile menu toggle functions
+function toggleMobileMenu() {
+    const tabs = document.getElementById('main-tabs');
+    const overlay = document.querySelector('.mobile-nav-overlay');
+    
+    if (tabs.classList.contains('mobile-menu-open')) {
+        closeMobileMenu();
+    } else {
+        tabs.classList.add('mobile-menu-open');
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeMobileMenu() {
+    const tabs = document.getElementById('main-tabs');
+    const overlay = document.querySelector('.mobile-nav-overlay');
+    
+    tabs.classList.remove('mobile-menu-open');
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+// Add event listeners for mobile enhancements
+document.addEventListener('DOMContentLoaded', function() {
+    // Close mobile menu when any tab is clicked
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            closeMobileMenu();
+        });
+    });
+    
+    // Handle day checkbox styling for browsers without :has() support
+    const dayCheckboxes = document.querySelectorAll('.day-checkbox');
+    dayCheckboxes.forEach(dayCheckbox => {
+        const checkbox = dayCheckbox.querySelector('input[type="checkbox"]');
+        if (checkbox) {
+            // Set initial state
+            if (checkbox.checked) {
+                dayCheckbox.classList.add('checked');
+            }
+            
+            // Update on change
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    dayCheckbox.classList.add('checked');
+                } else {
+                    dayCheckbox.classList.remove('checked');
+                }
+            });
+        }
+    });
+});

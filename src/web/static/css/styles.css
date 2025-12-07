@@ -4,6 +4,26 @@ body {
     margin: 0 auto;
     padding: 20px;
     background: #f5f5f5;
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+}
+
+/* Add CSS variables for consistency */
+:root {
+    --primary-color: #3498db;
+    --primary-hover: #2980b9;
+    --success-color: #27ae60;
+    --success-hover: #229954;
+    --danger-color: #e74c3c;
+    --danger-hover: #c0392b;
+    --gray-color: #95a5a6;
+    --gray-hover: #7f8c8d;
+    --text-dark: #2c3e50;
+    --text-medium: #555;
+    --text-light: #666;
+    --border-color: #ddd;
+    --border-light: #ecf0f1;
+    --bg-light: #f8f9fa;
+    --min-touch-target: 48px;
 }
 .header {
     background: #2c3e50;
@@ -78,11 +98,12 @@ body {
 .form-group input,
 .form-group select {
     width: 100%;
-    padding: 8px 10px;
-    border: 1px solid #ddd;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
     border-radius: 4px;
-    font-size: 14px;
+    font-size: 16px; /* Minimum 16px to prevent iOS zoom on focus */
     box-sizing: border-box;
+    min-height: 44px; /* Adequate touch target */
 }
 .form-group input[type="checkbox"] {
     width: auto;
@@ -111,16 +132,20 @@ body {
     gap: 15px;
 }
 button {
-    background: #3498db;
+    background: var(--primary-color);
     color: white;
     border: none;
-    padding: 10px 20px;
+    padding: 12px 20px;
     border-radius: 4px;
     cursor: pointer;
     font-size: 16px;
+    min-height: var(--min-touch-target);
+    min-width: var(--min-touch-target);
+    touch-action: manipulation; /* Prevents double-tap zoom on iOS */
 }
+
 button:hover {
-    background: #2980b9;
+    background: var(--primary-hover);
 }
 .error {
     color: #e74c3c;
@@ -154,18 +179,34 @@ button:hover {
 .tabs {
     display: flex;
     gap: 10px;
-    border-bottom: 2px solid #ddd;
+    border-bottom: 2px solid var(--border-color);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
 }
+
+.tabs::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+}
+
 .tab {
-    padding: 10px 20px;
+    padding: 12px 20px;
     cursor: pointer;
     background: none;
     border: none;
     border-bottom: 3px solid transparent;
     color: #000;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-height: var(--min-touch-target);
+    display: flex;
+    align-items: center;
+    font-size: 16px;
 }
+
 .tab.active {
-    border-bottom-color: #3498db;
+    border-bottom-color: var(--primary-color);
     font-weight: 600;
     color: #000;
 }
@@ -949,7 +990,195 @@ button:hover {
     cursor: not-allowed;
 }
 
-/* Mobile Responsive */
+/* Floating Action Button */
+.fab {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    font-size: 24px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 1000;
+    border: none;
+    cursor: pointer;
+    display: none; /* Hidden by default, shown on mobile via media query */
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    padding: 0;
+    min-width: auto;
+}
+
+.fab:hover {
+    background: var(--primary-hover);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+    transform: scale(1.05);
+}
+
+.fab:active {
+    transform: scale(0.95);
+}
+
+/* Mobile Responsive - Small Phones (480px and below) */
+@media (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+    
+    .header {
+        border-radius: 0;
+        margin: -10px -10px 15px -10px;
+        padding: 15px;
+    }
+    
+    .card {
+        padding: 15px;
+        border-radius: 0;
+        margin: 0 -10px 15px -10px;
+    }
+    
+    /* Show FAB on mobile */
+    .fab {
+        display: flex;
+        bottom: 16px;
+        right: 16px;
+    }
+    
+    /* Tab navigation improvements */
+    .tab {
+        padding: 14px 18px;
+        font-size: 15px;
+    }
+    
+    /* Form improvements */
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .form-group input,
+    .form-group select {
+        font-size: 16px;
+        padding: 12px;
+    }
+    
+    /* Modal improvements */
+    .modal {
+        padding: 0;
+    }
+    
+    .modal-content {
+        max-width: 100%;
+        max-height: 100vh;
+        height: 100vh;
+        border-radius: 0;
+        margin: 0;
+    }
+    
+    .modal-footer {
+        position: sticky;
+        bottom: 0;
+        background: white;
+        border-top: 2px solid var(--border-light);
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .modal-body {
+        padding-bottom: 20px;
+    }
+    
+    /* Button improvements */
+    .button-group {
+        flex-direction: column;
+    }
+    
+    .button-group button {
+        width: 100%;
+    }
+    
+    /* Day selector as toggle buttons */
+    .days-selector {
+        gap: 6px;
+        justify-content: space-between;
+    }
+    
+    .day-checkbox {
+        padding: 12px 8px;
+        font-size: 14px;
+        flex: 1;
+        justify-content: center;
+        min-width: 44px;
+        min-height: 44px;
+        border: 2px solid var(--border-color);
+        background: white;
+        transition: all 0.2s;
+    }
+    
+    .day-checkbox input[type="checkbox"] {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+    
+    /* JavaScript adds .checked class for browsers without :has() support */
+    .day-checkbox.checked {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+        font-weight: 600;
+    }
+    
+    /* Modern browsers with :has() support - more specific selector */
+    @supports selector(:has(*)) {
+        .day-checkbox:has(input:checked) {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+            font-weight: 600;
+        }
+    }
+    
+    /* Status grid single column */
+    .status-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Vacation toggle improvements */
+    .vacation-toggle-switch {
+        width: 180px;
+        height: 52px;
+    }
+    
+    .vacation-toggle-slider:before {
+        height: 44px;
+        width: 44px;
+    }
+    
+    .vacation-toggle-switch input:checked + .vacation-toggle-slider:before {
+        transform: translateX(128px);
+    }
+    
+    /* Device controls */
+    .device-control-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Health summary */
+    .health-summary {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Collapsible sections - show visual indicators */
+    .accordion-toggle {
+        font-size: 24px;
+    }
+}
+
+/* Mobile Responsive - Tablets (768px and below) */
 @media (max-width: 768px) {
     .accordion-header {
         flex-direction: column;
@@ -990,12 +1219,23 @@ button:hover {
     
     .btn-control {
         width: 100%;
+        min-height: var(--min-touch-target);
     }
     
     .toast {
         right: 10px;
         left: 10px;
         max-width: none;
+    }
+    
+    /* Form row single column */
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    /* FAB for tablets */
+    .fab {
+        display: flex;
     }
 }
 
@@ -1477,6 +1717,22 @@ button:hover {
     font-size: 13px;
 }
 
+/* Large tablets/small laptops (1024px and below) */
+@media (max-width: 1024px) {
+    body {
+        max-width: 100%;
+        padding: 15px;
+    }
+    
+    .device-control-grid {
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    }
+    
+    .schedules-list {
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    }
+}
+
 /* Responsive adjustments for schedules */
 @media (max-width: 768px) {
     .schedules-list {
@@ -1501,8 +1757,9 @@ button:hover {
     }
     
     .day-checkbox {
-        padding: 6px 10px;
-        font-size: 13px;
+        padding: 10px 12px;
+        font-size: 14px;
+        min-height: 44px;
     }
 }
 
@@ -1635,7 +1892,160 @@ button:hover {
     
     .btn-group-control {
         min-width: 80px;
-        padding: 8px 12px;
-        font-size: 13px;
+        padding: 10px 14px;
+        font-size: 14px;
+        min-height: var(--min-touch-target);
+    }
+}
+
+/* Safe area insets for notched devices (iPhone X+, etc.) */
+@supports (padding: max(0px)) {
+    body {
+        padding-left: max(20px, env(safe-area-inset-left));
+        padding-right: max(20px, env(safe-area-inset-right));
+        padding-top: max(20px, env(safe-area-inset-top));
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+    
+    @media (max-width: 480px) {
+        body {
+            padding-left: max(10px, env(safe-area-inset-left));
+            padding-right: max(10px, env(safe-area-inset-right));
+            padding-top: max(10px, env(safe-area-inset-top));
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+        }
+        
+        .fab {
+            right: max(16px, env(safe-area-inset-right));
+            bottom: max(16px, env(safe-area-inset-bottom));
+        }
+    }
+}
+
+/* Progressive disclosure for modal sections */
+.collapsible-section {
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    margin: 15px 0;
+    overflow: hidden;
+}
+
+.collapsible-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: var(--bg-light);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+.collapsible-section-header:hover {
+    background: #e9ecef;
+}
+
+.collapsible-section-title {
+    font-weight: 600;
+    color: var(--text-dark);
+    font-size: 15px;
+}
+
+.collapsible-section-toggle {
+    font-size: 18px;
+    color: var(--primary-color);
+    transition: transform 0.3s ease;
+}
+
+.collapsible-section-toggle.expanded {
+    transform: rotate(180deg);
+}
+
+.collapsible-section-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.collapsible-section-content.expanded {
+    /* Use a very large value to accommodate any content size.
+       This is a common CSS-only accordion pattern that provides smooth animations
+       without JavaScript height calculations. 5000px should be sufficient for
+       all practical form content in the modal. If content exceeds this, it will
+       still be scrollable via the modal body overflow. */
+    max-height: 5000px;
+    transition: max-height 0.5s ease-in;
+}
+
+.collapsible-section-body {
+    padding: 15px;
+}
+
+/* Hamburger menu for mobile - shown under 480px */
+.mobile-menu-toggle {
+    display: none;
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 1001;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 24px;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+}
+
+.mobile-nav-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+.mobile-nav-overlay.active {
+    display: block;
+}
+
+@media (max-width: 480px) {
+    .mobile-menu-toggle {
+        display: flex;
+    }
+    
+    .tabs.mobile-menu-open {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: white;
+        z-index: 1000;
+        flex-direction: column;
+        padding: 60px 20px 20px;
+        overflow-y: auto;
+        border-bottom: none;
+    }
+    
+    .tabs.mobile-menu-open .tab {
+        width: 100%;
+        border-bottom: 1px solid var(--border-light);
+        border-left: 3px solid transparent;
+        padding: 16px 20px;
+        text-align: left;
+        justify-content: flex-start;
+    }
+    
+    .tabs.mobile-menu-open .tab.active {
+        border-left-color: var(--primary-color);
+        border-bottom-color: var(--border-light);
     }
 }
