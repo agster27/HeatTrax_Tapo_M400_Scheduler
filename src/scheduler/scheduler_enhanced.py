@@ -465,9 +465,38 @@ class EnhancedScheduler:
                                 time_to_precip = (precip_time - now_local).total_seconds() / 60
                                 precip_active = time_to_precip <= 60
                         
+                        # Check for black ice risk if enabled
+                        black_ice_risk = False
+                        thresholds = self.config.config_data.get('thresholds', {})
+                        black_ice_config = thresholds.get('black_ice_detection', {})
+                        
+                        if black_ice_config.get('enabled', True):
+                            try:
+                                black_ice_result = await self.weather.check_black_ice_risk(
+                                    hours_ahead=self.config.scheduler.get('forecast_hours', 12),
+                                    temperature_max_f=black_ice_config.get('temperature_max_f', 36.0),
+                                    dew_point_spread_f=black_ice_config.get('dew_point_spread_f', 4.0),
+                                    humidity_min_percent=black_ice_config.get('humidity_min_percent', 80.0)
+                                )
+                                
+                                if black_ice_result and black_ice_result != (False, None, None, None):
+                                    has_risk, risk_time, risk_temp, risk_dewpoint = black_ice_result
+                                    # Consider black ice risk active if expected within next hour
+                                    if has_risk and risk_time:
+                                        time_to_risk = (risk_time - now_local).total_seconds() / 60
+                                        if time_to_risk <= 60:
+                                            black_ice_risk = True
+                                            self.logger.info(
+                                                f"BLACK ICE RISK DETECTED for group '{group_name}': "
+                                                f"temp={risk_temp}°F, dewpoint={risk_dewpoint}°F at {risk_time}"
+                                            )
+                            except Exception as e:
+                                self.logger.warning(f"Failed to check black ice risk: {e}")
+                        
                         weather_conditions = {
                             'temperature_f': temp_f,
-                            'precipitation_active': precip_active
+                            'precipitation_active': precip_active,
+                            'black_ice_risk': black_ice_risk
                         }
                 except Exception as e:
                     self.logger.warning(f"Failed to get weather conditions: {e}")
@@ -648,9 +677,33 @@ class EnhancedScheduler:
                                 if has_precip and precip_time:
                                     time_to_precip = (precip_time - now_local).total_seconds() / 60
                                     precip_active = time_to_precip <= 60
+                            
+                            # Check for black ice risk if enabled
+                            black_ice_risk = False
+                            thresholds = self.config.config_data.get('thresholds', {})
+                            black_ice_config = thresholds.get('black_ice_detection', {})
+                            
+                            if black_ice_config.get('enabled', True):
+                                try:
+                                    black_ice_result = await self.weather.check_black_ice_risk(
+                                        hours_ahead=self.config.scheduler.get('forecast_hours', 12),
+                                        temperature_max_f=black_ice_config.get('temperature_max_f', 36.0),
+                                        dew_point_spread_f=black_ice_config.get('dew_point_spread_f', 4.0),
+                                        humidity_min_percent=black_ice_config.get('humidity_min_percent', 80.0)
+                                    )
+                                    
+                                    if black_ice_result and black_ice_result != (False, None, None, None):
+                                        has_risk, risk_time, _, _ = black_ice_result
+                                        if has_risk and risk_time:
+                                            time_to_risk = (risk_time - now_local).total_seconds() / 60
+                                            black_ice_risk = time_to_risk <= 60
+                                except Exception as e:
+                                    self.logger.warning(f"Failed to check black ice risk: {e}")
+                            
                             weather_conditions = {
                                 'temperature_f': temp_f,
-                                'precipitation_active': precip_active
+                                'precipitation_active': precip_active,
+                                'black_ice_risk': black_ice_risk
                             }
                     except Exception as e:
                         self.logger.warning(f"Failed to get weather conditions: {e}")
@@ -1147,9 +1200,29 @@ class EnhancedScheduler:
                                 # Check for precipitation active (precipitation_mm > 0)
                                 precip_active = snapshot.precipitation_mm > 0 if hasattr(snapshot, 'precipitation_mm') else False
                                 
+                                # Check for black ice risk if enabled
+                                black_ice_risk = False
+                                thresholds = self.config.config_data.get('thresholds', {})
+                                black_ice_config = thresholds.get('black_ice_detection', {})
+                                
+                                if black_ice_config.get('enabled', True):
+                                    temp = snapshot.temperature_f if hasattr(snapshot, 'temperature_f') else None
+                                    dewpoint = snapshot.dewpoint_f if hasattr(snapshot, 'dewpoint_f') else None
+                                    humidity = snapshot.humidity_percent if hasattr(snapshot, 'humidity_percent') else None
+                                    
+                                    if temp is not None and dewpoint is not None and humidity is not None:
+                                        temp_max = black_ice_config.get('temperature_max_f', 36.0)
+                                        dew_spread_max = black_ice_config.get('dew_point_spread_f', 4.0)
+                                        humidity_min = black_ice_config.get('humidity_min_percent', 80.0)
+                                        
+                                        dew_spread = temp - dewpoint
+                                        if temp <= temp_max and dew_spread <= dew_spread_max and humidity >= humidity_min:
+                                            black_ice_risk = True
+                                
                                 weather_conditions = {
                                     'temperature_f': snapshot.temperature_f if hasattr(snapshot, 'temperature_f') else None,
-                                    'precipitation_active': precip_active
+                                    'precipitation_active': precip_active,
+                                    'black_ice_risk': black_ice_risk
                                 }
                     except Exception as e:
                         self.logger.debug(f"Could not get weather at time {check_time}: {e}")
