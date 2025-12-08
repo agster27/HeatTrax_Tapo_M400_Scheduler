@@ -379,27 +379,21 @@ logging:
         scheduler.group_schedules['heated_mats'] = parse_schedules(group_config['schedules'])
         
         # This should NOT raise AttributeError about config_data
-        try:
-            should_be_on, reason = scheduler._predict_group_state_at_time(
-                'heated_mats', group_config, check_time
-            )
-            
-            assert isinstance(should_be_on, bool), "Should return boolean"
-            assert isinstance(reason, str), "Should return reason string"
-            
-            # Schedule should be active at 7:00 AM (between 06:00 and 08:00)
-            # and temperature condition is met (32°F < 36°F)
-            assert should_be_on, "Schedule should be active during time window with met conditions"
-            assert "Morning Heat" in reason, f"Reason should reference schedule name, got: {reason}"
-            
-            print("✓ _predict_group_state_at_time handles Config object without AttributeError")
-            print(f"✓ Schedule evaluated correctly: should_be_on={should_be_on}, reason={reason}")
-            
-        except AttributeError as e:
-            if "config_data" in str(e):
-                pytest.fail(f"AttributeError accessing config_data: {e}")
-            else:
-                raise
+        # The fix ensures we can safely access config data even when using Config class
+        should_be_on, reason = scheduler._predict_group_state_at_time(
+            'heated_mats', group_config, check_time
+        )
+        
+        assert isinstance(should_be_on, bool), "Should return boolean"
+        assert isinstance(reason, str), "Should return reason string"
+        
+        # Schedule should be active at 7:00 AM (between 06:00 and 08:00)
+        # and temperature condition is met (32°F < 36°F)
+        assert should_be_on, "Schedule should be active during time window with met conditions"
+        assert "Morning Heat" in reason, f"Reason should reference schedule name, got: {reason}"
+        
+        print("✓ _predict_group_state_at_time handles Config object without AttributeError")
+        print(f"✓ Schedule evaluated correctly: should_be_on={should_be_on}, reason={reason}")
         
     finally:
         Path(config_path).unlink(missing_ok=True)

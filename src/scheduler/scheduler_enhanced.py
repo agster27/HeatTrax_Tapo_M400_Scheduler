@@ -190,11 +190,13 @@ class EnhancedScheduler:
             Raw configuration dictionary, or empty dict if not accessible
         """
         # Try known attributes in order of likely availability
-        if hasattr(self.config, 'config_data') and isinstance(self.config.config_data, dict):
-            return self.config.config_data
+        # Check _config first (used by both Config and ConfigManager)
         if hasattr(self.config, '_config') and isinstance(self.config._config, dict):
             return self.config._config
-        # Fallback to public API if available
+        # Check config_data (legacy/alternative name, if present)
+        if hasattr(self.config, 'config_data') and isinstance(self.config.config_data, dict):
+            return self.config.config_data
+        # Fallback to public API if available (ConfigManager)
         if hasattr(self.config, 'get_config') and callable(self.config.get_config):
             try:
                 return self.config.get_config(include_secrets=False)
