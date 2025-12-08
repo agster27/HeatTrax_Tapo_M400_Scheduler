@@ -760,6 +760,7 @@ function renderDeviceView(expectations, deviceControlData) {
         const isInitialized = controlDevice ? (controlDevice.initialized !== false) : true;
         const statusBadgeClass = isReachable ? 'online' : 'offline';
         const statusText = isReachable ? '● Online' : (isInitialized ? '● Offline' : '● Not Initialized');
+        const deviceModel = controlDevice && controlDevice.model ? controlDevice.model : 'Unknown';
         
         html += `
             <div class="accordion-card ${healthStatus.status}">
@@ -767,7 +768,7 @@ function renderDeviceView(expectations, deviceControlData) {
                     <div class="accordion-header-left">
                         <div>
                             <div class="accordion-header-title">${device.name}</div>
-                            <div class="accordion-header-subtitle">${device.ip}</div>
+                            <div class="accordion-header-subtitle">${device.ip} • ${deviceModel}</div>
                             <div class="group-tags">
                                 ${Array.from(device.groups).map(g => `<span class="group-tag">${g}</span>`).join('')}
                             </div>
@@ -936,6 +937,9 @@ function renderOutletDetailWithControl(outlet, controlDevice) {
     const hasSchedule = outlet.expected_on_from || outlet.expected_off_at;
     const scheduleStatus = hasSchedule ? '📅 Scheduled' : '⚪ Manual';
     
+    // Get device model
+    const deviceModel = controlDevice && controlDevice.model ? controlDevice.model : 'Unknown';
+    
     return `
         <div class="outlet-detail-card ${matchClass}">
             <div class="outlet-detail-header">
@@ -949,6 +953,10 @@ function renderOutletDetailWithControl(outlet, controlDevice) {
             <div class="outlet-detail-row">
                 <span class="outlet-detail-label">IP Address:</span>
                 <span class="outlet-detail-value">${outlet.ip_address}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Model:</span>
+                <span class="outlet-detail-value">${deviceModel}</span>
             </div>
             <div class="outlet-detail-row">
                 <span class="outlet-detail-label">Current State:</span>
@@ -1070,6 +1078,9 @@ function renderOutletDetailWithDeviceAndControl(outlet, deviceControlMap) {
     const hasSchedule = outlet.expected_on_from || outlet.expected_off_at;
     const scheduleStatus = hasSchedule ? '📅 Scheduled' : '⚪ Manual';
     
+    // Get device model
+    const deviceModel = controlDevice && controlDevice.model ? controlDevice.model : 'Unknown';
+    
     return `
         <div class="outlet-detail-card ${matchClass}">
             <div class="outlet-detail-header">
@@ -1079,6 +1090,10 @@ function renderOutletDetailWithDeviceAndControl(outlet, deviceControlMap) {
             <div class="outlet-detail-row">
                 <span class="outlet-detail-label">IP Address:</span>
                 <span class="outlet-detail-value">${outlet.ip_address}</span>
+            </div>
+            <div class="outlet-detail-row">
+                <span class="outlet-detail-label">Model:</span>
+                <span class="outlet-detail-value">${deviceModel}</span>
             </div>
             <div class="outlet-detail-row">
                 <span class="outlet-detail-label">Current State:</span>
