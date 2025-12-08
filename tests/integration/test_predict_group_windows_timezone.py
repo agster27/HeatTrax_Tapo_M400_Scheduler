@@ -262,8 +262,146 @@ logging:
         Path(config_path).unlink(missing_ok=True)
 
 
+def test_predict_group_state_with_weather_conditions():
+    """
+    Test that _predict_group_state_at_time can evaluate schedules with weather conditions
+    when using a Config object (not ConfigManager).
+    
+    This is a regression test for the bug where accessing self.config.config_data
+    raised AttributeError because Config class uses _config internally.
+    """
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        f.write("""
+location:
+  latitude: 40.7128
+  longitude: -74.0060
+  timezone: "America/New_York"
+
+weather_api:
+  enabled: true
+  provider: "open-meteo"
+
+devices:
+  credentials:
+    username: "test_user"
+    password: "test_password"
+  groups:
+    heated_mats:
+      enabled: true
+      schedules:
+        - name: "Morning Heat"
+          enabled: true
+          on:
+            type: time
+            value: "06:00"
+          off:
+            type: time
+            value: "08:00"
+          conditions:
+            temperature_max: 36
+      items:
+        - name: "test_device"
+          ip_address: "10.0.0.1"
+          outlets: [0]
+
+thresholds:
+  temperature_f: 36
+  lead_time_minutes: 60
+  trailing_time_minutes: 60
+  black_ice_detection:
+    enabled: true
+    temperature_max_f: 36.0
+    dew_point_spread_f: 4.0
+    humidity_min_percent: 80.0
+
+safety:
+  max_runtime_hours: 6
+  cooldown_minutes: 30
+
+scheduler:
+  check_interval_minutes: 10
+  forecast_hours: 12
+
+logging:
+  level: "DEBUG"
+""")
+        config_path = f.name
+    
+    try:
+        # Load config using Config class (not ConfigManager)
+        config = Config(config_path)
+        
+        # Verify Config object doesn't have config_data attribute
+        assert not hasattr(config, 'config_data') or config.config_data is None, \
+            "Config should not have config_data attribute"
+        
+        # Create scheduler
+        scheduler = EnhancedScheduler(config, setup_mode=False)
+        
+        # Setup mocks
+        scheduler.device_manager = MagicMock()
+        scheduler.automation_overrides.get_effective_automation = MagicMock(
+            side_effect=lambda group_name, base_automation: base_automation
+        )
+        
+        group_config = {
+            'enabled': True,
+            'schedules': [
+                {
+                    'name': 'Morning Heat',
+                    'enabled': True,
+                    'on': {'type': 'time', 'value': '06:00'},
+                    'off': {'type': 'time', 'value': '08:00'},
+                    'conditions': {'temperature_max': 36}
+                }
+            ]
+        }
+        
+        # Create timezone-aware check time
+        eastern_tz = ZoneInfo("America/New_York")
+        check_time = datetime.now(eastern_tz).replace(hour=7, minute=0, second=0, microsecond=0)
+        
+        # Mock weather cache with temperature below threshold
+        mock_snapshot = MagicMock()
+        mock_snapshot.temperature_f = 32.0  # Below threshold of 36°F
+        mock_snapshot.dewpoint_f = 28.0
+        mock_snapshot.humidity_percent = 85.0
+        mock_snapshot.precipitation_mm = 0.0
+        
+        scheduler.weather = MagicMock()
+        scheduler.weather.is_offline = MagicMock(return_value=False)
+        scheduler.weather.cache = MagicMock()
+        scheduler.weather.cache.get_weather_at = MagicMock(return_value=mock_snapshot)
+        
+        # Parse schedules for the group
+        from src.scheduler.schedule_types import parse_schedules
+        scheduler.group_schedules['heated_mats'] = parse_schedules(group_config['schedules'])
+        
+        # This should NOT raise AttributeError about config_data
+        # The fix ensures we can safely access config data even when using Config class
+        should_be_on, reason = scheduler._predict_group_state_at_time(
+            'heated_mats', group_config, check_time
+        )
+        
+        assert isinstance(should_be_on, bool), "Should return boolean"
+        assert isinstance(reason, str), "Should return reason string"
+        
+        # Schedule should be active at 7:00 AM (between 06:00 and 08:00)
+        # and temperature condition is met (32°F < 36°F)
+        assert should_be_on, "Schedule should be active during time window with met conditions"
+        assert "Morning Heat" in reason, f"Reason should reference schedule name, got: {reason}"
+        
+        print("✓ _predict_group_state_at_time handles Config object without AttributeError")
+        print(f"✓ Schedule evaluated correctly: should_be_on={should_be_on}, reason={reason}")
+        
+    finally:
+        Path(config_path).unlink(missing_ok=True)
+
+
 if __name__ == '__main__':
     # Run tests
     test_predict_group_windows_precipitation_timezone_aware()
     test_predict_group_windows_check_time_timezone()
+    test_predict_group_state_with_weather_conditions()
     print("\n✓ All predict_group_windows timezone tests passed!")

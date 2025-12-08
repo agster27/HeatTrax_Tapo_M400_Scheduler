@@ -179,6 +179,33 @@ class EnhancedScheduler:
                         f"migration to unified 'schedules:' array recommended"
                     )
     
+    def _get_raw_config(self) -> Dict[str, Any]:
+        """
+        Get the raw configuration dictionary from the config object.
+        
+        This helper method provides a robust way to access the underlying config dict
+        regardless of whether the config object is a Config or ConfigManager instance.
+        
+        Returns:
+            Raw configuration dictionary, or empty dict if not accessible
+        """
+        # Try known attributes in order of likely availability
+        # Check _config first (used by both Config and ConfigManager)
+        if hasattr(self.config, '_config') and isinstance(self.config._config, dict):
+            return self.config._config
+        # Check config_data (legacy/alternative name, if present)
+        if hasattr(self.config, 'config_data') and isinstance(self.config.config_data, dict):
+            return self.config.config_data
+        # Fallback to public API if available (ConfigManager)
+        if hasattr(self.config, 'get_config') and callable(self.config.get_config):
+            try:
+                return self.config.get_config(include_secrets=False)
+            except Exception as e:
+                self.logger.debug(f"Failed to get config via get_config(): {e}")
+        # Last resort: return empty dict
+        self.logger.warning("Unable to access raw config data, using empty dict")
+        return {}
+    
     async def initialize(self):
         """Initialize the scheduler and device connections."""
         self.logger.info("Initializing Enhanced Scheduler...")
@@ -477,7 +504,8 @@ class EnhancedScheduler:
                         
                         # Check for black ice risk if enabled
                         black_ice_risk = False
-                        thresholds = self.config.config_data.get('thresholds', {})
+                        raw_config = self._get_raw_config()
+                        thresholds = raw_config.get('thresholds', {})
                         black_ice_config = thresholds.get('black_ice_detection', {})
                         
                         if black_ice_config.get('enabled', True):
@@ -690,7 +718,8 @@ class EnhancedScheduler:
                             
                             # Check for black ice risk if enabled
                             black_ice_risk = False
-                            thresholds = self.config.config_data.get('thresholds', {})
+                            raw_config = self._get_raw_config()
+                            thresholds = raw_config.get('thresholds', {})
                             black_ice_config = thresholds.get('black_ice_detection', {})
                             
                             if black_ice_config.get('enabled', True):
@@ -1212,22 +1241,29 @@ class EnhancedScheduler:
                                 
                                 # Check for black ice risk if enabled
                                 black_ice_risk = False
-                                thresholds = self.config.config_data.get('thresholds', {})
-                                black_ice_config = thresholds.get('black_ice_detection', {})
-                                
-                                if black_ice_config.get('enabled', True):
-                                    temp = snapshot.temperature_f if hasattr(snapshot, 'temperature_f') else None
-                                    dewpoint = snapshot.dewpoint_f if hasattr(snapshot, 'dewpoint_f') else None
-                                    humidity = snapshot.humidity_percent if hasattr(snapshot, 'humidity_percent') else None
+                                try:
+                                    # Use helper method to safely access config data
+                                    raw_config = self._get_raw_config()
+                                    thresholds = raw_config.get('thresholds', {})
+                                    black_ice_config = thresholds.get('black_ice_detection', {})
                                     
-                                    if temp is not None and dewpoint is not None and humidity is not None:
-                                        temp_max = black_ice_config.get('temperature_max_f', 36.0)
-                                        dew_spread_max = black_ice_config.get('dew_point_spread_f', 4.0)
-                                        humidity_min = black_ice_config.get('humidity_min_percent', 80.0)
+                                    if black_ice_config.get('enabled', True):
+                                        temp = snapshot.temperature_f if hasattr(snapshot, 'temperature_f') else None
+                                        dewpoint = snapshot.dewpoint_f if hasattr(snapshot, 'dewpoint_f') else None
+                                        humidity = snapshot.humidity_percent if hasattr(snapshot, 'humidity_percent') else None
                                         
-                                        dew_spread = temp - dewpoint
-                                        if temp <= temp_max and dew_spread <= dew_spread_max and humidity >= humidity_min:
-                                            black_ice_risk = True
+                                        if temp is not None and dewpoint is not None and humidity is not None:
+                                            temp_max = black_ice_config.get('temperature_max_f', 36.0)
+                                            dew_spread_max = black_ice_config.get('dew_point_spread_f', 4.0)
+                                            humidity_min = black_ice_config.get('humidity_min_percent', 80.0)
+                                            
+                                            dew_spread = temp - dewpoint
+                                            if temp <= temp_max and dew_spread <= dew_spread_max and humidity >= humidity_min:
+                                                black_ice_risk = True
+                                except Exception as e:
+                                    # Log at debug level to avoid noise, treat as no black ice risk
+                                    self.logger.debug(f"Failed to check black ice conditions: {e}")
+                                    black_ice_risk = False
                                 
                                 weather_conditions = {
                                     'temperature_f': snapshot.temperature_f if hasattr(snapshot, 'temperature_f') else None,
@@ -1235,6 +1271,7 @@ class EnhancedScheduler:
                                     'black_ice_risk': black_ice_risk
                                 }
                     except Exception as e:
+                        # Log at debug level to avoid spamming logs in tight loops
                         self.logger.debug(f"Could not get weather at time {check_time}: {e}")
             
             # Evaluate schedules using ScheduleEvaluator
