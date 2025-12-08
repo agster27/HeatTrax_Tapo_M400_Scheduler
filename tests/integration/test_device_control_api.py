@@ -96,6 +96,7 @@ class TestDeviceStatusAPI(unittest.TestCase):
                 'group': 'test_group',
                 'reachable': True,
                 'has_outlets': True,
+                'model': 'EP40M',
                 'outlets': [
                     {'index': 0, 'is_on': True, 'alias': 'Outlet 0', 'controlled': True},
                     {'index': 1, 'is_on': False, 'alias': 'Outlet 1', 'controlled': True}
@@ -108,16 +109,29 @@ class TestDeviceStatusAPI(unittest.TestCase):
                 'group': 'test_group',
                 'reachable': False,
                 'has_outlets': False,
+                'model': 'Unknown',
                 'outlets': [],
                 'error': 'Connection timeout'
             }
         ]
+        
+        # Mock initialization summary
+        mock_init_summary = {
+            'total_groups': 1,
+            'groups': {},
+            'overall': {
+                'configured_devices': 2,
+                'initialized_devices': 1,
+                'failed_devices': 1
+            }
+        }
         
         # Mock the async method
         async def mock_get_status():
             return mock_devices
         
         self.mock_device_manager.get_all_devices_status = mock_get_status
+        self.mock_device_manager.get_initialization_summary = Mock(return_value=mock_init_summary)
         
         response = self.client.get('/api/devices/status')
         
@@ -133,6 +147,7 @@ class TestDeviceStatusAPI(unittest.TestCase):
         device1 = data['devices'][0]
         self.assertEqual(device1['name'], 'Test Device 1')
         self.assertTrue(device1['reachable'])
+        self.assertEqual(device1['model'], 'EP40M')
         self.assertEqual(len(device1['outlets']), 2)
         self.assertTrue(device1['outlets'][0]['is_on'])
         self.assertFalse(device1['outlets'][1]['is_on'])
@@ -141,6 +156,7 @@ class TestDeviceStatusAPI(unittest.TestCase):
         device2 = data['devices'][1]
         self.assertEqual(device2['name'], 'Test Device 2')
         self.assertFalse(device2['reachable'])
+        self.assertEqual(device2['model'], 'Unknown')
         self.assertEqual(device2['error'], 'Connection timeout')
     
     def test_devices_control_endpoint_missing_fields(self):

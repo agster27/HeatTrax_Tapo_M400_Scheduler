@@ -600,6 +600,7 @@ class ManagedDevice:
             'initialized': self._initialized,
             'has_outlets': False,
             'outlets': [],
+            'model': 'Unknown',
             'error': None,
             'initialization_error': self._initialization_error
         }
@@ -616,6 +617,9 @@ class ManagedDevice:
             await self.device.update()
             status['reachable'] = True
             status['initialized'] = True
+            
+            # Get device model
+            status['model'] = getattr(self.device, 'model', 'Unknown')
             
             # Check if device has children (outlets)
             if hasattr(self.device, 'children') and self.device.children:
