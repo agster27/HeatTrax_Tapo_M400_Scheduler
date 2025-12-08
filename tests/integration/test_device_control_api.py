@@ -248,6 +248,41 @@ class TestDeviceStatusAPI(unittest.TestCase):
         
         self.assertFalse(data['success'])
         self.assertEqual(data['error'], 'Device not reachable')
+    
+    def test_devices_control_endpoint_with_outlet_none(self):
+        """Test /api/devices/control endpoint with outlet=None (single-plug device)."""
+        # Mock control result for single-plug device
+        mock_result = {
+            'success': True,
+            'device': 'single_plug_device',
+            'outlet': None,
+            'action': 'on',
+            'error': None
+        }
+        
+        # Mock the async method
+        async def mock_control(group, device, outlet, action):
+            # Verify outlet is None
+            assert outlet is None, f"Expected outlet to be None, got {outlet}"
+            return mock_result
+        
+        self.mock_device_manager.control_device_outlet = mock_control
+        
+        response = self.client.post('/api/devices/control',
+                                    json={
+                                        'group': 'test_group',
+                                        'device': 'single_plug_device',
+                                        'outlet': None,
+                                        'action': 'on'
+                                    })
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        
+        self.assertTrue(data['success'])
+        self.assertEqual(data['device'], 'single_plug_device')
+        self.assertIsNone(data['outlet'])
+        self.assertEqual(data['action'], 'on')
 
 
 class TestManagedDeviceDetailedStatus(unittest.TestCase):

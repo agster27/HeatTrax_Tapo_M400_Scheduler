@@ -142,8 +142,8 @@ async def test_multi_outlet_device_expectations():
 
 
 async def test_backwards_compatibility():
-    """Test that devices without outlets array still work (backwards compatibility)."""
-    logger.info("Testing backwards compatibility for devices without outlets array...")
+    """Test that devices without outlets array now get outlet=None (not 0)."""
+    logger.info("Testing single-plug devices without outlets array...")
     
     try:
         # Load config
@@ -155,7 +155,7 @@ async def test_backwards_compatibility():
         # Mock the device manager
         mock_device_manager = MagicMock()
         
-        # Mock group configuration with old-style config (no outlets array)
+        # Mock group configuration with single-plug device (no outlets array)
         test_group_config = {
             'enabled': True,
             'automation': {
@@ -164,22 +164,22 @@ async def test_backwards_compatibility():
             },
             'items': [
                 {
-                    'name': 'Legacy Device',
+                    'name': 'Single Plug Device',
                     'ip_address': '192.168.1.200',
-                    # No outlets or outlet key - should default to outlet 0
+                    # No outlets or outlet key - should default to outlet None (not 0)
                 }
             ]
         }
         
-        mock_device_manager.get_all_groups.return_value = ['legacy_group']
+        mock_device_manager.get_all_groups.return_value = ['single_plug_group']
         mock_device_manager.get_group_config.return_value = test_group_config
         
         scheduler.device_manager = mock_device_manager
         
         # Create a mock state
-        mock_state = StateManager(state_file='/tmp/test_legacy_state.json')
+        mock_state = StateManager(state_file='/tmp/test_single_plug_state.json')
         mock_state.device_on = True
-        scheduler.states = {'legacy_group': mock_state}
+        scheduler.states = {'single_plug_group': mock_state}
         
         # Mock should_turn_on_group and should_turn_off_group
         async def mock_should_turn_on(group_name):
@@ -194,19 +194,19 @@ async def test_backwards_compatibility():
         # Get device expectations
         expectations = await scheduler.get_device_expectations()
         
-        # Should have 1 expectation with outlet defaulting to 0
+        # Should have 1 expectation with outlet defaulting to None (not 0)
         assert len(expectations) == 1, f"Expected 1 expectation, got {len(expectations)}"
-        assert expectations[0]['outlet'] == 0, f"Expected outlet 0, got {expectations[0]['outlet']}"
-        assert expectations[0]['device_name'] == 'Legacy Device'
+        assert expectations[0]['outlet'] is None, f"Expected outlet None, got {expectations[0]['outlet']}"
+        assert expectations[0]['device_name'] == 'Single Plug Device'
         
-        logger.info("✓ Backwards compatibility test passed")
+        logger.info("✓ Single-plug device test passed (outlet is None)")
         return True
         
     except AssertionError as e:
         logger.error(f"✗ Test assertion failed: {e}")
         return False
     except Exception as e:
-        logger.error(f"✗ Backwards compatibility test failed: {e}")
+        logger.error(f"✗ Single-plug device test failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -222,7 +222,7 @@ async def main_test():
     
     # Run tests
     results.append(("Multi-Outlet Device Expectations", await test_multi_outlet_device_expectations()))
-    results.append(("Backwards Compatibility", await test_backwards_compatibility()))
+    results.append(("Single-Plug Device (outlet=None)", await test_backwards_compatibility()))
     
     # Print summary
     logger.info("=" * 60)
