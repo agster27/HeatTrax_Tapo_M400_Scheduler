@@ -877,10 +877,13 @@ function renderOutletDetail(outlet) {
     const matchClass = isMatch ? 'match' : 'mismatch';
     const stateIcon = isMatch ? '✓' : '⚠️';
     
+    // Format header label: show "Outlet X" for multi-outlet devices, device name for single devices
+    const headerLabel = outlet.outlet !== null ? `Outlet ${outlet.outlet}` : outlet.device_name;
+    
     return `
         <div class="outlet-detail-card ${matchClass}">
             <div class="outlet-detail-header">
-                <span>Outlet ${outlet.outlet}</span>
+                <span>${headerLabel}</span>
                 <span class="state-indicator ${matchClass}">${stateIcon}</span>
             </div>
             <div class="outlet-detail-row">
@@ -940,10 +943,13 @@ function renderOutletDetailWithControl(outlet, controlDevice) {
     // Get device model
     const deviceModel = controlDevice && controlDevice.model ? controlDevice.model : 'Unknown';
     
+    // Format header label: show "Outlet X" for multi-outlet devices, device name for single devices
+    const headerLabel = outlet.outlet !== null ? `Outlet ${outlet.outlet}` : outlet.device_name;
+    
     return `
         <div class="outlet-detail-card ${matchClass}">
             <div class="outlet-detail-header">
-                <span>Outlet ${outlet.outlet}</span>
+                <span>${headerLabel}</span>
                 <span class="state-indicator ${matchClass}">${stateIcon}</span>
             </div>
             <div class="outlet-detail-row">
@@ -1015,10 +1021,13 @@ function renderOutletDetailWithDevice(outlet) {
     const matchClass = isMatch ? 'match' : 'mismatch';
     const stateIcon = isMatch ? '✓' : '⚠️';
     
+    // Format device name with outlet number only if outlet is not null
+    const deviceLabel = outlet.outlet !== null ? `${outlet.device_name} - Outlet ${outlet.outlet}` : outlet.device_name;
+    
     return `
         <div class="outlet-detail-card ${matchClass}">
             <div class="outlet-detail-header">
-                <span>${outlet.device_name} - Outlet ${outlet.outlet}</span>
+                <span>${deviceLabel}</span>
                 <span class="state-indicator ${matchClass}">${stateIcon}</span>
             </div>
             <div class="outlet-detail-row">
@@ -1081,10 +1090,13 @@ function renderOutletDetailWithDeviceAndControl(outlet, deviceControlMap) {
     // Get device model
     const deviceModel = controlDevice && controlDevice.model ? controlDevice.model : 'Unknown';
     
+    // Format device name with outlet number only if outlet is not null
+    const deviceLabel = outlet.outlet !== null ? `${outlet.device_name} - Outlet ${outlet.outlet}` : outlet.device_name;
+    
     return `
         <div class="outlet-detail-card ${matchClass}">
             <div class="outlet-detail-header">
-                <span>${outlet.device_name} - Outlet ${outlet.outlet}</span>
+                <span>${deviceLabel}</span>
                 <span class="state-indicator ${matchClass}">${stateIcon}</span>
             </div>
             <div class="outlet-detail-row">

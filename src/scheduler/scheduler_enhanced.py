@@ -1095,7 +1095,7 @@ class EnhancedScheduler:
                             'group': group_name,
                             'device_name': item.get('name', 'Unknown'),
                             'ip_address': item.get('ip_address', 'N/A'),
-                            'outlet': item.get('outlet', 0),
+                            'outlet': item.get('outlet', None),
                             'current_state': current_state,
                             'expected_state': expected_state,
                             'expected_on_from': expected_on_from,
