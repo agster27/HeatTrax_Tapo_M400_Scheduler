@@ -71,6 +71,12 @@ class EnhancedScheduler:
         # Automation overrides management
         self.automation_overrides = AutomationOverrides()
         
+        # Manual override management for mobile control
+        from src.state.manual_override import ManualOverrideManager
+        tz_name = config.location.get('timezone', 'America/New_York')
+        self.manual_override = ManualOverrideManager(timezone=tz_name)
+        self.logger.info("Manual override manager initialized")
+        
         # Initialize notification service (will be set during validation)
         self.notification_service = None
         
@@ -879,6 +885,44 @@ class EnhancedScheduler:
             try:
                 self.logger.info(f"Processing group: {group_name}")
                 state = self.states[group_name]
+                
+                # Check for manual override first
+                if self.manual_override.is_active(group_name):
+                    override_action = self.manual_override.get_action(group_name)
+                    override_status = self.manual_override.get_status(group_name)
+                    expires_at = override_status.get('expires_at', 'unknown')
+                    
+                    self.logger.info(f"  Manual override active: {override_action} (expires: {expires_at})")
+                    self.logger.info(f"  Skipping automatic scheduling for this group")
+                    
+                    # If override action should clear on next schedule event, check if we're at a schedule boundary
+                    if self.manual_override.should_clear_on_schedule():
+                        # Check if any schedule wants to change state
+                        schedules = self.group_schedules.get(group_name, [])
+                        if schedules:
+                            # Get local time
+                            now_local = self._get_local_now()
+                            
+                            # Check if this is a schedule transition point
+                            # (This is a simplified check - a more sophisticated implementation
+                            # would track exact schedule boundaries)
+                            should_on = await self.should_turn_on_group(group_name)
+                            group_is_on = await self.device_manager.get_group_state(group_name)
+                            
+                            # If schedule wants to change state, clear override
+                            if (should_on and not group_is_on) or (not should_on and group_is_on):
+                                self.logger.info(f"  Schedule event detected - clearing manual override")
+                                self.manual_override.clear_override(group_name)
+                                # Continue with normal scheduling below
+                            else:
+                                # Override still valid, skip scheduling
+                                continue
+                        else:
+                            # No schedules, just let override continue
+                            continue
+                    else:
+                        # Override is active and should not clear on schedule
+                        continue
                 
                 # Get current group state
                 group_is_on = await self.device_manager.get_group_state(group_name)

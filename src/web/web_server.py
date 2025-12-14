@@ -45,13 +45,20 @@ class WebServer:
         flask_log.setLevel(logging.WARNING)
         
         # Initialize manual override manager
-        from src.state.manual_override import ManualOverrideManager
-        config = config_manager.get_config(include_secrets=False)
-        timezone = config.get('location', {}).get('timezone', 'America/New_York')
-        self.manual_override = ManualOverrideManager(timezone=timezone)
+        # Use scheduler's manual override if available, otherwise create new one
+        if scheduler and hasattr(scheduler, 'manual_override'):
+            self.manual_override = scheduler.manual_override
+            logger.info("Using scheduler's manual override manager")
+        else:
+            from src.state.manual_override import ManualOverrideManager
+            config = config_manager.get_config(include_secrets=False)
+            timezone = config.get('location', {}).get('timezone', 'America/New_York')
+            self.manual_override = ManualOverrideManager(timezone=timezone)
+            logger.info("Created new manual override manager")
         
         # Initialize authentication for mobile control
         from src.web.auth import init_auth
+        config = config_manager.get_config(include_secrets=False)
         web_config = config.get('web', {})
         pin = web_config.get('pin', '1234')
         init_auth(self.app, pin)
