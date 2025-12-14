@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>HeatTrax Control</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/control.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔥 HeatTrax Control</h1>
+        </header>
+        
+        <div id="loading" class="loading-screen">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+        
+        <div id="error" class="error-banner" style="display: none;">
+            <p id="errorMessage"></p>
+        </div>
+        
+        <div id="content" style="display: none;">
+            <!-- Group selector (shown when multiple groups exist) -->
+            <div id="groupSelector" class="group-selector" style="display: none;">
+                <label for="groupSelect">Select Group:</label>
+                <select id="groupSelect">
+                    <!-- Options populated by JavaScript -->
+                </select>
+            </div>
+            
+            <!-- Status card -->
+            <div class="status-card">
+                <div class="status-row">
+                    <span class="label">Status:</span>
+                    <span id="status" class="status-value">
+                        <span class="status-indicator"></span>
+                        <span class="status-text">Loading...</span>
+                    </span>
+                </div>
+                
+                <div class="status-row" id="tempRow" style="display: none;">
+                    <span class="label">🌡️ Temperature:</span>
+                    <span id="temperature" class="value">--</span>
+                </div>
+                
+                <div class="status-row">
+                    <span class="label">Mode:</span>
+                    <span id="mode" class="value">
+                        <span class="mode-badge">AUTO</span>
+                    </span>
+                </div>
+            </div>
+            
+            <!-- Control button -->
+            <div class="control-section">
+                <button id="controlBtn" class="control-btn" disabled>
+                    <span class="btn-text">LOADING...</span>
+                </button>
+            </div>
+            
+            <!-- Override info (shown when in manual mode) -->
+            <div id="overrideInfo" class="override-info" style="display: none;">
+                <div class="info-icon">⏱️</div>
+                <div class="info-text">
+                    <strong>Auto mode resumes:</strong>
+                    <div id="overrideExpiry">in --</div>
+                    <div class="info-subtext">(or at next schedule)</div>
+                </div>
+            </div>
+            
+            <!-- Reset to auto button (shown when in manual mode) -->
+            <div id="resetSection" class="reset-section" style="display: none;">
+                <button id="resetBtn" class="reset-btn">
+                    Return to Auto Mode
+                </button>
+            </div>
+            
+            <!-- Last updated -->
+            <div class="footer">
+                <div class="last-updated">
+                    Last updated: <span id="lastUpdated">--</span>
+                </div>
+                <button id="refreshBtn" class="refresh-btn">
+                    🔄 Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/control.js') }}"></script>
+</body>
+</html>

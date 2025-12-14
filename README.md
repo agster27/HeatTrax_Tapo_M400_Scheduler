@@ -73,9 +73,101 @@ After starting the container:
 - Or configure in `config.yaml`: `web.bind_host: 127.0.0.1`
 - Change port with: `HEATTRAX_WEB_PORT=8080` (environment) or `web.port: 8080` (YAML)
 
-**Security Note**: The web UI is accessible from other machines on your network by default. Do not expose this service directly to the internet. Keep it on your internal network, or place it behind a reverse proxy with authentication. Authentication is planned for future releases.
+**Security Note**: The web UI is accessible from other machines on your network by default. Do not expose this service directly to the internet. Keep it on your internal network, or place it behind a reverse proxy with authentication. See the [Mobile Control Interface](#mobile-control-interface) section for PIN-based authentication for mobile control.
 
 **Restart Policy**: The auto-restart feature requires Docker's restart policy (e.g., `restart: always` in docker-compose.yml). See [WEB_UI_GUIDE.md](WEB_UI_GUIDE.md) for details.
+
+## Mobile Control Interface
+
+HeatTrax now includes a mobile-optimized web interface for remote manual control of your heating mats directly from your smartphone.
+
+### Key Features
+
+- 🔥 **Quick ON/OFF Control**: Large touch-friendly buttons optimized for mobile devices
+- 📱 **iPhone Optimized**: Responsive design that works beautifully on all mobile devices
+- 🔐 **PIN Authentication**: Secure access with configurable PIN protection
+- ⏱️ **Auto-Return to Schedule**: Manual overrides automatically expire after a configurable timeout (default 3 hours)
+- 🌡️ **Real-time Status**: View current mat status and temperature
+- 🌓 **Dark Mode Support**: Automatically adapts to your device's theme preference
+- 🔄 **Auto-Refresh**: Status updates every 10 seconds
+
+### Setup
+
+1. **Configure PIN** in your `config.yaml`:
+   ```yaml
+   web:
+     enabled: true
+     port: 4328
+     pin: "1234"  # Change to your secure PIN
+     manual_override_timeout_hours: 3  # Default override timeout
+   ```
+
+2. **Access the Control Interface**:
+   - On your local network: `http://your-server-ip:4328/control`
+   - First visit will prompt for PIN authentication
+   - Session lasts 24 hours
+
+3. **Control Your Mats**:
+   - Select device group (if you have multiple)
+   - Tap the large ON/OFF button to control
+   - See countdown timer for auto-return to schedule
+   - Tap "Return to Auto Mode" to immediately resume automatic scheduling
+
+### Security Considerations
+
+- **Strong PIN**: Use a secure PIN (not "1234"!)
+- **HTTPS Recommended**: For external access, use a reverse proxy with HTTPS
+- **Network Security**: Keep on internal network or use VPN for external access
+
+### External Access via Reverse Proxy
+
+For secure external access, use nginx or similar:
+
+```nginx
+location /heattrax/ {
+    proxy_pass http://localhost:4328/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Then access via: `https://your-domain.com/heattrax/control`
+
+### How Manual Override Works
+
+1. **Set Override**: When you manually turn mats ON or OFF via the mobile interface
+2. **Scheduler Pauses**: Automatic scheduling is temporarily disabled for that group
+3. **Auto-Expire**: Override automatically clears after the configured timeout (default 3 hours)
+4. **Schedule Override**: Next scheduled event (ON or OFF) will also clear the override
+5. **Resume Auto**: You can manually return to automatic scheduling anytime
+
+**Note**: Whichever comes first—the timeout or the next scheduled event—will return the system to automatic mode.
+
+### Environment Variables
+
+You can also configure via environment variables:
+```bash
+HEATTRAX_WEB_PIN=your_secure_pin
+HEATTRAX_WEB_MANUAL_OVERRIDE_TIMEOUT_HOURS=3
+```
+
+### Troubleshooting
+
+**Can't access from mobile device**:
+- Ensure your device is on the same network as the server
+- Check firewall settings allow port 4328
+- Try using the server's IP address directly
+
+**PIN not working**:
+- Check `config.yaml` for correct PIN setting
+- Restart the container after changing configuration
+
+**Override not clearing**:
+- Check logs for manual override status
+- Verify timeout is configured correctly
+- State is persisted in `data/manual_override.json`
 
 ## Features
 

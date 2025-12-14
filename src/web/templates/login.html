@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>HeatTrax Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .login-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px 30px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo-icon {
+            font-size: 60px;
+            margin-bottom: 10px;
+        }
+        
+        h1 {
+            font-size: 28px;
+            text-align: center;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        input[type="password"],
+        input[type="text"] {
+            width: 100%;
+            padding: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        
+        input[type="password"]:focus,
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.3s ease;
+            margin-top: 10px;
+        }
+        
+        .btn:active {
+            transform: scale(0.98);
+        }
+        
+        .btn:hover {
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            text-align: center;
+            display: none;
+        }
+        
+        .error-message.show {
+            display: block;
+        }
+        
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            }
+            
+            .login-container {
+                background: #2a2a3e;
+            }
+            
+            h1 {
+                color: #fff;
+            }
+            
+            .subtitle {
+                color: #aaa;
+            }
+            
+            label {
+                color: #ccc;
+            }
+            
+            input[type="password"],
+            input[type="text"] {
+                background: #1a1a2e;
+                border-color: #444;
+                color: #fff;
+            }
+            
+            input[type="password"]:focus,
+            input[type="text"]:focus {
+                border-color: #667eea;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 30px 20px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <div class="logo-icon">🔥</div>
+            <h1>HeatTrax Control</h1>
+            <div class="subtitle">Enter PIN to continue</div>
+        </div>
+        
+        <div id="error" class="error-message"></div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="pin">PIN</label>
+                <input 
+                    type="password" 
+                    id="pin" 
+                    name="pin" 
+                    inputmode="numeric" 
+                    pattern="[0-9]*"
+                    maxlength="10"
+                    placeholder="••••"
+                    required
+                    autofocus
+                >
+            </div>
+            
+            <button type="submit" class="btn" id="loginBtn">
+                Login
+            </button>
+        </form>
+    </div>
+    
+    <script>
+        const form = document.getElementById('loginForm');
+        const pinInput = document.getElementById('pin');
+        const loginBtn = document.getElementById('loginBtn');
+        const errorDiv = document.getElementById('error');
+        
+        // Show error message
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 5000);
+        }
+        
+        // Handle form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const pin = pinInput.value.trim();
+            
+            if (!pin) {
+                showError('Please enter a PIN');
+                return;
+            }
+            
+            // Set loading state
+            loginBtn.classList.add('loading');
+            loginBtn.textContent = 'Logging in...';
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ pin: pin })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Redirect to control page
+                    window.location.href = '/control';
+                } else {
+                    showError(data.error || 'Invalid PIN');
+                    pinInput.value = '';
+                    pinInput.focus();
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showError('Login failed. Please try again.');
+            } finally {
+                // Reset loading state
+                loginBtn.classList.remove('loading');
+                loginBtn.textContent = 'Login';
+            }
+        });
+        
+        // Auto-focus on PIN input
+        pinInput.focus();
+    </script>
+</body>
+</html>

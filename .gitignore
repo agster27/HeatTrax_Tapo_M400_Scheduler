@@ -27,6 +27,8 @@ wheels/
 config.yaml
 state.json
 state/
+data/
+!data/.gitkeep
 
 # Logs
 logs/
