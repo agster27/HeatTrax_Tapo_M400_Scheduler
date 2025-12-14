@@ -177,3 +177,6 @@ web:
     enabled: false
     username: admin
     password_hash: ''
+  # Mobile control settings
+  pin: "1234"  # PIN for mobile control access
+  manual_override_timeout_hours: 3  # Default timeout for manual control

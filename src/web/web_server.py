@@ -44,6 +44,18 @@ class WebServer:
         flask_log = flask_logging.getLogger('werkzeug')
         flask_log.setLevel(logging.WARNING)
         
+        # Initialize manual override manager
+        from src.state.manual_override import ManualOverrideManager
+        config = config_manager.get_config(include_secrets=False)
+        timezone = config.get('location', {}).get('timezone', 'America/New_York')
+        self.manual_override = ManualOverrideManager(timezone=timezone)
+        
+        # Initialize authentication for mobile control
+        from src.web.auth import init_auth
+        web_config = config.get('web', {})
+        pin = web_config.get('pin', '1234')
+        init_auth(self.app, pin)
+        
         # Register routes
         self._register_routes()
         
@@ -1613,6 +1625,313 @@ class WebServer:
                     'error': 'Failed to retrieve mat forecast',
                     'details': str(e)
                 }), 500
+        
+        # Mobile control routes
+        @self.app.route('/control/login')
+        def control_login():
+            """Serve mobile control login page."""
+            return render_template('login.html')
+        
+        @self.app.route('/control')
+        def control_page():
+            """Serve mobile control page."""
+            from src.web.auth import require_auth
+            
+            @require_auth
+            def serve_control():
+                return render_template('control.html')
+            
+            return serve_control()
+        
+        @self.app.route('/api/auth/login', methods=['POST'])
+        def api_auth_login():
+            """
+            Authenticate with PIN.
+            
+            Expects:
+                JSON: {"pin": "1234"}
+            
+            Returns:
+                JSON: {"success": true/false, "error": "...", "session_expires": "..."}
+            """
+            from src.web.auth import check_pin, create_session
+            
+            try:
+                if not request.is_json:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Request must be JSON'
+                    }), 400
+                
+                data = request.get_json()
+                pin = data.get('pin', '')
+                
+                if not pin:
+                    return jsonify({
+                        'success': False,
+                        'error': 'PIN is required'
+                    }), 400
+                
+                # Check PIN
+                if check_pin(self.app, pin):
+                    create_session()
+                    
+                    # Calculate session expiration
+                    from datetime import timedelta
+                    expires_at = datetime.now() + timedelta(hours=24)
+                    
+                    return jsonify({
+                        'success': True,
+                        'session_expires': expires_at.isoformat()
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Invalid PIN'
+                    }), 401
+            
+            except Exception as e:
+                logger.error(f"Login failed: {e}", exc_info=True)
+                return jsonify({
+                    'success': False,
+                    'error': 'Login failed'
+                }), 500
+        
+        @self.app.route('/api/mat/status', methods=['GET'])
+        def api_mat_status():
+            """
+            Get current mat status for all groups.
+            
+            Returns:
+                JSON: Status for all device groups
+            """
+            from src.web.auth import require_auth
+            
+            @require_auth
+            def get_mat_status():
+                try:
+                    if not self.scheduler or not self.scheduler.device_manager:
+                        return jsonify({
+                            'success': False,
+                            'error': 'Scheduler or device manager not available'
+                        }), 503
+                    
+                    config = self.config_manager.get_config(include_secrets=False)
+                    groups = config.get('devices', {}).get('groups', {})
+                    
+                    result = {}
+                    
+                    for group_name, group_config in groups.items():
+                        # Check manual override status
+                        override = self.manual_override.get_status(group_name)
+                        
+                        # Get device status
+                        items = group_config.get('items', [])
+                        is_on = False
+                        
+                        # Check if any outlet in the group is on
+                        if items and hasattr(self.scheduler, 'run_coro_in_loop'):
+                            try:
+                                devices_status = self.scheduler.run_coro_in_loop(
+                                    self.scheduler.device_manager.get_all_devices_status()
+                                )
+                                
+                                for device_status in devices_status:
+                                    if device_status.get('group') == group_name:
+                                        outlets = device_status.get('outlets', [])
+                                        for outlet in outlets:
+                                            if outlet.get('is_on'):
+                                                is_on = True
+                                                break
+                                        if is_on:
+                                            break
+                            except Exception as e:
+                                logger.error(f"Failed to get device status for group {group_name}: {e}")
+                        
+                        # Get temperature (optional, from weather service)
+                        temperature = None
+                        try:
+                            if self.scheduler.weather:
+                                weather_state = self.scheduler.run_coro_in_loop(
+                                    self.scheduler.weather.get_current_weather()
+                                )
+                                if weather_state and hasattr(weather_state, 'temperature_f'):
+                                    # Convert to Celsius
+                                    temperature = round((weather_state.temperature_f - 32) * 5/9, 1)
+                        except Exception as e:
+                            logger.debug(f"Failed to get temperature: {e}")
+                        
+                        # Build group status
+                        group_status = {
+                            'is_on': is_on,
+                            'mode': 'manual' if override else 'auto',
+                            'temperature': temperature,
+                            'last_updated': datetime.now().isoformat()
+                        }
+                        
+                        if override:
+                            group_status['override_expires_at'] = override.get('expires_at')
+                        
+                        # TODO: Add next scheduled event time
+                        group_status['next_scheduled_event'] = None
+                        
+                        result[group_name] = group_status
+                    
+                    return jsonify({
+                        'success': True,
+                        'groups': result
+                    })
+                
+                except Exception as e:
+                    logger.error(f"Failed to get mat status: {e}", exc_info=True)
+                    return jsonify({
+                        'success': False,
+                        'error': 'Failed to get status',
+                        'details': str(e)
+                    }), 500
+            
+            return get_mat_status()
+        
+        @self.app.route('/api/mat/control', methods=['POST'])
+        def api_mat_control():
+            """
+            Control a specific device group.
+            
+            Expects:
+                JSON: {"group": "group_name", "action": "on" or "off"}
+            
+            Returns:
+                JSON: Control operation result
+            """
+            from src.web.auth import require_auth
+            
+            @require_auth
+            def control_mat():
+                try:
+                    if not request.is_json:
+                        return jsonify({
+                            'success': False,
+                            'error': 'Request must be JSON'
+                        }), 400
+                    
+                    data = request.get_json()
+                    group_name = data.get('group')
+                    action = data.get('action')
+                    
+                    if not group_name or not action:
+                        return jsonify({
+                            'success': False,
+                            'error': 'Missing required fields: group and action'
+                        }), 400
+                    
+                    if action not in ['on', 'off']:
+                        return jsonify({
+                            'success': False,
+                            'error': f"Invalid action: {action}. Must be 'on' or 'off'"
+                        }), 400
+                    
+                    if not self.scheduler or not self.scheduler.device_manager:
+                        return jsonify({
+                            'success': False,
+                            'error': 'Scheduler or device manager not available'
+                        }), 503
+                    
+                    config = self.config_manager.get_config(include_secrets=False)
+                    groups = config.get('devices', {}).get('groups', {})
+                    
+                    if group_name not in groups:
+                        return jsonify({
+                            'success': False,
+                            'error': f"Group '{group_name}' not found"
+                        }), 404
+                    
+                    # Get timeout from config
+                    web_config = config.get('web', {})
+                    timeout_hours = web_config.get('manual_override_timeout_hours', 3.0)
+                    
+                    # Set manual override
+                    self.manual_override.set_override(group_name, action, timeout_hours)
+                    
+                    # Control the devices
+                    group_config = groups[group_name]
+                    items = group_config.get('items', [])
+                    
+                    for item in items:
+                        device_name = item.get('name')
+                        outlets = item.get('outlets', [])
+                        
+                        if not outlets:
+                            outlets = [None]
+                        
+                        for outlet_index in outlets:
+                            try:
+                                self.scheduler.run_coro_in_loop(
+                                    self.scheduler.device_manager.control_device_outlet(
+                                        group_name, device_name, outlet_index, action
+                                    )
+                                )
+                            except Exception as e:
+                                logger.error(f"Failed to control {device_name} outlet {outlet_index}: {e}")
+                    
+                    # Return updated status
+                    return api_mat_status()
+                
+                except Exception as e:
+                    logger.error(f"Failed to control mat: {e}", exc_info=True)
+                    return jsonify({
+                        'success': False,
+                        'error': 'Control action failed',
+                        'details': str(e)
+                    }), 500
+            
+            return control_mat()
+        
+        @self.app.route('/api/mat/reset-auto', methods=['POST'])
+        def api_mat_reset_auto():
+            """
+            Clear manual override for a specific group.
+            
+            Expects:
+                JSON: {"group": "group_name"}
+            
+            Returns:
+                JSON: Reset operation result
+            """
+            from src.web.auth import require_auth
+            
+            @require_auth
+            def reset_auto():
+                try:
+                    if not request.is_json:
+                        return jsonify({
+                            'success': False,
+                            'error': 'Request must be JSON'
+                        }), 400
+                    
+                    data = request.get_json()
+                    group_name = data.get('group')
+                    
+                    if not group_name:
+                        return jsonify({
+                            'success': False,
+                            'error': 'Missing required field: group'
+                        }), 400
+                    
+                    # Clear manual override
+                    self.manual_override.clear_override(group_name)
+                    
+                    # Return updated status
+                    return api_mat_status()
+                
+                except Exception as e:
+                    logger.error(f"Failed to reset to auto: {e}", exc_info=True)
+                    return jsonify({
+                        'success': False,
+                        'error': 'Reset action failed',
+                        'details': str(e)
+                    }), 500
+            
+            return reset_auto()
         
         @self.app.route('/web/<path:filename>')
         def serve_web_file(filename):
