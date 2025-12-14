@@ -5,7 +5,7 @@ import os
 import re
 import shutil
 import yaml
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from flask import Flask, request, jsonify, send_from_directory, render_template, abort, send_file
 from pathlib import Path
@@ -1684,7 +1684,6 @@ class WebServer:
                     create_session()
                     
                     # Calculate session expiration
-                    from datetime import timedelta
                     expires_at = datetime.now() + timedelta(hours=24)
                     
                     return jsonify({
