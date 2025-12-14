@@ -1643,12 +1643,31 @@ class WebServer:
         def control_page():
             """Serve mobile control page."""
             from src.web.auth import require_auth
+            from flask import session
             
-            @require_auth
-            def serve_control():
-                return render_template('control.html')
+            # Check authentication
+            if not session.get('authenticated'):
+                from flask import redirect, url_for
+                return redirect(url_for('control_login'))
             
-            return serve_control()
+            # Check session expiration
+            auth_time = session.get('authenticated_at')
+            if auth_time:
+                try:
+                    from datetime import datetime
+                    auth_datetime = datetime.fromisoformat(auth_time)
+                    now = datetime.now()
+                    
+                    # Session expires after 24 hours
+                    if now - auth_datetime > timedelta(hours=24):
+                        logger.info("Session expired")
+                        session.clear()
+                        from flask import redirect, url_for
+                        return redirect(url_for('control_login'))
+                except Exception as e:
+                    logger.error(f"Failed to check session expiration: {e}")
+            
+            return render_template('control.html')
         
         @self.app.route('/api/auth/login', methods=['POST'])
         def api_auth_login():
