@@ -497,7 +497,8 @@ class WebServer:
                     return jsonify({
                         'status': 'error',
                         'message': 'Configuration validation failed',
-                        'validation_errors': validation_errors
+                        'validation_errors': validation_errors,
+                        'help': 'Common issues: missing outlets field, invalid web port (must be 1-65535), invalid IP addresses, invalid coordinates.'
                     }), 400
                 
                 # Create backup of current config
@@ -2223,15 +2224,28 @@ class WebServer:
                                                     errors.append(f"Invalid IP address for devices.groups.{group_name}.items[{idx}].ip_address: {ip} (non-numeric octet)")
 
                                         
-                                        # Validate outlets if present
-                                        if 'outlets' in item:
+                                        # Validate outlets field - required for all devices
+                                        item_name = item.get('name', f'item {idx}')
+                                        if 'outlets' not in item:
+                                            errors.append(
+                                                f"devices.groups.{group_name}.items[{idx}] ('{item_name}') "
+                                                f"missing required 'outlets' field. Add 'outlets: [0]' or 'outlets: [0, 1]'"
+                                            )
+                                        else:
                                             outlets = item['outlets']
                                             if not isinstance(outlets, list):
                                                 errors.append(f"devices.groups.{group_name}.items[{idx}].outlets must be a list")
+                                            elif len(outlets) == 0:
+                                                errors.append(
+                                                    f"devices.groups.{group_name}.items[{idx}].outlets must be a non-empty list. "
+                                                    f"Add at least one outlet index (e.g., 'outlets: [0]')"
+                                                )
                                             else:
                                                 for outlet_idx, outlet in enumerate(outlets):
                                                     if not isinstance(outlet, int):
                                                         errors.append(f"devices.groups.{group_name}.items[{idx}].outlets[{outlet_idx}] must be an integer")
+                                                    elif outlet < 0:
+                                                        errors.append(f"devices.groups.{group_name}.items[{idx}].outlets[{outlet_idx}] must be non-negative")
                             
                             # Validate automation section if present
                             if 'automation' in group_config:
@@ -2287,12 +2301,44 @@ class WebServer:
         # Validate web section if present (for port validation)
         if 'web' in config:
             web = config['web']
-            if isinstance(web, dict) and 'port' in web:
-                port = web['port']
-                if not isinstance(port, int):
-                    errors.append(f"web.port must be an integer")
-                elif port < 1 or port > 65535:
-                    errors.append(f"web.port must be between 1 and 65535, got {port}")
+            if not isinstance(web, dict):
+                errors.append("web section must be a dictionary")
+            else:
+                # Validate web.port
+                if 'port' in web:
+                    port = web['port']
+                    if not isinstance(port, int):
+                        errors.append(f"web.port must be an integer, got {type(port).__name__}")
+                    elif port == 0:
+                        errors.append("web.port cannot be 0. Use a valid port number (e.g., 4328)")
+                    elif port < 1 or port > 65535:
+                        errors.append(f"web.port must be between 1 and 65535, got {port}")
+                
+                # Validate web.bind_host
+                if 'bind_host' in web:
+                    bind_host = web['bind_host']
+                    if not isinstance(bind_host, str):
+                        errors.append(f"web.bind_host must be a string, got {type(bind_host).__name__}")
+                
+                # Validate web.pin
+                if 'pin' in web:
+                    pin = web['pin']
+                    if not isinstance(pin, str):
+                        errors.append(f"web.pin must be a string, got {type(pin).__name__}")
+        
+        # Validate scheduler section if present
+        if 'scheduler' in config:
+            scheduler = config['scheduler']
+            if not isinstance(scheduler, dict):
+                errors.append("scheduler section must be a dictionary")
+            else:
+                # Validate check_interval_minutes
+                if 'check_interval_minutes' in scheduler:
+                    interval = scheduler['check_interval_minutes']
+                    if not isinstance(interval, (int, float)):
+                        errors.append(f"scheduler.check_interval_minutes must be a number, got {type(interval).__name__}")
+                    elif interval < 1:
+                        errors.append(f"scheduler.check_interval_minutes must be >= 1, got {interval}")
         
         return errors
     
