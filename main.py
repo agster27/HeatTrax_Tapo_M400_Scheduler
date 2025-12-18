@@ -108,6 +108,70 @@ def setup_logging(config: Config):
     logging.info("Logging initialized")
 
 
+def validate_runtime_config(config: Config) -> bool:
+    """
+    Validate critical runtime config values.
+    
+    This performs fail-fast validation at startup to catch configuration
+    issues before services start. While some validation logic overlaps with
+    the upload validation in web_server.py, this is intentional to provide
+    immediate feedback on startup issues.
+    
+    Args:
+        config: Config object to validate
+        
+    Returns:
+        True if config is valid, False otherwise
+    """
+    logger = logging.getLogger(__name__)
+    errors = []
+    
+    # Check web port
+    try:
+        web_config = config.web
+        web_port = web_config.get('port', 0)
+        if web_port < 1 or web_port > 65535:
+            errors.append(f"Invalid web.port: {web_port} (must be 1-65535)")
+    except Exception as e:
+        logger.debug(f"Could not validate web config: {e}")
+    
+    # Check for missing outlets in device groups
+    try:
+        devices = config.devices
+        groups = devices.get('groups', {})
+        for group_name, group_config in groups.items():
+            items = group_config.get('items', [])
+            for idx, item in enumerate(items):
+                if 'outlets' not in item:
+                    device_name = item.get('name', f'item {idx}')
+                    errors.append(
+                        f"Device '{device_name}' in group '{group_name}' missing outlets field. "
+                        f"Add 'outlets: [0]' or appropriate outlet indices to config.yaml"
+                    )
+    except Exception as e:
+        logger.debug(f"Could not validate device groups: {e}")
+    
+    # Check scheduler check_interval_minutes
+    try:
+        scheduler_config = config.scheduler
+        check_interval = scheduler_config.get('check_interval_minutes', 0)
+        if check_interval < 1:
+            errors.append(f"Invalid scheduler.check_interval_minutes: {check_interval} (must be >= 1)")
+    except Exception as e:
+        logger.debug(f"Could not validate scheduler config: {e}")
+    
+    if errors:
+        logger.error("=" * 80)
+        logger.error("CONFIGURATION VALIDATION ERRORS:")
+        for error in errors:
+            logger.error(f"  ✗ {error}")
+        logger.error("=" * 80)
+        logger.error("Please fix config.yaml and restart")
+        return False
+    
+    return True
+
+
 def signal_handler(signum, frame):
     """Handle shutdown signals."""
     logging.info(f"Received signal {signum}, initiating graceful shutdown...")
@@ -179,6 +243,12 @@ async def main():
         logger.info(f"HeatTrax Tapo M400 Scheduler v{__version__}")
         logger.info("=" * 60)
         logger.info(f"Reboot pause configured: {pause_seconds} seconds")
+        
+        # Validate runtime configuration
+        if not validate_runtime_config(config):
+            logger.critical("Configuration validation failed. Exiting.")
+            pause_before_restart(pause_seconds, "Configuration validation failed")
+            sys.exit(1)
         
         # Check for setup mode (missing/invalid Tapo credentials)
         setup_mode, setup_reason = config_manager.is_setup_mode()

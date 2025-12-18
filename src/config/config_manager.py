@@ -231,9 +231,43 @@ class ConfigManager:
             # Create parent directory if needed
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
             
+            # Ensure web.port has a valid default if not set or invalid
+            if 'web' not in config_with_env:
+                config_with_env['web'] = {}
+            if 'port' not in config_with_env['web'] or config_with_env['web']['port'] == 0:
+                config_with_env['web']['port'] = 4328
+                logger.info("Set default web.port to 4328")
+            
             # Write initial config with env-provided values
-            self._write_config_to_disk(config_with_env)
-            logger.info(f"Generated initial configuration file: {self.config_path}")
+            try:
+                self._write_config_to_disk(config_with_env)
+                
+                # Verify write succeeded
+                if self.config_path.exists():
+                    logger.info(f"✓ Created default configuration: {self.config_path}")
+                    
+                    # Verify it's readable
+                    try:
+                        with open(self.config_path, 'r') as f:
+                            test_load = yaml.safe_load(f)
+                            if test_load:
+                                logger.info("✓ Verified config file is readable")
+                    except Exception as e:
+                        logger.error(f"✗ Config file created but not readable: {e}")
+                else:
+                    logger.error(f"✗ Failed to create config file at: {self.config_path}")
+                    logger.error(f"  Check directory permissions: {self.config_path.parent}")
+                    logger.error("  Verify sufficient disk space is available")
+                    
+            except PermissionError as e:
+                logger.error(f"✗ Permission denied writing to {self.config_path}: {e}")
+                logger.error(f"  Check file/directory permissions for: {self.config_path.parent}")
+                logger.error("  If running in Docker, check volume permissions")
+            except IOError as e:
+                logger.error(f"✗ IO error writing config: {e}")
+                logger.error("  This may indicate disk space or filesystem issues")
+            except Exception as e:
+                logger.error(f"✗ Unexpected error writing config: {e}", exc_info=True)
             
             return config_with_env, env_overridden_paths
         
