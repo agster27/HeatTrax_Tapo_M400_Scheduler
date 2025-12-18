@@ -2227,6 +2227,23 @@ async function loadConfig() {
     }
 }
 
+// Helper function to get device display name for error messages
+function getDeviceDisplayName(name, idx) {
+    return name ? `'${name}'` : `#${idx + 1}`;
+}
+
+// Helper function to extract error message from API response
+function extractErrorMessage(errorData) {
+    if (errorData.message) {
+        return errorData.message;
+    } else if (errorData.error) {
+        return errorData.error;
+    } else if (errorData.details) {
+        return errorData.details;
+    }
+    return 'Unknown error occurred';
+}
+
 // Validate IP address format
 function isValidIPAddress(ip) {
     if (!ip || typeof ip !== 'string') {
@@ -2307,10 +2324,12 @@ function displayValidationErrors(errors) {
             error.element.classList.add('input-error');
             
             // Add inline error message after the input
-            const errorMsg = document.createElement('span');
-            errorMsg.className = 'field-error-message';
-            errorMsg.textContent = error.message;
-            error.element.parentNode.insertBefore(errorMsg, error.element.nextSibling);
+            if (error.element.parentNode) {
+                const errorMsg = document.createElement('span');
+                errorMsg.className = 'field-error-message';
+                errorMsg.textContent = error.message;
+                error.element.parentNode.insertBefore(errorMsg, error.element.nextSibling);
+            }
         }
     });
 }
@@ -2334,7 +2353,7 @@ function validateDeviceConfiguration() {
             // Check for empty name
             if (!name) {
                 errors.push({
-                    message: `Device #${idx + 1} in group '${groupKey}': Name is required`,
+                    message: `Device ${getDeviceDisplayName('', idx)} in group '${groupKey}': Name is required`,
                     element: nameInput,
                     field: 'name',
                     groupKey: groupKey,
@@ -2345,7 +2364,7 @@ function validateDeviceConfiguration() {
             // Check for empty IP address
             if (!ipAddress) {
                 errors.push({
-                    message: `Device '${name || '#' + (idx + 1)}' in group '${groupKey}': IP address is required`,
+                    message: `Device ${getDeviceDisplayName(name, idx)} in group '${groupKey}': IP address is required`,
                     element: ipInput,
                     field: 'ip_address',
                     groupKey: groupKey,
@@ -2354,7 +2373,7 @@ function validateDeviceConfiguration() {
             } else if (!isValidIPAddress(ipAddress)) {
                 // Check IP address format
                 errors.push({
-                    message: `Device '${name || '#' + (idx + 1)}' in group '${groupKey}': Invalid IP address format '${ipAddress}'`,
+                    message: `Device ${getDeviceDisplayName(name, idx)} in group '${groupKey}': Invalid IP address format '${ipAddress}'`,
                     element: ipInput,
                     field: 'ip_address',
                     groupKey: groupKey,
@@ -2421,13 +2440,7 @@ async function saveConfig() {
             let errorMessage = 'Failed to save configuration';
             try {
                 const errorData = await response.json();
-                if (errorData.message) {
-                    errorMessage = errorData.message;
-                } else if (errorData.error) {
-                    errorMessage = errorData.error;
-                } else if (errorData.details) {
-                    errorMessage = errorData.details;
-                }
+                errorMessage = extractErrorMessage(errorData);
             } catch (parseError) {
                 // If we can't parse the response, use status text
                 errorMessage = `Server error: ${response.status} ${response.statusText}`;
@@ -2460,24 +2473,18 @@ async function saveConfig() {
             }, 500);
         } else {
             // Handle error response with proper message extraction
-            let errorMsg = result.message || 'Unknown error occurred';
-            if (result.error) {
-                errorMsg = result.error;
-            } else if (result.details) {
-                errorMsg = result.details;
-            }
+            const errorMsg = extractErrorMessage(result);
             message.innerHTML = `<div class="error">❌ Failed to save: ${errorMsg}</div>`;
         }
         
     } catch (e) {
         // Network error or other exception
+        const networkErrorMsg = 'Network error: Unable to connect to server. Please check your connection.';
         let errorMsg = e.message;
         
         // Provide more helpful error messages for common network errors
-        if (e.name === 'TypeError' && e.message.includes('fetch')) {
-            errorMsg = 'Network error: Unable to connect to server. Please check your connection.';
-        } else if (e.message === 'Failed to fetch') {
-            errorMsg = 'Network error: Unable to connect to server. Please check your connection.';
+        if ((e.name === 'TypeError' && e.message.includes('fetch')) || e.message === 'Failed to fetch') {
+            errorMsg = networkErrorMsg;
         }
         
         message.innerHTML = `<div class="error">❌ Error: ${errorMsg}</div>`;
