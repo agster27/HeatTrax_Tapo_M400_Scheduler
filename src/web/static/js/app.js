@@ -3233,6 +3233,35 @@ window.addEventListener('load', () => {
 });
 
 /**
+ * Restart the application
+ */
+async function restartApplication() {
+    // Confirm with user
+    const confirmed = confirm('Are you sure you want to restart the application? The Web UI will be unavailable for about 10-15 seconds.');
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    showConfigUploadMessage('info', 'Application is restarting... Please wait 10-15 seconds and refresh the page.');
+    
+    try {
+        const response = await fetch('/api/restart', {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            showConfigUploadMessage('success', '✓ Restart initiated. Please wait 10-15 seconds and refresh the page.');
+        } else {
+            showConfigUploadMessage('error', 'Failed to initiate restart');
+        }
+    } catch (error) {
+        console.error('Restart failed:', error);
+        showConfigUploadMessage('error', `Restart request failed: ${error.message}`);
+    }
+}
+
+/**
  * Download current config.yaml file
  */
 async function downloadConfig() {
@@ -3295,6 +3324,9 @@ async function uploadConfig(file) {
             showConfigUploadMessage('success', `✓ ${result.message || 'Configuration uploaded and validated successfully'}`);
             if (result.backup_created) {
                 showConfigUploadMessage('success', `Backup created: ${result.backup_file}`, true);
+            }
+            if (result.restart_required) {
+                showConfigUploadMessage('info', 'Application is restarting automatically... Please wait 10-15 seconds and refresh the page.', true);
             }
             // Optionally refresh status
             setTimeout(() => refreshStatus(), 1000);

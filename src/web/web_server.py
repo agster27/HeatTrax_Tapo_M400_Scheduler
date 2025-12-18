@@ -550,13 +550,25 @@ class WebServer:
                 # configuration, a full restart is the safest approach.
                 logger.info("Configuration file updated successfully. Restart required to apply changes.")
                 
-                return jsonify({
+                response = jsonify({
                     'status': 'ok',
                     'message': 'Configuration uploaded and validated successfully',
                     'backup_created': backup_file is not None,
                     'backup_file': backup_file,
                     'restart_required': True
                 })
+                
+                # Trigger automatic restart after successful config upload
+                logger.warning("Config upload successful. Initiating automatic restart...")
+                import threading
+                def delayed_exit():
+                    import time
+                    time.sleep(0.5)  # Give time for response to be sent
+                    os._exit(0)
+                
+                threading.Thread(target=delayed_exit, daemon=True).start()
+                
+                return response
                 
             except Exception as e:
                 logger.error(f"Failed to upload config: {e}", exc_info=True)
