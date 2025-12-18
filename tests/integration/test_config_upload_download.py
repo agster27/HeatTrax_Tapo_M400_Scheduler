@@ -3,14 +3,17 @@
 Integration tests for config upload and download endpoints.
 """
 
+import copy
+import json
 import os
 import sys
-import unittest
 import tempfile
-import json
+import time
+import unittest
+import unittest.mock as mock
 import yaml
-from pathlib import Path
 from io import BytesIO
+from pathlib import Path
 
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -288,9 +291,6 @@ class TestConfigUploadDownload(unittest.TestCase):
     
     def test_upload_triggers_automatic_restart(self):
         """Test that successful config upload triggers automatic restart."""
-        import copy
-        import unittest.mock as mock
-        
         # Create a valid config file
         new_config = copy.deepcopy(self.valid_config)
         new_config['location']['latitude'] = 41.0
@@ -313,7 +313,6 @@ class TestConfigUploadDownload(unittest.TestCase):
             self.assertTrue(data.get('restart_required', False))
             
             # Give the delayed thread time to execute
-            import time
             time.sleep(1)
             
             # Verify os._exit was called (automatic restart)
