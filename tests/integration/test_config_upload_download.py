@@ -3,14 +3,17 @@
 Integration tests for config upload and download endpoints.
 """
 
+import copy
+import json
 import os
 import sys
-import unittest
 import tempfile
-import json
+import time
+import unittest
+import unittest.mock as mock
 import yaml
-from pathlib import Path
 from io import BytesIO
+from pathlib import Path
 
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -285,6 +288,35 @@ class TestConfigUploadDownload(unittest.TestCase):
         
         data = json.loads(response.data)
         self.assertIn('error', data)
+    
+    def test_upload_triggers_automatic_restart(self):
+        """Test that successful config upload triggers automatic restart."""
+        # Create a valid config file
+        new_config = copy.deepcopy(self.valid_config)
+        new_config['location']['latitude'] = 41.0
+        new_config['location']['longitude'] = -75.0
+        
+        config_bytes = yaml.safe_dump(new_config).encode('utf-8')
+        
+        # Mock os._exit to prevent actual process termination
+        with mock.patch('os._exit') as mock_exit:
+            response = self.client.post(
+                '/api/config/upload',
+                data={'config_file': (BytesIO(config_bytes), 'config.yaml')},
+                content_type='multipart/form-data'
+            )
+            
+            self.assertEqual(response.status_code, 200)
+            
+            data = json.loads(response.data)
+            self.assertEqual(data['status'], 'ok')
+            self.assertTrue(data.get('restart_required', False))
+            
+            # Give the delayed thread time to execute
+            time.sleep(1)
+            
+            # Verify os._exit was called (automatic restart)
+            mock_exit.assert_called_once_with(0)
 
 
 if __name__ == '__main__':

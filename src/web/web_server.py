@@ -4,6 +4,8 @@ import logging
 import os
 import re
 import shutil
+import threading
+import time
 import yaml
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
@@ -67,6 +69,19 @@ class WebServer:
         self._register_routes()
         
         logger.info("WebServer initialized")
+    
+    def _schedule_restart(self, delay: float = 0.5):
+        """
+        Schedule application restart after a delay.
+        
+        Args:
+            delay: Delay in seconds before exit (default: 0.5)
+        """
+        def delayed_exit():
+            time.sleep(delay)
+            os._exit(0)
+        
+        threading.Thread(target=delayed_exit, daemon=True).start()
     
     def _build_annotated_config(self, config: Dict[str, Any], env_overridden_paths: Dict[str, str], 
                                  current_path: str = "") -> Dict[str, Any]:
@@ -389,13 +404,7 @@ class WebServer:
             # Schedule exit after response is sent
             # Use os._exit(0) to immediately terminate without cleanup
             # This is intentional - we want Docker to restart the container
-            import threading
-            def delayed_exit():
-                import time
-                time.sleep(0.5)  # Give time for response to be sent
-                os._exit(0)
-            
-            threading.Thread(target=delayed_exit, daemon=True).start()
+            self._schedule_restart(delay=0.5)
             
             return response
         
@@ -550,13 +559,19 @@ class WebServer:
                 # configuration, a full restart is the safest approach.
                 logger.info("Configuration file updated successfully. Restart required to apply changes.")
                 
-                return jsonify({
+                response = jsonify({
                     'status': 'ok',
                     'message': 'Configuration uploaded and validated successfully',
                     'backup_created': backup_file is not None,
                     'backup_file': backup_file,
                     'restart_required': True
                 })
+                
+                # Trigger automatic restart after successful config upload
+                logger.warning("Config upload successful. Initiating automatic restart...")
+                self._schedule_restart(delay=0.5)
+                
+                return response
                 
             except Exception as e:
                 logger.error(f"Failed to upload config: {e}", exc_info=True)
