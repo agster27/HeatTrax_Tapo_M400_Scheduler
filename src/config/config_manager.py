@@ -256,14 +256,16 @@ class ConfigManager:
                         logger.error(f"✗ Config file created but not readable: {e}")
                 else:
                     logger.error(f"✗ Failed to create config file at: {self.config_path}")
-                    logger.error(f"  Check permissions: ls -la {self.config_path.parent}")
-                    logger.error("  Check disk space: df -h")
+                    logger.error(f"  Check directory permissions: {self.config_path.parent}")
+                    logger.error("  Verify sufficient disk space is available")
                     
             except PermissionError as e:
                 logger.error(f"✗ Permission denied writing to {self.config_path}: {e}")
-                logger.error("  Run: chmod 666 config.yaml or check Docker volume permissions")
+                logger.error(f"  Check file/directory permissions for: {self.config_path.parent}")
+                logger.error("  If running in Docker, check volume permissions")
             except IOError as e:
                 logger.error(f"✗ IO error writing config: {e}")
+                logger.error("  This may indicate disk space or filesystem issues")
             except Exception as e:
                 logger.error(f"✗ Unexpected error writing config: {e}", exc_info=True)
             

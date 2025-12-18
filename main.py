@@ -112,6 +112,11 @@ def validate_runtime_config(config: Config) -> bool:
     """
     Validate critical runtime config values.
     
+    This performs fail-fast validation at startup to catch configuration
+    issues before services start. While some validation logic overlaps with
+    the upload validation in web_server.py, this is intentional to provide
+    immediate feedback on startup issues.
+    
     Args:
         config: Config object to validate
         
