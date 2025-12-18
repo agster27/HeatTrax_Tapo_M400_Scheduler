@@ -2227,10 +2227,181 @@ async function loadConfig() {
     }
 }
 
+// Helper function to get device display name for error messages
+function getDeviceDisplayName(name, idx) {
+    return name ? `'${name}'` : `#${idx + 1}`;
+}
+
+// Helper function to extract error message from API response
+function extractErrorMessage(errorData) {
+    if (errorData.message) {
+        return errorData.message;
+    } else if (errorData.error) {
+        return errorData.error;
+    } else if (errorData.details) {
+        return errorData.details;
+    }
+    return 'Unknown error occurred';
+}
+
+// Validate IP address format
+function isValidIPAddress(ip) {
+    if (!ip || typeof ip !== 'string') {
+        return false;
+    }
+    
+    // Basic IP address pattern
+    const ipPattern = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    const match = ip.match(ipPattern);
+    
+    if (!match) {
+        return false;
+    }
+    
+    // Check each octet is 0-255 and doesn't have leading zeros
+    for (let i = 1; i <= 4; i++) {
+        const octet = match[i];
+        
+        // Check for leading zeros (invalid in IP addresses)
+        if (octet.length > 1 && octet[0] === '0') {
+            return false;
+        }
+        
+        const num = parseInt(octet, 10);
+        if (num < 0 || num > 255) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+// Clear all validation errors from the form
+function clearValidationErrors() {
+    // Remove error classes from inputs
+    document.querySelectorAll('.input-error').forEach(el => {
+        el.classList.remove('input-error');
+    });
+    
+    // Remove inline error messages
+    document.querySelectorAll('.field-error-message').forEach(el => {
+        el.remove();
+    });
+    
+    // Remove validation errors summary
+    const summary = document.querySelector('.validation-errors-summary');
+    if (summary) {
+        summary.remove();
+    }
+}
+
+// Display validation errors visually in the form
+function displayValidationErrors(errors) {
+    if (!errors || errors.length === 0) {
+        return;
+    }
+    
+    // Create errors summary at the top of the config form
+    const configForm = document.getElementById('config-form');
+    if (configForm) {
+        const summaryHtml = `
+            <div class="validation-errors-summary">
+                <h3>❌ Configuration Errors (${errors.length})</h3>
+                <ul>
+                    ${errors.map(err => `<li>${err.message}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+        configForm.insertAdjacentHTML('afterbegin', summaryHtml);
+        
+        // Scroll to the errors summary
+        configForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    
+    // Highlight individual fields with errors
+    errors.forEach(error => {
+        if (error.element) {
+            error.element.classList.add('input-error');
+            
+            // Add inline error message after the input
+            if (error.element.parentNode) {
+                const errorMsg = document.createElement('span');
+                errorMsg.className = 'field-error-message';
+                errorMsg.textContent = error.message;
+                error.element.parentNode.insertBefore(errorMsg, error.element.nextSibling);
+            }
+        }
+    });
+}
+
+// Validate device configuration before submission
+function validateDeviceConfiguration() {
+    const errors = [];
+    const groupCards = document.querySelectorAll('.device-group-card');
+    
+    groupCards.forEach(card => {
+        const groupKey = card.dataset.groupKey;
+        const itemRows = card.querySelectorAll('.device-item-row');
+        
+        itemRows.forEach((row, idx) => {
+            const nameInput = row.querySelector('.item-name-input');
+            const ipInput = row.querySelector('.item-ip-input');
+            
+            const name = nameInput ? nameInput.value.trim() : '';
+            const ipAddress = ipInput ? ipInput.value.trim() : '';
+            
+            // Check for empty name
+            if (!name) {
+                errors.push({
+                    message: `Device ${getDeviceDisplayName('', idx)} in group '${groupKey}': Name is required`,
+                    element: nameInput,
+                    field: 'name',
+                    groupKey: groupKey,
+                    itemIndex: idx
+                });
+            }
+            
+            // Check for empty IP address
+            if (!ipAddress) {
+                errors.push({
+                    message: `Device ${getDeviceDisplayName(name, idx)} in group '${groupKey}': IP address is required`,
+                    element: ipInput,
+                    field: 'ip_address',
+                    groupKey: groupKey,
+                    itemIndex: idx
+                });
+            } else if (!isValidIPAddress(ipAddress)) {
+                // Check IP address format
+                errors.push({
+                    message: `Device ${getDeviceDisplayName(name, idx)} in group '${groupKey}': Invalid IP address format '${ipAddress}'`,
+                    element: ipInput,
+                    field: 'ip_address',
+                    groupKey: groupKey,
+                    itemIndex: idx
+                });
+            }
+        });
+    });
+    
+    return errors;
+}
+
 // Save configuration
 async function saveConfig() {
     const message = document.getElementById('config-message');
     message.innerHTML = '';
+    
+    // Clear any previous validation errors
+    clearValidationErrors();
+    
+    // Perform client-side validation first
+    const validationErrors = validateDeviceConfiguration();
+    if (validationErrors.length > 0) {
+        // Display validation errors and prevent submission
+        displayValidationErrors(validationErrors);
+        message.innerHTML = `<div class="error">❌ Please fix ${validationErrors.length} validation error(s) before saving.</div>`;
+        return;
+    }
     
     try {
         // Ensure we have a baseline config to merge into
@@ -2263,6 +2434,22 @@ async function saveConfig() {
             body: JSON.stringify(fullConfig)
         });
         
+        // Check if the response is ok (status 200-299)
+        if (!response.ok) {
+            // Try to parse error response from API
+            let errorMessage = 'Failed to save configuration';
+            try {
+                const errorData = await response.json();
+                errorMessage = extractErrorMessage(errorData);
+            } catch (parseError) {
+                // If we can't parse the response, use status text
+                errorMessage = `Server error: ${response.status} ${response.statusText}`;
+            }
+            
+            message.innerHTML = `<div class="error">❌ Configuration validation failed: ${errorMessage}</div>`;
+            return;
+        }
+        
         const result = await response.json();
         
         if (result.status === 'ok') {
@@ -2285,11 +2472,22 @@ async function saveConfig() {
                 }
             }, 500);
         } else {
-            message.innerHTML = `<div class="error">❌ Failed to save: ${result.message}</div>`;
+            // Handle error response with proper message extraction
+            const errorMsg = extractErrorMessage(result);
+            message.innerHTML = `<div class="error">❌ Failed to save: ${errorMsg}</div>`;
         }
         
     } catch (e) {
-        message.innerHTML = `<div class="error">❌ Error: ${e.message}</div>`;
+        // Network error or other exception
+        const networkErrorMsg = 'Network error: Unable to connect to server. Please check your connection.';
+        let errorMsg = e.message;
+        
+        // Provide more helpful error messages for common network errors
+        if ((e.name === 'TypeError' && e.message.includes('fetch')) || e.message === 'Failed to fetch') {
+            errorMsg = networkErrorMsg;
+        }
+        
+        message.innerHTML = `<div class="error">❌ Error: ${errorMsg}</div>`;
     }
 }
 
