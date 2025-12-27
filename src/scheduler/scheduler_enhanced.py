@@ -895,34 +895,13 @@ class EnhancedScheduler:
                     self.logger.info(f"  Manual override active: {override_action} (expires: {expires_at})")
                     self.logger.info(f"  Skipping automatic scheduling for this group")
                     
-                    # If override action should clear on next schedule event, check if we're at a schedule boundary
-                    if self.manual_override.should_clear_on_schedule():
-                        # Check if any schedule wants to change state
-                        schedules = self.group_schedules.get(group_name, [])
-                        if schedules:
-                            # Get local time
-                            now_local = self._get_local_now()
-                            
-                            # Check if this is a schedule transition point
-                            # (This is a simplified check - a more sophisticated implementation
-                            # would track exact schedule boundaries)
-                            should_on = await self.should_turn_on_group(group_name)
-                            group_is_on = await self.device_manager.get_group_state(group_name)
-                            
-                            # If schedule wants to change state, clear override
-                            if (should_on and not group_is_on) or (not should_on and group_is_on):
-                                self.logger.info(f"  Schedule event detected - clearing manual override")
-                                self.manual_override.clear_override(group_name)
-                                # Continue with normal scheduling below
-                            else:
-                                # Override still valid, skip scheduling
-                                continue
-                        else:
-                            # No schedules, just let override continue
-                            continue
-                    else:
-                        # Override is active and should not clear on schedule
-                        continue
+                    # Manual overrides are only cleared when:
+                    # 1. They expire naturally (time-based expiration) - handled by is_active()
+                    # 2. User manually cancels them - handled by API/user action
+                    #
+                    # We do NOT clear overrides just because the current state differs from
+                    # what the schedule wants, as this would prematurely clear user-initiated overrides.
+                    continue
                 
                 # Get current group state
                 group_is_on = await self.device_manager.get_group_state(group_name)
