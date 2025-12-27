@@ -1150,8 +1150,14 @@ class EnhancedScheduler:
                     self.logger.warning(f"Could not determine expected state for group '{group_name}': {e}")
                     expected_state = "unknown"
                 
-                # Get current state from state manager
-                current_state = "on" if state.device_on else "off"
+                # Get actual current state from physical devices
+                try:
+                    actual_group_state = await self.device_manager.get_group_state(group_name)
+                    current_state = "on" if actual_group_state else "off"
+                except Exception as e:
+                    self.logger.warning(f"Could not get actual device state for group '{group_name}': {e}")
+                    # Fallback to state manager if device query fails
+                    current_state = "on" if state.device_on else "off"
                 
                 # Get timing information from unified schedules
                 expected_on_from = None

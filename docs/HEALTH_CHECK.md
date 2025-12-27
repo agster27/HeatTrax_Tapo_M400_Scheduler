@@ -60,6 +60,22 @@ The Health tab displays device expectations calculated by the scheduler based on
 
 The device expectations are computed in real-time when the Health tab is accessed, providing current state vs expected state for monitoring and troubleshooting.
 
+#### Device State Comparison
+
+The Health tab provides a comparison between the actual device state and what the scheduler expects:
+
+- **Current State**: The actual physical state of the device, queried directly from the hardware
+  - Shows ON/OFF/UNKNOWN based on real-time device communication
+  - May differ from expected state due to manual control, network issues, or external changes
+  
+- **Expected State**: What the scheduler's automation logic says the device should be
+  - Calculated based on active schedules, weather conditions, and automation rules
+  - Shows what state the scheduler will try to enforce on its next cycle
+  
+- **Mismatch Detection**: When Current ≠ Expected, a warning (⚠️) is displayed
+  - Common causes: manual overrides, external control, device communication failures
+  - The scheduler will attempt to correct mismatches on its next evaluation cycle
+
 ### Accessing the Health Dashboard
 
 1. Open the Web UI at `http://localhost:4328` (or your configured host/port)
