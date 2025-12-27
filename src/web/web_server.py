@@ -1764,7 +1764,11 @@ class WebServer:
                     
                     for group_name, group_config in groups.items():
                         # Check manual override status
-                        override = self.manual_override.get_status(group_name)
+                        # Call is_active() first to ensure expired overrides are auto-cleared
+                        if self.manual_override.is_active(group_name):
+                            override = self.manual_override.get_status(group_name)
+                        else:
+                            override = None
                         
                         # Get device status
                         items = group_config.get('items', [])
