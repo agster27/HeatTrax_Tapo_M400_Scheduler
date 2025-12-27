@@ -905,7 +905,7 @@ class EnhancedScheduler:
         if has_conditions:
             if self.weather_enabled and self.weather:
                 try:
-                    weather_offline = await self.weather.is_offline()
+                    weather_offline = self.weather.is_offline()
                     if not weather_offline:
                         conditions = await self.weather.get_current_conditions()
                         if conditions:
