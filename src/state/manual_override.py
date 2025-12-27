@@ -92,7 +92,8 @@ class ManualOverrideManager:
         self.state[group_name] = override
         self._save_state()
         
-        logger.info(f"Set override for '{group_name}': {action} (expires: {expires_at})")
+        # Log with full ISO timestamp for debugging
+        logger.info(f"Set override for '{group_name}': {action} (expires: {expires_at.isoformat()})")
         
         return override.copy()
     
