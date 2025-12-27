@@ -1797,12 +1797,13 @@ class WebServer:
                         temperature = None
                         try:
                             if self.scheduler.weather:
-                                weather_state = self.scheduler.run_coro_in_loop(
-                                    self.scheduler.weather.get_current_weather()
+                                conditions = self.scheduler.run_coro_in_loop(
+                                    self.scheduler.weather.get_current_conditions()
                                 )
-                                if weather_state and hasattr(weather_state, 'temperature_f'):
+                                if conditions:
+                                    temp_f, precip_mm = conditions
                                     # Convert to Celsius
-                                    temperature = round((weather_state.temperature_f - 32) * 5/9, 1)
+                                    temperature = round((temp_f - 32) * 5/9, 1)
                         except Exception as e:
                             logger.debug(f"Failed to get temperature: {e}")
                         
