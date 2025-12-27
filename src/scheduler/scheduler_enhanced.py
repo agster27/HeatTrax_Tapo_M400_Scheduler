@@ -898,7 +898,6 @@ class EnhancedScheduler:
                     # Manual overrides are only cleared when:
                     # 1. They expire naturally (time-based expiration) - handled by is_active()
                     # 2. User manually cancels them - handled by API/user action
-                    # 3. A specific schedule boundary transition occurs - not currently implemented
                     #
                     # We do NOT clear overrides just because the current state differs from
                     # what the schedule wants, as this would prematurely clear user-initiated overrides.

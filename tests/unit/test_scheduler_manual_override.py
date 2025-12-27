@@ -1,8 +1,8 @@
 """Unit tests for scheduler manual override handling."""
 
 import pytest
-import asyncio
 import tempfile
+import time
 from pathlib import Path
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -65,7 +65,6 @@ class TestSchedulerManualOverride:
         assert override_manager.is_active('heated_mats') is True
         
         # Wait for expiration
-        import time
         time.sleep(0.5)
         
         # Should be expired now
