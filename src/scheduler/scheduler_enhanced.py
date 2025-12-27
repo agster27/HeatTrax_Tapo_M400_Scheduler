@@ -870,6 +870,131 @@ class EnhancedScheduler:
         
         return False
     
+    async def _should_schedule_clear_override(self, group_name: str, override_action: str) -> bool:
+        """
+        Check if a schedule boundary should clear the manual override.
+        
+        Returns True if we're at a schedule boundary (ON->OFF or OFF->ON transition)
+        AND the schedule wants the opposite state from the override.
+        
+        This ensures overrides are cleared when the schedule naturally transitions,
+        but NOT just because a schedule is active with a different desired state.
+        
+        Args:
+            group_name: Name of the device group
+            override_action: Current override action ('on' or 'off')
+        
+        Returns:
+            True if override should be cleared due to schedule boundary
+        """
+        # Get schedules for this group
+        schedules = self.group_schedules.get(group_name, [])
+        if not schedules:
+            return False
+        
+        # Get current time
+        current_time = datetime.now(self.timezone)
+        
+        # Gather weather conditions if needed
+        weather_conditions = None
+        weather_offline = False
+        
+        # Check if any schedules have conditions
+        has_conditions = any(schedule.has_conditions() for schedule in schedules)
+        
+        if has_conditions:
+            if self.weather_enabled and self.weather:
+                try:
+                    weather_offline = await self.weather.is_offline()
+                    if not weather_offline:
+                        conditions = await self.weather.get_current_conditions()
+                        if conditions:
+                            temp_f, _ = conditions
+                            
+                            # Check for precipitation in forecast
+                            forecast_result = await self.weather.check_precipitation_forecast(
+                                hours_ahead=self.config.scheduler.get('forecast_hours', 12),
+                                temperature_threshold_f=999  # We'll check temp in schedule conditions
+                            )
+                            
+                            precip_active = False
+                            if forecast_result and forecast_result != (False, None, None):
+                                has_precip, precip_time, _ = forecast_result
+                                # Consider precipitation active if expected within next hour
+                                if has_precip and precip_time:
+                                    time_to_precip = (precip_time - current_time).total_seconds() / 60
+                                    precip_active = time_to_precip <= 60
+                            
+                            # Check for black ice risk if enabled
+                            black_ice_risk = False
+                            raw_config = self._get_raw_config()
+                            thresholds = raw_config.get('thresholds', {})
+                            black_ice_config = thresholds.get('black_ice_detection', {})
+                            
+                            if black_ice_config.get('enabled', True):
+                                try:
+                                    black_ice_result = await self.weather.check_black_ice_risk(
+                                        hours_ahead=self.config.scheduler.get('forecast_hours', 12),
+                                        temperature_max_f=black_ice_config.get('temperature_max_f', 36.0),
+                                        dew_point_spread_f=black_ice_config.get('dew_point_spread_f', 4.0),
+                                        humidity_min_percent=black_ice_config.get('humidity_min_percent', 80.0)
+                                    )
+                                    
+                                    if black_ice_result and black_ice_result != (False, None, None, None):
+                                        has_risk, risk_time, _, _ = black_ice_result
+                                        # Consider black ice risk active if expected within next hour
+                                        if has_risk and risk_time:
+                                            time_to_risk = (risk_time - current_time).total_seconds() / 60
+                                            black_ice_risk = time_to_risk <= 60
+                                except Exception as e:
+                                    self.logger.warning(f"Failed to check black ice risk: {e}")
+                            
+                            weather_conditions = {
+                                'temperature_f': temp_f,
+                                'precipitation_active': precip_active,
+                                'black_ice_risk': black_ice_risk
+                            }
+                except Exception as e:
+                    self.logger.warning(f"Could not get weather conditions for schedule evaluation: {e}")
+                    weather_offline = True
+        
+        # Evaluate schedules
+        should_on, active_schedule, reason = self.schedule_evaluator.should_turn_on(
+            schedules=schedules,
+            current_time=current_time,
+            weather_conditions=weather_conditions,
+            weather_offline=weather_offline
+        )
+        
+        # Determine what the schedule wants
+        schedule_action = 'on' if should_on else 'off'
+        
+        # Only clear if schedule wants opposite of override
+        if schedule_action != override_action:
+            # Check if we're at a schedule boundary by seeing if we were in a different
+            # state in the recent past (within the last check interval)
+            check_interval = self.config.scheduler.get('check_interval_minutes', 15)
+            past_time = current_time - timedelta(minutes=check_interval)
+            
+            past_should_on, _, _ = self.schedule_evaluator.should_turn_on(
+                schedules=schedules,
+                current_time=past_time,
+                weather_conditions=weather_conditions,
+                weather_offline=weather_offline
+            )
+            
+            past_schedule_action = 'on' if past_should_on else 'off'
+            
+            # We're at a boundary if the schedule's desired state changed
+            if past_schedule_action != schedule_action:
+                self.logger.info(
+                    f"Schedule boundary detected for '{group_name}': "
+                    f"{past_schedule_action} -> {schedule_action} (override: {override_action})"
+                )
+                return True
+        
+        return False
+    
     async def run_cycle_multi_device(self):
         """Run one scheduler cycle for multi-device configuration."""
         self.logger.info("=" * 60)
@@ -893,15 +1018,16 @@ class EnhancedScheduler:
                     expires_at = override_status.get('expires_at', 'unknown')
                     
                     self.logger.info(f"  Manual override active: {override_action} (expires: {expires_at})")
-                    self.logger.info(f"  Skipping automatic scheduling for this group")
                     
-                    # Manual overrides are only cleared when:
-                    # 1. They expire naturally (time-based expiration) - handled by is_active()
-                    # 2. User manually cancels them - handled by API/user action
-                    #
-                    # We do NOT clear overrides just because the current state differs from
-                    # what the schedule wants, as this would prematurely clear user-initiated overrides.
-                    continue
+                    # Check if a schedule boundary should clear the override
+                    should_clear = await self._should_schedule_clear_override(group_name, override_action)
+                    if should_clear:
+                        self.logger.info(f"  Schedule boundary detected - clearing manual override")
+                        self.manual_override.clear_override(group_name)
+                        # Continue with normal scheduling logic below
+                    else:
+                        self.logger.info(f"  Skipping automatic scheduling for this group")
+                        continue
                 
                 # Get current group state
                 group_is_on = await self.device_manager.get_group_state(group_name)

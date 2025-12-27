@@ -169,3 +169,29 @@ class TestManualOverrideManager:
         assert override_manager.is_active('group1') is True
         assert override_manager.is_active('group2') is False
         assert override_manager.is_active('group3') is True
+    
+    def test_timezone_aware_expiration(self, override_manager):
+        """Test that override expiration times are timezone-aware and correct."""
+        # Set override with 2 hour timeout
+        result = override_manager.set_override('test_group', 'on', 2.0)
+        
+        # Parse the expires_at timestamp
+        expires_at = datetime.fromisoformat(result['expires_at'])
+        timestamp = datetime.fromisoformat(result['timestamp'])
+        
+        # Verify both timestamps are timezone-aware
+        assert expires_at.tzinfo is not None, "expires_at should be timezone-aware"
+        assert timestamp.tzinfo is not None, "timestamp should be timezone-aware"
+        
+        # Verify expires_at is in the future
+        now = datetime.now(override_manager.timezone)
+        assert expires_at > now, "expires_at should be in the future"
+        
+        # Verify the timeout is approximately 2 hours
+        delta = expires_at - timestamp
+        delta_hours = delta.total_seconds() / 3600
+        assert abs(delta_hours - 2.0) < 0.01, f"Timeout should be ~2 hours, got {delta_hours}"
+        
+        # Verify ISO format includes timezone offset
+        assert '+' in result['expires_at'] or '-' in result['expires_at'] or result['expires_at'].endswith('Z'), \
+            "ISO format should include timezone offset"
