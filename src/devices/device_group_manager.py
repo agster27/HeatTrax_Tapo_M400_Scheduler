@@ -622,13 +622,14 @@ class ManagedDevice:
                 await self.initialize()
             
             # Update device state with timeout protection to prevent hanging
+            timeout_seconds = self.DEFAULT_STATUS_UPDATE_TIMEOUT
             try:
                 await asyncio.wait_for(
                     self.device.update(),
-                    timeout=self.DEFAULT_STATUS_UPDATE_TIMEOUT
+                    timeout=timeout_seconds
                 )
             except asyncio.TimeoutError:
-                error_msg = f"Timeout after {self.DEFAULT_STATUS_UPDATE_TIMEOUT}s while updating device state"
+                error_msg = f"Timeout after {timeout_seconds}s while updating device state"
                 logger.warning(f"Device '{self.name}' at {self.ip_address}: {error_msg}")
                 status['error'] = error_msg
                 status['reachable'] = False
