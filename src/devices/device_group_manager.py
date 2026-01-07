@@ -397,6 +397,10 @@ class ManagedDevice:
     # Increased from default to handle slow Tapo responses
     DEFAULT_DISCOVERY_TIMEOUT = 30
     
+    # Default timeout for status updates (in seconds)
+    # Lower than discovery timeout since device is already initialized
+    DEFAULT_STATUS_UPDATE_TIMEOUT = 10
+    
     def __init__(self, config: Dict[str, Any], username: str, password: str):
         """
         Initialize a managed device.
@@ -590,6 +594,9 @@ class ManagedDevice:
         """
         Get detailed status of the device including outlet states.
         
+        This method always fetches fresh device state from the hardware by calling
+        device.update() with timeout protection to prevent hanging on slow/unresponsive devices.
+        
         Returns:
             Dictionary with device information and outlet states
         """
@@ -614,7 +621,19 @@ class ManagedDevice:
             if not self._initialized:
                 await self.initialize()
             
-            await self.device.update()
+            # Update device state with timeout protection to prevent hanging
+            try:
+                await asyncio.wait_for(
+                    self.device.update(),
+                    timeout=self.DEFAULT_STATUS_UPDATE_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                error_msg = f"Timeout after {self.DEFAULT_STATUS_UPDATE_TIMEOUT}s while updating device state"
+                logger.warning(f"Device '{self.name}' at {self.ip_address}: {error_msg}")
+                status['error'] = error_msg
+                status['reachable'] = False
+                return status
+            
             status['reachable'] = True
             status['initialized'] = True
             
