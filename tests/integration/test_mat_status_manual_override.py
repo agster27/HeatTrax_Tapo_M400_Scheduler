@@ -241,8 +241,8 @@ class TestMatStatusManualOverride(unittest.TestCase):
                         "Manual override OFF should show status as OFF regardless of device states")
         self.assertEqual(group_status['mode'], 'manual')
     
-    def test_auto_mode_reflects_actual_device_states(self):
-        """Test that AUTO mode (no override) correctly reflects actual device states."""
+    def test_auto_mode_shows_off_regardless_of_device_states(self):
+        """Test that AUTO mode (no override) always shows OFF regardless of actual device states."""
         # Mock scheduler
         mock_scheduler = Mock()
         mock_scheduler.weather = None
@@ -298,14 +298,15 @@ class TestMatStatusManualOverride(unittest.TestCase):
         data = json.loads(response.data)
         self.assertTrue(data['success'])
         
-        # Christmas lights should be ON (devices are ON)
-        self.assertTrue(data['groups']['christmas_lights']['is_on'],
-                       "AUTO mode should show ON when devices are physically ON")
+        # Both groups should show OFF in AUTO mode regardless of device states
+        # Christmas lights should be OFF (AUTO mode, not reflecting device ON states)
+        self.assertFalse(data['groups']['christmas_lights']['is_on'],
+                       "AUTO mode should always show OFF, not actual device states")
         self.assertEqual(data['groups']['christmas_lights']['mode'], 'auto')
         
-        # Heated mats should be OFF (devices are OFF)
+        # Heated mats should be OFF (AUTO mode, devices are OFF)
         self.assertFalse(data['groups']['heated_mats']['is_on'],
-                        "AUTO mode should show OFF when devices are physically OFF")
+                        "AUTO mode should always show OFF")
         self.assertEqual(data['groups']['heated_mats']['mode'], 'auto')
     
     def test_independent_group_overrides(self):
