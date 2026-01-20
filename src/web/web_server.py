@@ -1803,6 +1803,12 @@ class WebServer:
                                 logger.error(f"Failed to get device status for group {group_name}: {e}", exc_info=True)
                                 device_errors.append(f"Failed to retrieve device status: {str(e)}")
                         
+                        # If there's an active manual override, use the override action
+                        # instead of the actual device states
+                        if override:
+                            override_action = override.get('action')
+                            is_on = (override_action == 'on')
+                        
                         # Get temperature (optional, from weather service)
                         temperature = None
                         try:
