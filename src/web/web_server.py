@@ -1770,44 +1770,15 @@ class WebServer:
                         else:
                             override = None
                         
-                        # Get device status
-                        items = group_config.get('items', [])
-                        is_on = False
-                        device_errors = []
-                        
-                        # Check if any outlet in the group is on
-                        if items and hasattr(self.scheduler, 'run_coro_in_loop'):
-                            try:
-                                devices_status = self.scheduler.run_coro_in_loop(
-                                    self.scheduler.device_manager.get_all_devices_status()
-                                )
-                                
-                                for device_status in devices_status:
-                                    if device_status.get('group') == group_name:
-                                        # Track device errors for logging
-                                        if device_status.get('error'):
-                                            device_name = device_status.get('name', 'unknown')
-                                            error_msg = device_status.get('error')
-                                            device_errors.append(f"{device_name}: {error_msg}")
-                                            logger.warning(f"Device '{device_name}' in group '{group_name}' reported error: {error_msg}")
-                                        
-                                        # Check outlets even if device has error (may have partial state)
-                                        outlets = device_status.get('outlets', [])
-                                        for outlet in outlets:
-                                            if outlet.get('is_on'):
-                                                is_on = True
-                                                break
-                                        if is_on:
-                                            break
-                            except Exception as e:
-                                logger.error(f"Failed to get device status for group {group_name}: {e}", exc_info=True)
-                                device_errors.append(f"Failed to retrieve device status: {str(e)}")
-                        
-                        # If there's an active manual override, use the override action
-                        # instead of the actual device states
+                        # Determine status based on override
                         if override:
+                            # Manual override active: use override action
                             override_action = override.get('action')
                             is_on = (override_action == 'on')
+                        else:
+                            # No manual override (AUTO mode): default to OFF for mobile UI
+                            # Mobile control is for manual overrides only, not schedule monitoring
+                            is_on = False
                         
                         # Get temperature (optional, from weather service)
                         temperature = None
@@ -1830,10 +1801,6 @@ class WebServer:
                             'temperature': temperature,
                             'last_updated': datetime.now().isoformat()
                         }
-                        
-                        # Include device errors if any occurred
-                        if device_errors:
-                            group_status['device_errors'] = device_errors
                         
                         if override:
                             group_status['override_expires_at'] = override.get('expires_at')

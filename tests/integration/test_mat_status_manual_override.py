@@ -101,33 +101,6 @@ class TestMatStatusManualOverride(unittest.TestCase):
         mock_scheduler = Mock()
         mock_scheduler.weather = None
         
-        # Mock device manager - all devices are OFF
-        async def mock_get_all_devices_status():
-            return [
-                {
-                    'group': 'christmas_lights',
-                    'name': 'device1',
-                    'outlets': [
-                        {'is_on': False},  # All outlets OFF
-                        {'is_on': False}
-                    ]
-                }
-            ]
-        
-        mock_device_manager = Mock()
-        mock_device_manager.get_all_devices_status = mock_get_all_devices_status
-        mock_scheduler.device_manager = mock_device_manager
-        
-        def mock_run_coro(coro):
-            import asyncio
-            loop = asyncio.new_event_loop()
-            try:
-                return loop.run_until_complete(coro)
-            finally:
-                loop.close()
-        
-        mock_scheduler.run_coro_in_loop = mock_run_coro
-        
         # Set up manual override - ON action
         mock_override_manager = Mock()
         mock_override_manager.is_active.return_value = True
@@ -155,9 +128,8 @@ class TestMatStatusManualOverride(unittest.TestCase):
         group_status = data['groups']['christmas_lights']
         
         # The status should be ON because of the manual override action
-        # even though all devices are OFF
         self.assertTrue(group_status['is_on'], 
-                       "Manual override ON should show status as ON regardless of device states")
+                       "Manual override ON should show status as ON")
         self.assertEqual(group_status['mode'], 'manual')
     
     def test_manual_override_off_shows_off_despite_devices_on(self):
@@ -165,41 +137,6 @@ class TestMatStatusManualOverride(unittest.TestCase):
         # Mock scheduler
         mock_scheduler = Mock()
         mock_scheduler.weather = None
-        
-        # Mock device manager - some devices are ON
-        async def mock_get_all_devices_status():
-            return [
-                {
-                    'group': 'heated_mats',
-                    'name': 'mat1',
-                    'outlets': [
-                        {'is_on': True},  # Some outlets are ON
-                        {'is_on': False}
-                    ]
-                },
-                {
-                    'group': 'heated_mats',
-                    'name': 'mat2',
-                    'outlets': [
-                        {'is_on': True},  # Another ON outlet
-                        {'is_on': False}
-                    ]
-                }
-            ]
-        
-        mock_device_manager = Mock()
-        mock_device_manager.get_all_devices_status = mock_get_all_devices_status
-        mock_scheduler.device_manager = mock_device_manager
-        
-        def mock_run_coro(coro):
-            import asyncio
-            loop = asyncio.new_event_loop()
-            try:
-                return loop.run_until_complete(coro)
-            finally:
-                loop.close()
-        
-        mock_scheduler.run_coro_in_loop = mock_run_coro
         
         # Set up manual override manager - different groups have different overrides
         def mock_is_active(group_name):
@@ -236,51 +173,15 @@ class TestMatStatusManualOverride(unittest.TestCase):
         group_status = data['groups']['heated_mats']
         
         # The status should be OFF because of the manual override action
-        # even though some devices are ON
         self.assertFalse(group_status['is_on'], 
-                        "Manual override OFF should show status as OFF regardless of device states")
+                        "Manual override OFF should show status as OFF")
         self.assertEqual(group_status['mode'], 'manual')
     
-    def test_auto_mode_reflects_actual_device_states(self):
-        """Test that AUTO mode (no override) correctly reflects actual device states."""
+    def test_auto_mode_defaults_to_off(self):
+        """Test that AUTO mode (no override) defaults to OFF regardless of device states."""
         # Mock scheduler
         mock_scheduler = Mock()
         mock_scheduler.weather = None
-        
-        # Mock device manager - some devices ON, some OFF
-        async def mock_get_all_devices_status():
-            return [
-                {
-                    'group': 'christmas_lights',
-                    'name': 'lights1',
-                    'outlets': [
-                        {'is_on': True},  # Some ON
-                        {'is_on': True}
-                    ]
-                },
-                {
-                    'group': 'heated_mats',
-                    'name': 'mat1',
-                    'outlets': [
-                        {'is_on': False},  # All OFF
-                        {'is_on': False}
-                    ]
-                }
-            ]
-        
-        mock_device_manager = Mock()
-        mock_device_manager.get_all_devices_status = mock_get_all_devices_status
-        mock_scheduler.device_manager = mock_device_manager
-        
-        def mock_run_coro(coro):
-            import asyncio
-            loop = asyncio.new_event_loop()
-            try:
-                return loop.run_until_complete(coro)
-            finally:
-                loop.close()
-        
-        mock_scheduler.run_coro_in_loop = mock_run_coro
         
         # No manual overrides active
         mock_override_manager = Mock()
@@ -298,14 +199,14 @@ class TestMatStatusManualOverride(unittest.TestCase):
         data = json.loads(response.data)
         self.assertTrue(data['success'])
         
-        # Christmas lights should be ON (devices are ON)
-        self.assertTrue(data['groups']['christmas_lights']['is_on'],
-                       "AUTO mode should show ON when devices are physically ON")
+        # Both groups should show OFF in AUTO mode (mobile UI defaults)
+        # regardless of physical device states
+        self.assertFalse(data['groups']['christmas_lights']['is_on'],
+                       "AUTO mode should default to OFF for mobile control UI")
         self.assertEqual(data['groups']['christmas_lights']['mode'], 'auto')
         
-        # Heated mats should be OFF (devices are OFF)
         self.assertFalse(data['groups']['heated_mats']['is_on'],
-                        "AUTO mode should show OFF when devices are physically OFF")
+                        "AUTO mode should default to OFF for mobile control UI")
         self.assertEqual(data['groups']['heated_mats']['mode'], 'auto')
     
     def test_independent_group_overrides(self):
@@ -313,35 +214,6 @@ class TestMatStatusManualOverride(unittest.TestCase):
         # Mock scheduler
         mock_scheduler = Mock()
         mock_scheduler.weather = None
-        
-        # Mock device manager - all devices OFF
-        async def mock_get_all_devices_status():
-            return [
-                {
-                    'group': 'christmas_lights',
-                    'name': 'lights1',
-                    'outlets': [{'is_on': False}, {'is_on': False}]
-                },
-                {
-                    'group': 'heated_mats',
-                    'name': 'mat1',
-                    'outlets': [{'is_on': False}, {'is_on': False}]
-                }
-            ]
-        
-        mock_device_manager = Mock()
-        mock_device_manager.get_all_devices_status = mock_get_all_devices_status
-        mock_scheduler.device_manager = mock_device_manager
-        
-        def mock_run_coro(coro):
-            import asyncio
-            loop = asyncio.new_event_loop()
-            try:
-                return loop.run_until_complete(coro)
-            finally:
-                loop.close()
-        
-        mock_scheduler.run_coro_in_loop = mock_run_coro
         
         # Different overrides for different groups
         def mock_is_active(group_name):
