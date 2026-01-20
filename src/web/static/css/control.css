@@ -191,6 +191,41 @@ header h1 {
     background: var(--text-secondary);
 }
 
+.status-indicator.loading {
+    opacity: 0.6;
+    position: relative;
+}
+
+.status-indicator.loading::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(102, 126, 234, 0.3);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.spinner.small {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+    margin: 0 8px 0 0;
+    vertical-align: middle;
+}
+
+.mode-badge.manual-only {
+    background: var(--text-secondary);
+    color: white;
+}
+
 .status-text {
     font-weight: 600;
     font-size: 16px;

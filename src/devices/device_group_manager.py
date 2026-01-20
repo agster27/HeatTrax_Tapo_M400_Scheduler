@@ -99,6 +99,38 @@ class DeviceGroupManager:
         
         return await self.groups[group_name].get_state()
     
+    async def get_group_actual_state(self, group_name: str, timeout_seconds: int = 10) -> bool:
+        """Get the actual ON/OFF state of a device group by querying hardware.
+        
+        Args:
+            group_name: Name of the device group
+            timeout_seconds: Timeout for device queries
+            
+        Returns:
+            True if any device/outlet in the group is ON, False if all are OFF
+            
+        Raises:
+            TimeoutError: If query takes longer than timeout_seconds
+            DeviceControllerError: If devices are unreachable
+        """
+        if group_name not in self.groups:
+            logger.error(f"Group '{group_name}' not found")
+            raise DeviceControllerError(f"Group '{group_name}' not found")
+        
+        try:
+            # Query group state with timeout
+            state = await asyncio.wait_for(
+                self.groups[group_name].get_state(),
+                timeout=timeout_seconds
+            )
+            return state
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout after {timeout_seconds}s querying state for group '{group_name}'")
+            raise TimeoutError(f"Timeout after {timeout_seconds}s querying device state")
+        except Exception as e:
+            logger.error(f"Failed to query state for group '{group_name}': {e}")
+            raise DeviceControllerError(f"Failed to query device state: {e}")
+    
     def get_group_config(self, group_name: str) -> Optional[Dict[str, Any]]:
         """
         Get configuration for a group.

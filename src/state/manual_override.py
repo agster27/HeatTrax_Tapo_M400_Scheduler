@@ -202,3 +202,24 @@ class ManualOverrideManager:
             True if overrides should be cleared on schedule events
         """
         return True
+    
+    def cleanup_expired_overrides(self) -> list:
+        """Remove expired overrides and return list of affected groups.
+        
+        Returns:
+            List of group names that had expired overrides removed
+        """
+        expired_groups = []
+        now = datetime.now(self.timezone)
+        
+        for group_name, override in list(self.state.items()):
+            expires_at = datetime.fromisoformat(override['expires_at'])
+            if now >= expires_at:
+                expired_groups.append(group_name)
+                del self.state[group_name]
+                logger.info(f"Cleaned up expired override for '{group_name}'")
+        
+        if expired_groups:
+            self._save_state()
+        
+        return expired_groups
