@@ -160,12 +160,7 @@ function updateUI(groups) {
         updateCountdown(groupStatus.override_expires_at);
     } else {
         document.getElementById('overrideInfo').style.display = 'none';
-        // Only show reset button for groups with schedules
-        if (groupStatus.has_schedule) {
-            document.getElementById('resetSection').style.display = 'none';
-        } else {
-            document.getElementById('resetSection').style.display = 'none';
-        }
+        document.getElementById('resetSection').style.display = 'none';
         clearCountdown();
     }
     

@@ -9,6 +9,7 @@ import time
 import yaml
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
+from zoneinfo import ZoneInfo
 from flask import Flask, request, jsonify, send_from_directory, render_template, abort, send_file
 from pathlib import Path
 from werkzeug.utils import secure_filename
@@ -1829,16 +1830,17 @@ class WebServer:
                             
                             # Calculate time remaining in human-readable format
                             try:
-                                from zoneinfo import ZoneInfo
                                 expires_at = datetime.fromisoformat(override.get('expires_at'))
                                 now = datetime.now(ZoneInfo(config.get('location', {}).get('timezone', 'America/New_York')))
                                 diff = expires_at - now
                                 
                                 if diff.total_seconds() > 0:
-                                    hours = int(diff.total_seconds() // 3600)
-                                    minutes = int((diff.total_seconds() % 3600) // 60)
-                                    seconds = int(diff.total_seconds() % 60)
+                                    total_seconds = int(diff.total_seconds())
+                                    hours = total_seconds // 3600
+                                    minutes = (total_seconds % 3600) // 60
+                                    seconds = total_seconds % 60
                                     
+                                    # Show two most significant time units for consistency
                                     if hours > 0:
                                         group_status['time_remaining'] = f"in {hours}h {minutes}m"
                                     elif minutes > 0:
