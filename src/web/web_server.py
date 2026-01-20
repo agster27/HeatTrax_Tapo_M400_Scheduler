@@ -9,6 +9,7 @@ import time
 import yaml
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
+from zoneinfo import ZoneInfo
 from flask import Flask, request, jsonify, send_from_directory, render_template, abort, send_file
 from pathlib import Path
 from werkzeug.utils import secure_filename
@@ -1763,6 +1764,23 @@ class WebServer:
                     result = {}
                     
                     for group_name, group_config in groups.items():
+                        # Query actual device state from hardware
+                        is_on = False
+                        device_error = None
+                        
+                        try:
+                            is_on = self.scheduler.run_coro_in_loop(
+                                self.scheduler.device_manager.get_group_actual_state(
+                                    group_name, timeout_seconds=10
+                                )
+                            )
+                        except TimeoutError as e:
+                            device_error = "Devices are slow to respond"
+                            logger.warning(f"Timeout querying state for group '{group_name}': {e}")
+                        except Exception as e:
+                            device_error = "Cannot get device status"
+                            logger.error(f"Failed to query state for group '{group_name}': {e}")
+                        
                         # Check manual override status
                         # Call is_active() first to ensure expired overrides are auto-cleared
                         if self.manual_override.is_active(group_name):
@@ -1770,17 +1788,8 @@ class WebServer:
                         else:
                             override = None
                         
-                        # Determine status based on override
-                        if override:
-                            # Manual override active: use override action
-                            override_action = override.get('action')
-                            is_on = (override_action == 'on')
-                        else:
-                            # No manual override (AUTO mode): default to OFF for mobile UI
-                            # This allows independent control of each group via manual overrides.
-                            # Physical device states are not shown in AUTO mode as this UI is
-                            # specifically for manual control, not schedule monitoring.
-                            is_on = False
+                        # Check if group has schedule
+                        has_schedule = self._group_has_schedule(group_name)
                         
                         # Get temperature (optional, from weather service)
                         temperature = None
@@ -1796,16 +1805,50 @@ class WebServer:
                         except Exception as e:
                             logger.debug(f"Failed to get temperature: {e}")
                         
+                        # Determine mode
+                        if override:
+                            mode = 'manual'
+                        elif has_schedule:
+                            mode = 'auto'
+                        else:
+                            mode = 'manual_only'  # No schedule, manual control only
+                        
                         # Build group status
                         group_status = {
                             'is_on': is_on,
-                            'mode': 'manual' if override else 'auto',
+                            'mode': mode,
+                            'has_schedule': has_schedule,
                             'temperature': temperature,
                             'last_updated': datetime.now().isoformat()
                         }
                         
+                        if device_error:
+                            group_status['error'] = device_error
+                        
                         if override:
                             group_status['override_expires_at'] = override.get('expires_at')
+                            
+                            # Calculate time remaining in human-readable format
+                            try:
+                                expires_at = datetime.fromisoformat(override.get('expires_at'))
+                                now = datetime.now(ZoneInfo(config.get('location', {}).get('timezone', 'America/New_York')))
+                                diff = expires_at - now
+                                
+                                if diff.total_seconds() > 0:
+                                    total_seconds = int(diff.total_seconds())
+                                    hours = total_seconds // 3600
+                                    minutes = (total_seconds % 3600) // 60
+                                    seconds = total_seconds % 60
+                                    
+                                    # Show two most significant time units for consistency
+                                    if hours > 0:
+                                        group_status['time_remaining'] = f"in {hours}h {minutes}m"
+                                    elif minutes > 0:
+                                        group_status['time_remaining'] = f"in {minutes}m {seconds}s"
+                                    else:
+                                        group_status['time_remaining'] = f"in {seconds}s"
+                            except Exception as e:
+                                logger.debug(f"Failed to calculate time remaining: {e}")
                         
                         # TODO: Add next scheduled event time
                         group_status['next_scheduled_event'] = None
@@ -1880,9 +1923,8 @@ class WebServer:
                             'error': f"Group '{group_name}' not found"
                         }), 404
                     
-                    # Get timeout from config
-                    web_config = config.get('web', {})
-                    timeout_hours = web_config.get('manual_override_timeout_hours', 3.0)
+                    # Get timeout from group-specific config or fall back to global
+                    timeout_hours = self._get_manual_override_hours(group_name)
                     
                     # Set manual override
                     self.manual_override.set_override(group_name, action, timeout_hours)
@@ -1924,7 +1966,7 @@ class WebServer:
         @self.app.route('/api/mat/reset-auto', methods=['POST'])
         def api_mat_reset_auto():
             """
-            Clear manual override for a specific group.
+            Clear manual override for a specific group and apply schedule logic.
             
             Expects:
                 JSON: {"group": "group_name"}
@@ -1952,8 +1994,47 @@ class WebServer:
                             'error': 'Missing required field: group'
                         }), 400
                     
+                    if not self.scheduler or not self.scheduler.device_manager:
+                        return jsonify({
+                            'success': False,
+                            'error': 'Scheduler or device manager not available'
+                        }), 503
+                    
                     # Clear manual override
                     self.manual_override.clear_override(group_name)
+                    
+                    # If group has schedule, check and apply it
+                    if self._group_has_schedule(group_name):
+                        logger.info(f"Applying schedule logic for group '{group_name}' after clearing override")
+                        
+                        try:
+                            # Check if schedule says devices should be ON or OFF right now
+                            should_be_on = self._check_schedule_for_group(group_name)
+                            
+                            # Apply the schedule state
+                            if should_be_on:
+                                logger.info(f"Schedule indicates '{group_name}' should be ON, turning on")
+                                self.scheduler.run_coro_in_loop(
+                                    self.scheduler.device_manager.turn_on_group(group_name)
+                                )
+                            else:
+                                logger.info(f"Schedule indicates '{group_name}' should be OFF, turning off")
+                                self.scheduler.run_coro_in_loop(
+                                    self.scheduler.device_manager.turn_off_group(group_name)
+                                )
+                        except TimeoutError as e:
+                            logger.error(f"Timeout applying schedule for group '{group_name}': {e}")
+                            return jsonify({
+                                'success': False,
+                                'error': 'Operation timed out. Check device connectivity.'
+                            }), 504
+                        except Exception as e:
+                            logger.error(f"Failed to apply schedule for group '{group_name}': {e}")
+                            return jsonify({
+                                'success': False,
+                                'error': 'Failed to apply schedule',
+                                'details': str(e)
+                            }), 500
                     
                     # Return updated status
                     return api_mat_status()
@@ -1996,6 +2077,66 @@ class WebServer:
             return send_from_directory(web_dir, filename)
         
         abort(404)
+    
+    def _group_has_schedule(self, group_name: str) -> bool:
+        """Check if a group has any schedule defined.
+        
+        Args:
+            group_name: Name of the device group
+            
+        Returns:
+            True if group has at least one schedule, False otherwise
+        """
+        if not self.scheduler or not hasattr(self.scheduler, 'group_schedules'):
+            return False
+        
+        schedules = self.scheduler.group_schedules.get(group_name, [])
+        return len(schedules) > 0
+    
+    def _check_schedule_for_group(self, group_name: str) -> bool:
+        """Check if schedule says group should be ON right now.
+        
+        Args:
+            group_name: Name of the device group
+            
+        Returns:
+            True if schedule indicates devices should be ON, False otherwise
+        """
+        if not self.scheduler:
+            return False
+        
+        try:
+            # Use the scheduler's method to check if devices should turn on
+            should_be_on = self.scheduler.run_coro_in_loop(
+                self.scheduler.should_turn_on_group(group_name)
+            )
+            return should_be_on
+        except Exception as e:
+            logger.error(f"Failed to check schedule for group '{group_name}': {e}")
+            return False
+    
+    def _get_manual_override_hours(self, group_name: str) -> float:
+        """Get manual override duration for a group (defaults to 3.0).
+        
+        Args:
+            group_name: Name of the device group
+            
+        Returns:
+            Override duration in hours (default: 3.0)
+        """
+        config = self.config_manager.get_config(include_secrets=False)
+        
+        # Check group-specific override hours first
+        groups = config.get('devices', {}).get('groups', {})
+        group_config = groups.get(group_name, {})
+        group_override_hours = group_config.get('manual_override_hours')
+        
+        if group_override_hours is not None:
+            return float(group_override_hours)
+        
+        # Fall back to global web config
+        web_config = config.get('web', {})
+        return float(web_config.get('manual_override_timeout_hours', 3.0))
     
     def _get_system_status(self) -> Dict[str, Any]:
         """

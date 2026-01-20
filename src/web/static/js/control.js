@@ -32,6 +32,8 @@ function initializeControlPage() {
 async function fetchStatus(showLoading = false) {
     if (showLoading) {
         showLoadingScreen();
+    } else {
+        showDeviceStateLoading();
     }
     
     try {
@@ -57,6 +59,7 @@ async function fetchStatus(showLoading = false) {
         if (data.success) {
             updateUI(data.groups);
             hideLoadingScreen();
+            hideDeviceStateLoading();
             hideError();
         } else {
             throw new Error(data.error || 'Failed to fetch status');
@@ -65,6 +68,7 @@ async function fetchStatus(showLoading = false) {
         console.error('Failed to fetch status:', error);
         showError('Failed to load status. ' + error.message);
         hideLoadingScreen();
+        hideDeviceStateLoading();
     }
 }
 
@@ -98,6 +102,7 @@ function updateUI(groups) {
     const statusText = document.querySelector('.status-text');
     const controlBtn = document.getElementById('controlBtn');
     
+    // Show actual device state
     if (groupStatus.is_on) {
         statusIndicator.classList.add('on');
         statusIndicator.classList.remove('off');
@@ -120,16 +125,24 @@ function updateUI(groups) {
         controlBtn.disabled = false;
     }
     
-    // Update mode
+    // Update mode badge based on schedule availability
     const modeBadge = document.querySelector('.mode-badge');
-    if (groupStatus.mode === 'manual') {
+    
+    if (!groupStatus.has_schedule) {
+        // Group has no schedule - manual control only
+        modeBadge.textContent = '🎮 MANUAL';
+        modeBadge.classList.add('manual-only');
+        modeBadge.classList.remove('auto', 'manual');
+    } else if (groupStatus.mode === 'manual') {
+        // Group has schedule but in manual override
         modeBadge.textContent = '🔧 MANUAL';
         modeBadge.classList.add('manual');
-        modeBadge.classList.remove('auto');
+        modeBadge.classList.remove('auto', 'manual-only');
     } else {
+        // Group has schedule and in auto mode
         modeBadge.textContent = '🤖 AUTO';
         modeBadge.classList.add('auto');
-        modeBadge.classList.remove('manual');
+        modeBadge.classList.remove('manual', 'manual-only');
     }
     
     // Update temperature (if available)
@@ -140,8 +153,8 @@ function updateUI(groups) {
         document.getElementById('tempRow').style.display = 'none';
     }
     
-    // Update override info
-    if (groupStatus.mode === 'manual' && groupStatus.override_expires_at) {
+    // Update override info - only show for groups with schedules
+    if (groupStatus.has_schedule && groupStatus.mode === 'manual' && groupStatus.override_expires_at) {
         document.getElementById('overrideInfo').style.display = 'flex';
         document.getElementById('resetSection').style.display = 'block';
         updateCountdown(groupStatus.override_expires_at);
@@ -149,6 +162,11 @@ function updateUI(groups) {
         document.getElementById('overrideInfo').style.display = 'none';
         document.getElementById('resetSection').style.display = 'none';
         clearCountdown();
+    }
+    
+    // Show error if device query failed
+    if (groupStatus.error) {
+        showError(groupStatus.error);
     }
     
     // Update last updated time
@@ -254,9 +272,13 @@ async function handleResetClick() {
     
     // Set loading state
     resetBtn.disabled = true;
-    resetBtn.textContent = 'Resetting...';
+    const originalText = resetBtn.textContent;
+    resetBtn.innerHTML = '<span class="spinner small"></span> Resetting...';
     
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
         const response = await fetch('/api/mat/reset-auto', {
             method: 'POST',
             headers: {
@@ -264,16 +286,24 @@ async function handleResetClick() {
             },
             body: JSON.stringify({
                 group: currentGroup
-            })
+            }),
+            signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
         
         if (response.status === 401) {
             window.location.href = '/control/login';
             return;
         }
         
+        if (response.status === 504) {
+            throw new Error('Operation timed out. Check device connectivity.');
+        }
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            throw new Error(data.error || 'Reset action failed');
         }
         
         const data = await response.json();
@@ -287,10 +317,15 @@ async function handleResetClick() {
         }
     } catch (error) {
         console.error('Reset action failed:', error);
-        showError('Failed to reset to auto mode. ' + error.message);
+        
+        if (error.name === 'AbortError') {
+            showError('Operation timed out. Devices may be slow to respond.');
+        } else {
+            showError('Failed to reset: ' + error.message);
+        }
     } finally {
         resetBtn.disabled = false;
-        resetBtn.textContent = 'Return to Auto Mode';
+        resetBtn.textContent = originalText;
     }
 }
 
@@ -389,6 +424,26 @@ function showError(message) {
  */
 function hideError() {
     document.getElementById('error').style.display = 'none';
+}
+
+/**
+ * Show device state loading spinner
+ */
+function showDeviceStateLoading() {
+    const statusIndicator = document.querySelector('.status-indicator');
+    if (statusIndicator) {
+        statusIndicator.classList.add('loading');
+    }
+}
+
+/**
+ * Hide device state loading spinner
+ */
+function hideDeviceStateLoading() {
+    const statusIndicator = document.querySelector('.status-indicator');
+    if (statusIndicator) {
+        statusIndicator.classList.remove('loading');
+    }
 }
 
 // Clean up intervals when page is unloaded
