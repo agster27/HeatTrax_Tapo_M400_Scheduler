@@ -241,8 +241,12 @@ class TestMatStatusManualOverride(unittest.TestCase):
                         "Manual override OFF should show status as OFF regardless of device states")
         self.assertEqual(group_status['mode'], 'manual')
     
-    def test_auto_mode_reflects_actual_device_states(self):
-        """Test that AUTO mode (no override) correctly reflects actual device states."""
+    def test_auto_mode_shows_off_without_manual_override(self):
+        """Test that AUTO mode (no override) always shows OFF regardless of actual device states.
+        
+        The mobile control interface represents manual override intent, not physical device state.
+        When no manual override exists, the status should be OFF (ready to be manually controlled).
+        """
         # Mock scheduler
         mock_scheduler = Mock()
         mock_scheduler.weather = None
@@ -254,7 +258,7 @@ class TestMatStatusManualOverride(unittest.TestCase):
                     'group': 'christmas_lights',
                     'name': 'lights1',
                     'outlets': [
-                        {'is_on': True},  # Some ON
+                        {'is_on': True},  # Some physically ON (from schedule)
                         {'is_on': True}
                     ]
                 },
@@ -262,7 +266,7 @@ class TestMatStatusManualOverride(unittest.TestCase):
                     'group': 'heated_mats',
                     'name': 'mat1',
                     'outlets': [
-                        {'is_on': False},  # All OFF
+                        {'is_on': False},  # All physically OFF
                         {'is_on': False}
                     ]
                 }
@@ -298,14 +302,14 @@ class TestMatStatusManualOverride(unittest.TestCase):
         data = json.loads(response.data)
         self.assertTrue(data['success'])
         
-        # Christmas lights should be ON (devices are ON)
-        self.assertTrue(data['groups']['christmas_lights']['is_on'],
-                       "AUTO mode should show ON when devices are physically ON")
+        # Both groups should show OFF when no manual override exists
+        # (Mobile UI shows manual override intent, not physical device state)
+        self.assertFalse(data['groups']['christmas_lights']['is_on'],
+                       "AUTO mode should show OFF when no manual override exists (even if devices are physically ON)")
         self.assertEqual(data['groups']['christmas_lights']['mode'], 'auto')
         
-        # Heated mats should be OFF (devices are OFF)
         self.assertFalse(data['groups']['heated_mats']['is_on'],
-                        "AUTO mode should show OFF when devices are physically OFF")
+                        "AUTO mode should show OFF when no manual override exists")
         self.assertEqual(data['groups']['heated_mats']['mode'], 'auto')
     
     def test_independent_group_overrides(self):
