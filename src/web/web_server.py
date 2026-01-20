@@ -1777,7 +1777,9 @@ class WebServer:
                             is_on = (override_action == 'on')
                         else:
                             # No manual override (AUTO mode): default to OFF for mobile UI
-                            # Mobile control is for manual overrides only, not schedule monitoring
+                            # This allows independent control of each group via manual overrides.
+                            # Physical device states are not shown in AUTO mode as this UI is
+                            # specifically for manual control, not schedule monitoring.
                             is_on = False
                         
                         # Get temperature (optional, from weather service)
