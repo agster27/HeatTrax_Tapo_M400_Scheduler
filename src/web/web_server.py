@@ -1774,8 +1774,9 @@ class WebServer:
                         items = group_config.get('items', [])
                         device_errors = []
                         
-                        # Query device status to check for errors, but we'll determine is_on
-                        # based on manual override state only (mobile UI is for manual control)
+                        # Query device status to check for errors and report them to the UI.
+                        # Note: Device state (outlets on/off) is NOT used to determine is_on -
+                        # that is based solely on manual override state (mobile UI is for manual control only).
                         if items and hasattr(self.scheduler, 'run_coro_in_loop'):
                             try:
                                 devices_status = self.scheduler.run_coro_in_loop(
