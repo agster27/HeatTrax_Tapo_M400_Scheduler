@@ -1772,10 +1772,10 @@ class WebServer:
                         
                         # Get device status
                         items = group_config.get('items', [])
-                        is_on = False
                         device_errors = []
                         
-                        # Check if any outlet in the group is on
+                        # Query device status to check for errors, but we'll determine is_on
+                        # based on manual override state only (mobile UI is for manual control)
                         if items and hasattr(self.scheduler, 'run_coro_in_loop'):
                             try:
                                 devices_status = self.scheduler.run_coro_in_loop(
@@ -1790,24 +1790,20 @@ class WebServer:
                                             error_msg = device_status.get('error')
                                             device_errors.append(f"{device_name}: {error_msg}")
                                             logger.warning(f"Device '{device_name}' in group '{group_name}' reported error: {error_msg}")
-                                        
-                                        # Check outlets even if device has error (may have partial state)
-                                        outlets = device_status.get('outlets', [])
-                                        for outlet in outlets:
-                                            if outlet.get('is_on'):
-                                                is_on = True
-                                                break
-                                        if is_on:
-                                            break
                             except Exception as e:
                                 logger.error(f"Failed to get device status for group {group_name}: {e}", exc_info=True)
                                 device_errors.append(f"Failed to retrieve device status: {str(e)}")
                         
-                        # If there's an active manual override, use the override action
-                        # instead of the actual device states
+                        # Determine is_on based on manual override state:
+                        # - If manual override exists → use override action
+                        # - If no manual override (AUTO mode) → default to OFF
+                        # (Mobile UI is for manual control only, not for showing schedule state)
                         if override:
                             override_action = override.get('action')
                             is_on = (override_action == 'on')
+                        else:
+                            # No manual override - mobile UI should show OFF
+                            is_on = False
                         
                         # Get temperature (optional, from weather service)
                         temperature = None
