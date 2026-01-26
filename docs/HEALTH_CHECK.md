@@ -519,14 +519,10 @@ notifications:
 
 Environment variables:
 ```bash
-HEATTRAX_NOTIFICATIONS_REQUIRED=false
 HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP=false
 ```
 
 **Behavior:**
-- **`notifications.required`**: Controls whether misconfigured enabled providers cause startup failure
-  - `false` (default): Log errors but allow startup to continue
-  - `true`: Startup fails if an enabled provider is misconfigured or unreachable
 - **`notifications.test_on_startup`**: Send test notification after successful validation
   - `false` (default): No test notification
   - `true`: Send test notification to all enabled providers on startup
@@ -534,6 +530,8 @@ HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP=false
   - If not specified: All events go to all enabled providers (default behavior)
   - If specified for an event: Only send to providers marked `true` for that event
   - Unknown event types are sent to all providers
+
+**Note**: The application will always continue to start even if notification providers are misconfigured. Notification failures are logged but never prevent application startup.
 
 #### Email Notifications
 
@@ -729,20 +727,16 @@ When the scheduler starts, it performs validation of notification configuration:
 
 3. **Test Notification** (optional): If `test_on_startup: true`, sends test notification
 
-**Behavior based on `notifications.required` flag:**
-- `required: false` (default):
-  - Validation errors are logged as ERROR
-  - Startup continues even if providers fail validation
-  - Failed providers are not used for notifications
-- `required: true`:
-  - Validation errors cause startup failure
-  - Ensures notifications will work before scheduler starts
-  - Use this if notifications are critical for your deployment
+**Behavior:**
+- Validation errors are logged at ERROR level with detailed troubleshooting information
+- Startup always continues even if providers fail validation
+- Failed providers are not used for notifications
+- Notifications are treated as a non-critical feature
 
 **Logging Behavior:**
 - Disabled providers: Log single INFO message (no errors about missing config)
 - Enabled but misconfigured: Log clear ERROR with guidance on how to fix
-- Transient notification failures at runtime: Log at WARNING level (not ERROR)
+- Transient notification failures at runtime: Log at ERROR level with detailed error information
 
 ### Testing Notifications
 
@@ -889,19 +883,6 @@ class SlackNotificationProvider(NotificationProvider):
 4. Test connectivity with `test_on_startup: true`
 5. Check webhook endpoint logs for received requests
 6. Ensure firewall allows outbound HTTPS connections
-
-### Notifications Required but Startup Failing
-
-If you've set `notifications.required: true` and startup is failing:
-
-1. Check startup logs for detailed error messages
-2. Verify all required fields are configured for enabled providers
-3. Test SMTP/webhook connectivity manually
-4. Temporarily set `required: false` to diagnose issues
-5. Use `test_on_startup: true` to verify configuration before making it required
-3. Check SMTP server and port are correct
-4. Try `use_tls: false` if connection fails with TLS
-5. Review logs for SMTP error messages
 
 ### Webhook Notifications Not Working
 

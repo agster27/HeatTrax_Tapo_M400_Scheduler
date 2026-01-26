@@ -53,7 +53,6 @@ async def test_notification_failure_scenario():
     mock_config._config = {}
     
     print("Test Scenario:")
-    print("  - notifications.required: True")
     print("  - Email SMTP credentials: INVALID (wrong password)")
     print("  - Expected: Scheduler should continue, not crash")
     print()

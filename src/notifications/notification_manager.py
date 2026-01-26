@@ -212,15 +212,21 @@ class NotificationManager:
             
             # Success
             with self._status_lock:
+                prev_health = status.health
                 status.health = ProviderHealth.HEALTHY
                 status.last_success = datetime.now()
                 status.last_error = None
                 status.consecutive_failures = 0
+                
+                # Log health state change
+                if prev_health != ProviderHealth.HEALTHY:
+                    logger.info(f"Email provider recovered: health changed from {prev_health.value} to HEALTHY")
             
             logger.debug("Email provider validation successful")
             
         except Exception as e:
             with self._status_lock:
+                prev_health = status.health
                 status.consecutive_failures += 1
                 # Mark as FAILED after multiple consecutive failures, otherwise DEGRADED
                 if status.consecutive_failures >= 3:
@@ -228,8 +234,16 @@ class NotificationManager:
                 else:
                     status.health = ProviderHealth.DEGRADED
                 status.last_error = f"{type(e).__name__}: {str(e)}"
-            
-            logger.warning(f"Email provider validation failed: {e}")
+                
+                # Log detailed error and health state change
+                logger.error(
+                    f"Email provider validation failed (attempt {status.consecutive_failures}): "
+                    f"{type(e).__name__}: {str(e)}"
+                )
+                if prev_health != status.health:
+                    logger.warning(
+                        f"Email provider health changed: {prev_health.value} -> {status.health.value}"
+                    )
     
     def _validate_webhook_provider(self, config: Dict[str, Any]):
         """
@@ -255,10 +269,15 @@ class NotificationManager:
             if response.status_code < 400 or response.status_code == 405:
                 # Success
                 with self._status_lock:
+                    prev_health = status.health
                     status.health = ProviderHealth.HEALTHY
                     status.last_success = datetime.now()
                     status.last_error = None
                     status.consecutive_failures = 0
+                    
+                    # Log health state change
+                    if prev_health != ProviderHealth.HEALTHY:
+                        logger.info(f"Webhook provider recovered: health changed from {prev_health.value} to HEALTHY")
                 
                 logger.debug("Webhook provider validation successful")
             else:
@@ -266,6 +285,7 @@ class NotificationManager:
             
         except Exception as e:
             with self._status_lock:
+                prev_health = status.health
                 status.consecutive_failures += 1
                 # Mark as FAILED after multiple consecutive failures, otherwise DEGRADED
                 if status.consecutive_failures >= 3:
@@ -273,8 +293,16 @@ class NotificationManager:
                 else:
                     status.health = ProviderHealth.DEGRADED
                 status.last_error = f"{type(e).__name__}: {str(e)}"
-            
-            logger.warning(f"Webhook provider validation failed: {e}")
+                
+                # Log detailed error and health state change
+                logger.error(
+                    f"Webhook provider validation failed (attempt {status.consecutive_failures}): "
+                    f"{type(e).__name__}: {str(e)}"
+                )
+                if prev_health != status.health:
+                    logger.warning(
+                        f"Webhook provider health changed: {prev_health.value} -> {status.health.value}"
+                    )
     
     def get_status(self) -> Dict[str, Dict[str, Any]]:
         """

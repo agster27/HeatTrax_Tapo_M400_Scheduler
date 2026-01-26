@@ -212,7 +212,7 @@ class EmailNotificationProvider(NotificationProvider):
             return True
             
         except Exception as e:
-            logger.warning(f"Failed to send email notification for {event_type}: {type(e).__name__}: {e}")
+            logger.error(f"Failed to send email notification for {event_type}: {type(e).__name__}: {e}", exc_info=True)
             return False
     
     def _send_smtp(self, msg: MIMEMultipart):
@@ -340,17 +340,17 @@ class WebhookNotificationProvider(NotificationProvider):
                         return True
                     else:
                         response_text = await response.text()
-                        logger.warning(
+                        logger.error(
                             f"Webhook notification failed for {event_type}: "
                             f"HTTP {response.status}, response: {response_text[:200]}"
                         )
                         return False
                         
         except asyncio.TimeoutError:
-            logger.warning(f"Webhook notification timeout for {event_type}")
+            logger.error(f"Webhook notification timeout for {event_type}: Request exceeded 10 second timeout")
             return False
         except Exception as e:
-            logger.warning(f"Failed to send webhook notification for {event_type}: {type(e).__name__}: {e}")
+            logger.error(f"Failed to send webhook notification for {event_type}: {type(e).__name__}: {e}", exc_info=True)
             return False
 
 
@@ -454,15 +454,20 @@ class NotificationService:
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Log results
+        # Log results with more detail
         success_count = sum(1 for r in results if r is True)
+        failed_count = len(providers_for_event) - success_count
+        
+        if failed_count > 0:
+            logger.error(f"Notification failures: {failed_count}/{len(providers_for_event)} provider(s) failed for event: {event_type}")
+        
         logger.info(f"Notification sent to {success_count}/{len(providers_for_event)} provider(s)")
         
-        # Log any exceptions
+        # Log any exceptions with provider names
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 provider_name = providers_for_event[i][0]
-                logger.error(f"Provider {provider_name} raised exception: {result}")
+                logger.error(f"Provider '{provider_name}' raised exception for event '{event_type}': {result}", exc_info=result)
     
     async def send_test_notification(self) -> bool:
         """

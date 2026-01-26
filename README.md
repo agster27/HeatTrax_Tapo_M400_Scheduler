@@ -729,7 +729,6 @@ Configuration values are resolved in the following order (highest to lowest prio
 | `HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS` | health_check | Hours between health checks | Float | `24` |
 | `HEATTRAX_HEALTH_CHECK_MAX_FAILURES` | health_check | Max consecutive failures before re-init | Integer | `3` |
 | `HEATTRAX_REBOOT_PAUSE_SECONDS` | reboot | Pause (seconds) before container restart | Integer | `60` |
-| `HEATTRAX_NOTIFICATIONS_REQUIRED` | notifications | If true, misconfigured providers cause startup failure | Boolean | `false` |
 | `HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP` | notifications | Send test notification on startup | Boolean | `false` |
 | `HEATTRAX_NOTIFICATION_EMAIL_ENABLED` | notifications.email | Enable email notifications | Boolean | `true` or `false` |
 | `HEATTRAX_NOTIFICATION_EMAIL_SMTP_HOST` | notifications.email | SMTP server hostname | String | `smtp.gmail.com` |

@@ -223,10 +223,8 @@ class EnhancedScheduler:
         self.logger.info("=" * 80)
         
         notifications_config = self.config.notifications
-        required = notifications_config.get('required', False)
         test_on_startup = notifications_config.get('test_on_startup', False)
         
-        self.logger.info(f"Notifications required: {required}")
         self.logger.info(f"Test on startup: {test_on_startup}")
         
         try:
@@ -238,32 +236,26 @@ class EnhancedScheduler:
             )
             
             if not success:
-                # Notification validation failed
-                if required:
-                    # Previously this would crash - now just warn
-                    self.logger.error("=" * 80)
-                    self.logger.error("NOTIFICATION VALIDATION FAILED")
-                    self.logger.error("=" * 80)
-                    self.logger.error("Notifications are marked as required but validation failed.")
-                    self.logger.error("Scheduler will continue running but notifications are DISABLED.")
-                    self.logger.error("")
-                    self.logger.error("Common causes:")
-                    self.logger.error("  - Email: Wrong password (use Gmail App Password, not regular password)")
-                    self.logger.error("  - Email: SMTP server unreachable")
-                    self.logger.error("  - Webhook: Invalid URL or unreachable endpoint")
-                    self.logger.error("")
-                    self.logger.error("To fix:")
-                    self.logger.error("  1. Check notification credentials in config.yaml")
-                    self.logger.error("  2. For Gmail: Generate App Password at https://myaccount.google.com/apppasswords")
-                    self.logger.error("  3. Set notifications.required=false if notifications are optional")
-                    self.logger.error("=" * 80)
-                    
-                    # DO NOT CRASH - just disable notifications
-                    notification_service = None
-                else:
-                    self.logger.warning("Notification validation failed but notifications.required=false")
-                    self.logger.warning("Scheduler will continue without notifications")
-                    notification_service = None
+                # Notification validation failed - log error but continue
+                self.logger.error("=" * 80)
+                self.logger.error("NOTIFICATION VALIDATION FAILED")
+                self.logger.error("=" * 80)
+                self.logger.error("Notification validation failed.")
+                self.logger.error("Scheduler will continue running but notifications are DISABLED.")
+                self.logger.error("")
+                self.logger.error("Common causes:")
+                self.logger.error("  - Email: Wrong password (use Gmail App Password, not regular password)")
+                self.logger.error("  - Email: SMTP server unreachable")
+                self.logger.error("  - Webhook: Invalid URL or unreachable endpoint")
+                self.logger.error("")
+                self.logger.error("To fix:")
+                self.logger.error("  1. Check notification credentials in config.yaml")
+                self.logger.error("  2. For Gmail: Generate App Password at https://myaccount.google.com/apppasswords")
+                self.logger.error("  3. Disable notifications if they are not needed")
+                self.logger.error("=" * 80)
+                
+                # DO NOT CRASH - just disable notifications
+                notification_service = None
             
             self.notification_service = notification_service
             
@@ -278,12 +270,10 @@ class EnhancedScheduler:
                 self.notification_service_available = False
         
         except NotificationValidationError as e:
-            # Catch any other notification errors
+            # Catch any other notification errors - always log and continue
             self.logger.error(f"Error initializing notifications: {e}", exc_info=True)
-            
-            if required:
-                self.logger.error("Notifications required but initialization failed - continuing anyway")
-                self.logger.error("Notifications will be DISABLED. Fix configuration to enable notifications.")
+            self.logger.error("Notifications initialization failed - continuing anyway")
+            self.logger.error("Notifications will be DISABLED. Fix configuration to enable notifications.")
             
             self.notification_service = None
             self.notification_service_available = False

@@ -146,7 +146,6 @@ health_server:
   host: 0.0.0.0
   port: 4329
 notifications:
-  required: false
   test_on_startup: false
   check_interval_seconds: 60
   email:
