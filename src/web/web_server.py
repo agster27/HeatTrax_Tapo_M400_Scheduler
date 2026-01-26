@@ -61,9 +61,11 @@ class WebServer:
         
         # Initialize authentication for mobile control
         from src.web.auth import init_auth
+        import os
         config = config_manager.get_config(include_secrets=False)
         web_config = config.get('web', {})
-        pin = web_config.get('pin', '1234')
+        # Check for PIN in config, then environment variable, then None
+        pin = web_config.get('pin') or os.environ.get('HEATTRAX_WEB_PIN', '')
         init_auth(self.app, pin)
         
         # Register routes
@@ -1715,8 +1717,10 @@ class WebServer:
                         'error': 'PIN is required'
                     }), 400
                 
-                # Check PIN
-                if check_pin(self.app, pin):
+                # Check PIN - now returns (is_valid, error_message)
+                is_valid, error_message = check_pin(self.app, pin)
+                
+                if is_valid:
                     create_session()
                     
                     # Calculate session expiration
@@ -1727,9 +1731,10 @@ class WebServer:
                         'session_expires': expires_at.isoformat()
                     })
                 else:
+                    # Return specific error message
                     return jsonify({
                         'success': False,
-                        'error': 'Invalid PIN'
+                        'error': error_message  # "Invalid PIN" or "No PIN configured. Contact your administrator."
                     }), 401
             
             except Exception as e:
