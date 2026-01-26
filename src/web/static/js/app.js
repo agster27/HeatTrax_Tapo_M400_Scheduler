@@ -172,6 +172,26 @@ async function refreshStatus() {
             `;
         }
         
+        // Also check system status for notifications
+        try {
+            const sysResponse = await fetch('/api/system/status');
+            const sysData = await sysResponse.json();
+            
+            if (sysData.success && sysData.status) {
+                const notifStatus = sysData.status.notifications_available;
+                const notifError = sysData.status.notifications_error;
+                
+                html += `
+                    <div class="status-item" style="border-left-color: ${notifStatus ? '#27ae60' : '#ff9800'};">
+                        <label>Notifications</label>
+                        <value style="cursor: ${notifError ? 'help' : 'default'};" title="${notifError || ''}">${notifStatus ? '✓ Working' : '⚠ Unavailable'}</value>
+                    </div>
+                `;
+            }
+        } catch (e) {
+            console.debug('Failed to fetch system status for notifications:', e);
+        }
+        
         // Device info
         if (status.device_groups) {
             for (const [groupName, groupInfo] of Object.entries(status.device_groups)) {
