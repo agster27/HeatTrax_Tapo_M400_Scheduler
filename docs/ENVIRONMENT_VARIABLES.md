@@ -176,7 +176,6 @@ Configure the web interface for monitoring and configuration.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `HEATTRAX_NOTIFICATIONS_REQUIRED` | Boolean | `false` | If true, misconfigured enabled providers cause startup failure |
 | `HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP` | Boolean | `false` | Send test notification on successful startup |
 
 ### Notification Settings - Email
@@ -264,7 +263,6 @@ services:
       # - HEATTRAX_HEALTH_SERVER_PORT=4329
       
       # Notifications (Optional)
-      - HEATTRAX_NOTIFICATIONS_REQUIRED=false
       - HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP=false
       - HEATTRAX_NOTIFICATION_EMAIL_ENABLED=false
       - HEATTRAX_NOTIFICATION_WEBHOOK_ENABLED=false

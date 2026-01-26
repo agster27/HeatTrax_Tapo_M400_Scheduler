@@ -258,12 +258,10 @@ class TestWebConfigPersistence(unittest.TestCase):
         config = extract_values(annotated_config)
         
         # Verify initial state (all disabled)
-        self.assertFalse(config['notifications']['required'])
         self.assertFalse(config['notifications']['test_on_startup'])
         self.assertFalse(config['notifications']['email']['enabled'])
         
-        # Enable the three notification flags
-        config['notifications']['required'] = True
+        # Enable the notification flags
         config['notifications']['test_on_startup'] = True
         config['notifications']['email']['enabled'] = True
         
@@ -293,9 +291,7 @@ class TestWebConfigPersistence(unittest.TestCase):
         annotated_config2 = json.loads(get_response2.data)
         config2 = extract_values(annotated_config2)
         
-        # Verify the three flags are now True
-        self.assertTrue(config2['notifications']['required'],
-                       "notifications.required should be True after update")
+        # Verify the flags are now True
         self.assertTrue(config2['notifications']['test_on_startup'],
                        "notifications.test_on_startup should be True after update")
         self.assertTrue(config2['notifications']['email']['enabled'],
@@ -305,8 +301,6 @@ class TestWebConfigPersistence(unittest.TestCase):
         with open(self.config_path, 'r') as f:
             disk_config = yaml.safe_load(f)
         
-        self.assertTrue(disk_config['notifications']['required'],
-                       "notifications.required should be True on disk")
         self.assertTrue(disk_config['notifications']['test_on_startup'],
                        "notifications.test_on_startup should be True on disk")
         self.assertTrue(disk_config['notifications']['email']['enabled'],
