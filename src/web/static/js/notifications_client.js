@@ -136,8 +136,8 @@ function renderNotificationProviders(providers) {
                 ` : ''}
                 
                 ${status.last_error ? `
-                    <div style="font-size: 11px; color: #e74c3c; background: #fadbd8; padding: 6px; border-radius: 4px; margin-top: 8px; word-break: break-word;">
-                        <strong>Error:</strong> ${escapeHtml(errorText)}
+                    <div style="font-size: 12px; color: #c0392b; background: #fadbd8; padding: 8px; border-radius: 4px; margin-top: 8px; border: 1px solid #e74c3c; word-break: break-word;">
+                        <strong style="color: #c0392b;">⚠️ Error:</strong> ${escapeHtml(errorText)}
                     </div>
                 ` : ''}
                 

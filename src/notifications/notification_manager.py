@@ -220,16 +220,17 @@ class NotificationManager:
             logger.debug("Email provider validation successful")
             
         except Exception as e:
+            error_msg = f"{type(e).__name__}: {str(e)}"
             with self._status_lock:
                 status.consecutive_failures += 1
                 # Mark as FAILED after multiple consecutive failures, otherwise DEGRADED
                 if status.consecutive_failures >= 3:
                     status.health = ProviderHealth.FAILED
+                    logger.error(f"Email provider marked as FAILED after {status.consecutive_failures} consecutive failures: {error_msg}")
                 else:
                     status.health = ProviderHealth.DEGRADED
-                status.last_error = f"{type(e).__name__}: {str(e)}"
-            
-            logger.warning(f"Email provider validation failed: {e}")
+                    logger.warning(f"Email provider validation failed (attempt {status.consecutive_failures}): {error_msg}")
+                status.last_error = error_msg
     
     def _validate_webhook_provider(self, config: Dict[str, Any]):
         """
@@ -265,16 +266,17 @@ class NotificationManager:
                 raise ValueError(f"Unexpected status code: {response.status_code}")
             
         except Exception as e:
+            error_msg = f"{type(e).__name__}: {str(e)}"
             with self._status_lock:
                 status.consecutive_failures += 1
                 # Mark as FAILED after multiple consecutive failures, otherwise DEGRADED
                 if status.consecutive_failures >= 3:
                     status.health = ProviderHealth.FAILED
+                    logger.error(f"Webhook provider marked as FAILED after {status.consecutive_failures} consecutive failures: {error_msg}")
                 else:
                     status.health = ProviderHealth.DEGRADED
-                status.last_error = f"{type(e).__name__}: {str(e)}"
-            
-            logger.warning(f"Webhook provider validation failed: {e}")
+                    logger.warning(f"Webhook provider validation failed (attempt {status.consecutive_failures}): {error_msg}")
+                status.last_error = error_msg
     
     def get_status(self) -> Dict[str, Dict[str, Any]]:
         """

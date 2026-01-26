@@ -84,7 +84,6 @@ class TestConfigManagerNotifications(unittest.TestCase):
                 'max_consecutive_failures': 3
             },
             'notifications': {
-                'required': False,
                 'test_on_startup': False,
                 'email': {
                     'enabled': False,
@@ -149,19 +148,17 @@ class TestConfigManagerNotifications(unittest.TestCase):
     def test_toggle_notification_flags_to_true(self):
         """
         Test toggling notification flags from False to True.
-        Simulates a Web UI-like full config update where only the three notification
+        Simulates a Web UI-like full config update where notification
         flags are toggled to True.
         """
         # Get current config with secrets (simulating what the backend sees)
         config = self.config_manager.get_config(include_secrets=True)
         
         # Verify initial state (all disabled)
-        self.assertFalse(config['notifications']['required'])
         self.assertFalse(config['notifications']['test_on_startup'])
         self.assertFalse(config['notifications']['email']['enabled'])
         
-        # Toggle the three flags to True
-        config['notifications']['required'] = True
+        # Toggle the flags to True
         config['notifications']['test_on_startup'] = True
         config['notifications']['email']['enabled'] = True
         
@@ -173,7 +170,6 @@ class TestConfigManagerNotifications(unittest.TestCase):
         
         # Verify in-memory config shows the flags as True
         updated_config = self.config_manager.get_config(include_secrets=False)
-        self.assertTrue(updated_config['notifications']['required'])
         self.assertTrue(updated_config['notifications']['test_on_startup'])
         self.assertTrue(updated_config['notifications']['email']['enabled'])
         
@@ -181,7 +177,6 @@ class TestConfigManagerNotifications(unittest.TestCase):
         with open(self.config_path, 'r') as f:
             disk_config = yaml.safe_load(f)
         
-        self.assertTrue(disk_config['notifications']['required'])
         self.assertTrue(disk_config['notifications']['test_on_startup'])
         self.assertTrue(disk_config['notifications']['email']['enabled'])
     
@@ -189,9 +184,8 @@ class TestConfigManagerNotifications(unittest.TestCase):
         """
         Test toggling notification flags from True to False.
         """
-        # First enable all flags
+        # First enable flags
         config = self.config_manager.get_config(include_secrets=True)
-        config['notifications']['required'] = True
         config['notifications']['test_on_startup'] = True
         config['notifications']['email']['enabled'] = True
         
@@ -200,7 +194,6 @@ class TestConfigManagerNotifications(unittest.TestCase):
         
         # Now toggle them back to False
         config = self.config_manager.get_config(include_secrets=True)
-        config['notifications']['required'] = False
         config['notifications']['test_on_startup'] = False
         config['notifications']['email']['enabled'] = False
         
@@ -209,7 +202,6 @@ class TestConfigManagerNotifications(unittest.TestCase):
         
         # Verify in-memory config
         updated_config = self.config_manager.get_config(include_secrets=False)
-        self.assertFalse(updated_config['notifications']['required'])
         self.assertFalse(updated_config['notifications']['test_on_startup'])
         self.assertFalse(updated_config['notifications']['email']['enabled'])
         
@@ -217,7 +209,6 @@ class TestConfigManagerNotifications(unittest.TestCase):
         with open(self.config_path, 'r') as f:
             disk_config = yaml.safe_load(f)
         
-        self.assertFalse(disk_config['notifications']['required'])
         self.assertFalse(disk_config['notifications']['test_on_startup'])
         self.assertFalse(disk_config['notifications']['email']['enabled'])
     

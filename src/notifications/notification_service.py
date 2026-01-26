@@ -208,11 +208,14 @@ class EmailNotificationProvider(NotificationProvider):
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, self._send_smtp, msg)
             
-            logger.info(f"Email notification sent: {event_type}")
+            logger.info(f"Email notification sent successfully: {event_type}")
             return True
             
         except Exception as e:
-            logger.warning(f"Failed to send email notification for {event_type}: {type(e).__name__}: {e}")
+            logger.error(
+                f"Failed to send email notification for {event_type}: "
+                f"{type(e).__name__}: {e}"
+            )
             return False
     
     def _send_smtp(self, msg: MIMEMultipart):
@@ -336,21 +339,24 @@ class WebhookNotificationProvider(NotificationProvider):
                     timeout=aiohttp.ClientTimeout(total=10)
                 ) as response:
                     if response.status < 400:
-                        logger.info(f"Webhook notification sent: {event_type} (status: {response.status})")
+                        logger.info(f"Webhook notification sent successfully: {event_type} (status: {response.status})")
                         return True
                     else:
                         response_text = await response.text()
-                        logger.warning(
+                        logger.error(
                             f"Webhook notification failed for {event_type}: "
                             f"HTTP {response.status}, response: {response_text[:200]}"
                         )
                         return False
                         
         except asyncio.TimeoutError:
-            logger.warning(f"Webhook notification timeout for {event_type}")
+            logger.error(f"Webhook notification timeout for {event_type}")
             return False
         except Exception as e:
-            logger.warning(f"Failed to send webhook notification for {event_type}: {type(e).__name__}: {e}")
+            logger.error(
+                f"Failed to send webhook notification for {event_type}: "
+                f"{type(e).__name__}: {e}"
+            )
             return False
 
 
@@ -454,15 +460,23 @@ class NotificationService:
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Log results
-        success_count = sum(1 for r in results if r is True)
-        logger.info(f"Notification sent to {success_count}/{len(providers_for_event)} provider(s)")
-        
-        # Log any exceptions
+        # Log results with detailed error information
+        success_count = 0
         for i, result in enumerate(results):
+            provider_name = providers_for_event[i][0]
             if isinstance(result, Exception):
-                provider_name = providers_for_event[i][0]
-                logger.error(f"Provider {provider_name} raised exception: {result}")
+                logger.error(
+                    f"Notification provider '{provider_name}' raised exception for {event_type}: "
+                    f"{type(result).__name__}: {result}"
+                )
+            elif result is True:
+                success_count += 1
+            else:
+                logger.error(
+                    f"Notification provider '{provider_name}' failed for {event_type}"
+                )
+        
+        logger.info(f"Notification sent to {success_count}/{len(providers_for_event)} provider(s)")
     
     async def send_test_notification(self) -> bool:
         """
