@@ -149,7 +149,7 @@ class TestConfigManagerNotifications(unittest.TestCase):
         """
         Test toggling notification flags from False to True.
         Simulates a Web UI-like full config update where notification
-        flags are toggled to True.
+        flags (test_on_startup and email.enabled) are toggled to True.
         """
         # Get current config with secrets (simulating what the backend sees)
         config = self.config_manager.get_config(include_secrets=True)
@@ -158,7 +158,7 @@ class TestConfigManagerNotifications(unittest.TestCase):
         self.assertFalse(config['notifications']['test_on_startup'])
         self.assertFalse(config['notifications']['email']['enabled'])
         
-        # Toggle the flags to True
+        # Toggle test_on_startup and email.enabled to True
         config['notifications']['test_on_startup'] = True
         config['notifications']['email']['enabled'] = True
         
@@ -184,7 +184,7 @@ class TestConfigManagerNotifications(unittest.TestCase):
         """
         Test toggling notification flags from True to False.
         """
-        # First enable flags
+        # First enable test_on_startup and email.enabled flags
         config = self.config_manager.get_config(include_secrets=True)
         config['notifications']['test_on_startup'] = True
         config['notifications']['email']['enabled'] = True
@@ -241,7 +241,7 @@ class TestConfigManagerNotifications(unittest.TestCase):
         """
         Test that notification flags persist correctly after reloading ConfigManager.
         """
-        # Enable flags
+        # Enable test_on_startup and email.enabled flags
         config = self.config_manager.get_config(include_secrets=True)
         config['notifications']['test_on_startup'] = True
         config['notifications']['email']['enabled'] = True
