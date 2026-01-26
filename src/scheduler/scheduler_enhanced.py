@@ -79,6 +79,7 @@ class EnhancedScheduler:
         
         # Initialize notification service (will be set during validation)
         self.notification_service = None
+        self.notification_service_available = False  # Track if notifications are working
         
         # Collect all configured device IPs with labels for health check
         configured_devices = {}  # IP -> label mapping
@@ -271,8 +272,10 @@ class EnhancedScheduler:
             
             if notification_service and notification_service.is_enabled():
                 self.logger.info(f"✓ Notification service initialized with {len(notification_service.providers)} provider(s)")
+                self.notification_service_available = True
             else:
                 self.logger.info("Notification service disabled or not configured")
+                self.notification_service_available = False
         
         except NotificationValidationError as e:
             # Catch any other notification errors
@@ -283,6 +286,7 @@ class EnhancedScheduler:
                 self.logger.error("Notifications will be DISABLED. Fix configuration to enable notifications.")
             
             self.notification_service = None
+            self.notification_service_available = False
             self.health_check.notification_service = None
         
         self.logger.info("=" * 80)

@@ -68,6 +68,16 @@ class WebServer:
         pin = web_config.get('pin') or os.environ.get('HEATTRAX_WEB_PIN', '')
         init_auth(self.app, pin)
         
+        # Check PIN configuration and log warning
+        if pin:
+            logger.info("PIN authentication is configured for mobile control")
+        else:
+            logger.warning("=" * 80)
+            logger.warning("PIN AUTHENTICATION IS NOT CONFIGURED")
+            logger.warning("Mobile control page (/control) will not be accessible")
+            logger.warning("Set 'web.pin' in config.yaml or HEATTRAX_WEB_PIN environment variable")
+            logger.warning("=" * 80)
+        
         # Register routes
         self._register_routes()
         
@@ -233,6 +243,46 @@ class WebServer:
                     'error': 'Failed to get system status',
                     'details': str(e)
                 }), 500
+        
+        @self.app.route('/api/system/status', methods=['GET'])
+        def api_system_status():
+            """
+            Get system status including notification availability.
+            
+            Returns:
+                JSON: System status with notification availability
+            """
+            try:
+                status = {
+                    'scheduler_running': self.scheduler is not None,
+                    'notifications_available': False,
+                    'notifications_error': None,
+                    'pin_configured': self.config_manager.get_web_pin() is not None
+                }
+                
+                if self.scheduler:
+                    status['notifications_available'] = getattr(
+                        self.scheduler, 'notification_service_available', False
+                    )
+                    
+                    # If notifications not available, provide reason
+                    if not status['notifications_available']:
+                        config = self.config_manager.get_config(include_secrets=False)
+                        notifications_config = config.get('notifications', {})
+                        
+                        if notifications_config.get('email', {}).get('enabled', False):
+                            status['notifications_error'] = (
+                                "Email authentication failed. Check SMTP credentials. "
+                                "Device control is still working."
+                            )
+                        else:
+                            status['notifications_error'] = "Notifications are disabled."
+                
+                return jsonify({'success': True, 'status': status})
+            
+            except Exception as e:
+                logger.error(f"Failed to get system status: {e}")
+                return jsonify({'success': False, 'error': str(e)}), 500
         
         @self.app.route('/api/config', methods=['GET'])
         def api_config_get():
