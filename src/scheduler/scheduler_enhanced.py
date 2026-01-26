@@ -237,12 +237,31 @@ class EnhancedScheduler:
             )
             
             if not success:
+                # Notification validation failed
                 if required:
-                    self.logger.error("Notification validation failed and notifications are required")
-                    raise RuntimeError("Notification validation failed (notifications.required=true)")
+                    # Previously this would crash - now just warn
+                    self.logger.error("=" * 80)
+                    self.logger.error("NOTIFICATION VALIDATION FAILED")
+                    self.logger.error("=" * 80)
+                    self.logger.error("Notifications are marked as required but validation failed.")
+                    self.logger.error("Scheduler will continue running but notifications are DISABLED.")
+                    self.logger.error("")
+                    self.logger.error("Common causes:")
+                    self.logger.error("  - Email: Wrong password (use Gmail App Password, not regular password)")
+                    self.logger.error("  - Email: SMTP server unreachable")
+                    self.logger.error("  - Webhook: Invalid URL or unreachable endpoint")
+                    self.logger.error("")
+                    self.logger.error("To fix:")
+                    self.logger.error("  1. Check notification credentials in config.yaml")
+                    self.logger.error("  2. For Gmail: Generate App Password at https://myaccount.google.com/apppasswords")
+                    self.logger.error("  3. Set notifications.required=false if notifications are optional")
+                    self.logger.error("=" * 80)
+                    
+                    # DO NOT CRASH - just disable notifications
+                    notification_service = None
                 else:
-                    self.logger.warning("Notification validation failed, but notifications are not required - continuing")
-                    # Create a disabled service
+                    self.logger.warning("Notification validation failed but notifications.required=false")
+                    self.logger.warning("Scheduler will continue without notifications")
                     notification_service = None
             
             self.notification_service = notification_service
@@ -256,14 +275,15 @@ class EnhancedScheduler:
                 self.logger.info("Notification service disabled or not configured")
         
         except NotificationValidationError as e:
+            # Catch any other notification errors
+            self.logger.error(f"Error initializing notifications: {e}", exc_info=True)
+            
             if required:
-                self.logger.error(f"Notification validation failed: {e}")
-                raise RuntimeError(f"Notification validation failed (notifications.required=true): {e}")
-            else:
-                self.logger.warning(f"Notification validation failed: {e}")
-                self.logger.warning("Continuing without notifications (notifications.required=false)")
-                self.notification_service = None
-                self.health_check.notification_service = None
+                self.logger.error("Notifications required but initialization failed - continuing anyway")
+                self.logger.error("Notifications will be DISABLED. Fix configuration to enable notifications.")
+            
+            self.notification_service = None
+            self.health_check.notification_service = None
         
         self.logger.info("=" * 80)
         

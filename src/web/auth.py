@@ -3,6 +3,7 @@
 import logging
 from functools import wraps
 from datetime import datetime, timedelta
+from typing import Tuple, Optional
 from flask import session, request, jsonify, redirect, url_for
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,7 @@ def init_auth(app, pin: str):
     
     Args:
         app: Flask application instance
-        pin: PIN for authentication
+        pin: PIN for authentication (can be empty string if not configured)
     """
     # Set a secret key for session management
     if not app.secret_key:
@@ -23,12 +24,18 @@ def init_auth(app, pin: str):
         logger.info("Generated secret key for session management")
     
     # Store PIN in app config
+    # Use HEATTRAX_PIN for consistency with check_pin
+    app.config['HEATTRAX_PIN'] = pin
+    # Keep AUTH_PIN for backward compatibility
     app.config['AUTH_PIN'] = pin
     
     # Session lifetime (24 hours)
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
     
-    logger.info("Authentication initialized")
+    if pin:
+        logger.info("Authentication initialized with PIN")
+    else:
+        logger.warning("Authentication initialized without PIN - PIN not configured")
 
 
 def require_auth(f):
@@ -82,19 +89,31 @@ def require_auth(f):
     return decorated_function
 
 
-def check_pin(app, provided_pin: str) -> bool:
+def check_pin(app, provided_pin: str) -> Tuple[bool, Optional[str]]:
     """
-    Check if provided PIN matches configured PIN.
+    Check if provided PIN is valid.
     
     Args:
         app: Flask application instance
         provided_pin: PIN provided by user
         
     Returns:
-        True if PIN matches, False otherwise
+        Tuple of (is_valid, error_message)
+        - (True, None): PIN is correct
+        - (False, "error message"): PIN is incorrect or not configured
     """
-    configured_pin = app.config.get('AUTH_PIN', '')
-    return provided_pin == configured_pin
+    configured_pin = app.config.get('HEATTRAX_PIN') or app.config.get('AUTH_PIN', '')
+    
+    # Check if PIN is configured at all
+    if not configured_pin:
+        logger.error("No PIN configured for mobile control. Set web.pin in config or HEATTRAX_WEB_PIN environment variable.")
+        return False, "No PIN configured. Contact your administrator."
+    
+    # Check if provided PIN matches
+    if provided_pin == configured_pin:
+        return True, None
+    else:
+        return False, "Invalid PIN"
 
 
 def create_session():

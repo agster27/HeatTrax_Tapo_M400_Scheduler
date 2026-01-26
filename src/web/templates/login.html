@@ -125,6 +125,13 @@
             display: block;
         }
         
+        .error-message.config-error {
+            background: #fff3cd;
+            color: #856404;
+            border: 2px solid #ffc107;
+            font-weight: 600;
+        }
+        
         .loading {
             opacity: 0.6;
             pointer-events: none;
@@ -161,6 +168,12 @@
             input[type="password"]:focus,
             input[type="text"]:focus {
                 border-color: #667eea;
+            }
+            
+            .error-message.config-error {
+                background: #3d3d00;
+                color: #ffc107;
+                border-color: #ffc107;
             }
         }
         
@@ -214,9 +227,18 @@
         const errorDiv = document.getElementById('error');
         
         // Show error message
-        function showError(message) {
+        function showError(message, type = 'user-error') {
             errorDiv.textContent = message;
+            errorDiv.classList.remove('config-error');
             errorDiv.classList.add('show');
+            
+            // Add special styling for config errors
+            // We check both explicit type and message content for robustness
+            // This handles both programmatic calls and API responses
+            if (type === 'config-error' || message.includes('Contact your administrator')) {
+                errorDiv.classList.add('config-error');
+            }
+            
             setTimeout(() => {
                 errorDiv.classList.remove('show');
             }, 5000);
