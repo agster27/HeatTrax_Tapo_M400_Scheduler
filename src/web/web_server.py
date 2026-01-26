@@ -64,7 +64,7 @@ class WebServer:
         import os
         config = config_manager.get_config(include_secrets=False)
         web_config = config.get('web', {})
-        # Check for PIN in config, then environment variable, then None
+        # Check for PIN in config, then environment variable, then empty string
         pin = web_config.get('pin') or os.environ.get('HEATTRAX_WEB_PIN', '')
         init_auth(self.app, pin)
         

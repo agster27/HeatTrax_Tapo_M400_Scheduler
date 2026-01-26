@@ -233,6 +233,8 @@
             errorDiv.classList.add('show');
             
             // Add special styling for config errors
+            // We check both explicit type and message content for robustness
+            // This handles both programmatic calls and API responses
             if (type === 'config-error' || message.includes('Contact your administrator')) {
                 errorDiv.classList.add('config-error');
             }
