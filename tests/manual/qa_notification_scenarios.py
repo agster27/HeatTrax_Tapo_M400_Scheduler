@@ -48,12 +48,11 @@ async def scenario_all_disabled():
         return False
 
 
-async def scenario_email_misconfigured_not_required():
-    """Scenario: Email enabled but misconfigured, notifications.required=false."""
-    print_scenario("Email Misconfigured (required=false)")
+async def scenario_email_misconfigured():
+    """Scenario: Email enabled but misconfigured."""
+    print_scenario("Email Misconfigured")
     
     config = {
-        'required': False,
         'email': {
             'enabled': True,
             'smtp_host': 'smtp.example.com'
@@ -71,37 +70,6 @@ async def scenario_email_misconfigured_not_required():
         return True
     except Exception as e:
         print(f"✗ FAIL: Unexpected error type: {type(e).__name__}: {e}")
-        return False
-
-
-async def scenario_email_misconfigured_required():
-    """Scenario: Email enabled but misconfigured, notifications.required=true."""
-    print_scenario("Email Misconfigured (required=true)")
-    
-    config = {
-        'required': True,
-        'email': {
-            'enabled': True,
-            'smtp_host': 'smtp.example.com'
-            # Missing other required fields
-        }
-    }
-    
-    try:
-        success, service = await validate_and_test_notifications(
-            config,
-            test_connectivity=False,
-            send_test=False
-        )
-        if not success:
-            print(f"✓ Validation failed as expected (required=true)")
-            print("✓ PASS: Required validation works correctly")
-            return True
-        else:
-            print(f"✗ FAIL: Validation should have failed with required=true")
-            return False
-    except Exception as e:
-        print(f"✗ FAIL: Unexpected error: {type(e).__name__}: {e}")
         return False
 
 
@@ -248,8 +216,7 @@ async def run_all_scenarios():
     
     scenarios = [
         ("All Disabled", scenario_all_disabled),
-        ("Email Misconfigured (not required)", scenario_email_misconfigured_not_required),
-        ("Email Misconfigured (required)", scenario_email_misconfigured_required),
+        ("Email Misconfigured", scenario_email_misconfigured),
         ("Valid Config", scenario_valid_config_no_connectivity),
         ("Routing Config", scenario_routing_configuration),
         ("Invalid Webhook URL", scenario_webhook_invalid_url),

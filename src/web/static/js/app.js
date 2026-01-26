@@ -1738,7 +1738,6 @@ const FORM_FIELDS = {
         { path: 'health_server.port', label: 'Health Check API Port (default: 4329)', type: 'number' }
     ],
     'Notifications - Global': [
-        { path: 'notifications.required', label: 'Notifications Required', type: 'checkbox' },
         { path: 'notifications.test_on_startup', label: 'Test Notifications on Startup', type: 'checkbox' }
     ],
     'Notifications - Email': [

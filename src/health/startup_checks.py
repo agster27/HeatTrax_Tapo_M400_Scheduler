@@ -450,11 +450,8 @@ def check_notification_config(config_data: Optional[Dict]) -> bool:
     
     notifications_config = config_data.get('notifications', {})
     
-    # Check if notifications are required
-    required = notifications_config.get('required', False)
     test_on_startup = notifications_config.get('test_on_startup', False)
     
-    print(f"  notifications.required: {required}")
     print(f"  notifications.test_on_startup: {test_on_startup}")
     
     # Check email config
@@ -473,8 +470,6 @@ def check_notification_config(config_data: Optional[Dict]) -> bool:
             print(f"    ✗ Missing required fields: {', '.join(missing_fields)}")
             print(f"      Disable email notifications or fix the configuration.")
             print(f"      See HEALTH_CHECK.md for configuration details.")
-            if required:
-                return False  # Critical failure if notifications are required
         else:
             print(f"    ✓ Configuration fields present")
     else:
@@ -493,8 +488,6 @@ def check_notification_config(config_data: Optional[Dict]) -> bool:
             print(f"    ✗ Missing required field: url")
             print(f"      Disable webhook notifications or fix the configuration.")
             print(f"      See HEALTH_CHECK.md for configuration details.")
-            if required:
-                return False  # Critical failure if notifications are required
         else:
             print(f"    ✓ Configuration fields present")
             print(f"    URL: {webhook_config['url']}")
@@ -508,8 +501,6 @@ def check_notification_config(config_data: Optional[Dict]) -> bool:
     
     if not email_enabled and not webhook_enabled:
         print(f"\n  ✓ All notification providers disabled (this is acceptable)")
-    elif required and (email_enabled or webhook_enabled):
-        print(f"\n  ⚠ Notifications are required - will perform full validation at startup")
     
     return True
 

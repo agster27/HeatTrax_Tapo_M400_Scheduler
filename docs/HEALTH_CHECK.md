@@ -519,14 +519,10 @@ notifications:
 
 Environment variables:
 ```bash
-HEATTRAX_NOTIFICATIONS_REQUIRED=false
 HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP=false
 ```
 
 **Behavior:**
-- **`notifications.required`**: Controls whether misconfigured enabled providers cause startup failure
-  - `false` (default): Log errors but allow startup to continue
-  - `true`: Startup fails if an enabled provider is misconfigured or unreachable
 - **`notifications.test_on_startup`**: Send test notification after successful validation
   - `false` (default): No test notification
   - `true`: Send test notification to all enabled providers on startup
@@ -534,6 +530,8 @@ HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP=false
   - If not specified: All events go to all enabled providers (default behavior)
   - If specified for an event: Only send to providers marked `true` for that event
   - Unknown event types are sent to all providers
+
+**Note:** Notification configuration errors will be logged but will never prevent the application from starting. Notifications are a non-critical feature.
 
 #### Email Notifications
 
@@ -889,19 +887,6 @@ class SlackNotificationProvider(NotificationProvider):
 4. Test connectivity with `test_on_startup: true`
 5. Check webhook endpoint logs for received requests
 6. Ensure firewall allows outbound HTTPS connections
-
-### Notifications Required but Startup Failing
-
-If you've set `notifications.required: true` and startup is failing:
-
-1. Check startup logs for detailed error messages
-2. Verify all required fields are configured for enabled providers
-3. Test SMTP/webhook connectivity manually
-4. Temporarily set `required: false` to diagnose issues
-5. Use `test_on_startup: true` to verify configuration before making it required
-3. Check SMTP server and port are correct
-4. Try `use_tls: false` if connection fails with TLS
-5. Review logs for SMTP error messages
 
 ### Webhook Notifications Not Working
 
