@@ -227,7 +227,6 @@ class TestConfigManagerNotifications(unittest.TestCase):
         
         # Verify mixed state
         updated_config = self.config_manager.get_config(include_secrets=False)
-        self.assertFalse(updated_config['notifications']['required'])
         self.assertFalse(updated_config['notifications']['test_on_startup'])
         self.assertTrue(updated_config['notifications']['email']['enabled'])
         
@@ -235,7 +234,6 @@ class TestConfigManagerNotifications(unittest.TestCase):
         with open(self.config_path, 'r') as f:
             disk_config = yaml.safe_load(f)
         
-        self.assertFalse(disk_config['notifications']['required'])
         self.assertFalse(disk_config['notifications']['test_on_startup'])
         self.assertTrue(disk_config['notifications']['email']['enabled'])
     
@@ -243,9 +241,8 @@ class TestConfigManagerNotifications(unittest.TestCase):
         """
         Test that notification flags persist correctly after reloading ConfigManager.
         """
-        # Enable all flags
+        # Enable flags
         config = self.config_manager.get_config(include_secrets=True)
-        config['notifications']['required'] = True
         config['notifications']['test_on_startup'] = True
         config['notifications']['email']['enabled'] = True
         
@@ -257,7 +254,6 @@ class TestConfigManagerNotifications(unittest.TestCase):
         
         # Verify the flags are still True
         reloaded_config = new_config_manager.get_config(include_secrets=False)
-        self.assertTrue(reloaded_config['notifications']['required'])
         self.assertTrue(reloaded_config['notifications']['test_on_startup'])
         self.assertTrue(reloaded_config['notifications']['email']['enabled'])
 
