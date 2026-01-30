@@ -421,3 +421,118 @@ input {
     min-height: 44px;
     min-width: 44px;
 }
+
+/* Modal styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+    background: var(--container-bg);
+    border-radius: 20px;
+    padding: 30px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: var(--shadow-lg);
+    animation: slideUp 0.3s ease;
+}
+
+.modal-content h3 {
+    margin: 0 0 10px 0;
+    color: var(--text-color);
+    font-size: 22px;
+}
+
+.modal-description {
+    color: var(--text-secondary);
+    margin: 0 0 25px 0;
+    font-size: 15px;
+}
+
+.duration-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.duration-btn {
+    background: var(--container-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 18px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.duration-btn:hover,
+.duration-btn:active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    transform: scale(1.02);
+}
+
+.duration-btn:hover .duration-time,
+.duration-btn:hover .duration-desc,
+.duration-btn:active .duration-time,
+.duration-btn:active .duration-desc {
+    color: white;
+}
+
+.duration-time {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.duration-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.cancel-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--text-secondary);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cancel-btn:active {
+    transform: scale(0.98);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}

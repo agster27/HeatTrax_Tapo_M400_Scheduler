@@ -1929,10 +1929,14 @@ class WebServer:
         def api_mat_control():
             """
             Control a specific device group.
-            
+
             Expects:
-                JSON: {"group": "group_name", "action": "on" or "off"}
-            
+                JSON: {
+                    "group": "group_name", 
+                    "action": "on" or "off",
+                    "timeout_hours": 3.0 (optional, defaults to configured value)
+                }
+
             Returns:
                 JSON: Control operation result
             """
@@ -1950,6 +1954,7 @@ class WebServer:
                     data = request.get_json()
                     group_name = data.get('group')
                     action = data.get('action')
+                    timeout_hours = data.get('timeout_hours')
                     
                     if not group_name or not action:
                         return jsonify({
@@ -1978,8 +1983,23 @@ class WebServer:
                             'error': f"Group '{group_name}' not found"
                         }), 404
                     
-                    # Get timeout from group-specific config or fall back to global
-                    timeout_hours = self._get_manual_override_hours(group_name)
+                    # Use provided timeout or fall back to configured default
+                    if timeout_hours is None:
+                        timeout_hours = self._get_manual_override_hours(group_name)
+                    else:
+                        # Validate timeout_hours
+                        try:
+                            timeout_hours = float(timeout_hours)
+                            if timeout_hours <= 0 or timeout_hours > 24:
+                                return jsonify({
+                                    'success': False,
+                                    'error': 'timeout_hours must be between 0 and 24'
+                                }), 400
+                        except (ValueError, TypeError):
+                            return jsonify({
+                                'success': False,
+                                'error': 'timeout_hours must be a number'
+                            }), 400
                     
                     # Set manual override
                     self.manual_override.set_override(group_name, action, timeout_hours)

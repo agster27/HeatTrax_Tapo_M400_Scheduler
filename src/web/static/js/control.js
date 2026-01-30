@@ -3,6 +3,7 @@
 let currentGroup = null;
 let autoRefreshInterval = null;
 let countdownInterval = null;
+let pendingAction = null;
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
@@ -214,6 +215,60 @@ async function handleControlClick() {
     const isCurrentlyOn = controlBtn.classList.contains('on');
     const action = isCurrentlyOn ? 'off' : 'on';
     
+    // Store the pending action
+    pendingAction = action;
+    
+    // Show duration selection modal
+    showDurationModal();
+}
+
+/**
+ * Show duration selection modal
+ */
+function showDurationModal() {
+    const modal = document.getElementById('durationModal');
+    modal.style.display = 'flex';
+    
+    // Set up duration button listeners
+    const durationBtns = modal.querySelectorAll('.duration-btn');
+    durationBtns.forEach(btn => {
+        btn.onclick = () => {
+            const hours = parseFloat(btn.dataset.hours);
+            hideDurationModal();
+            executeControl(hours);
+        };
+    });
+    
+    // Set up cancel button
+    document.getElementById('cancelDurationBtn').onclick = () => {
+        hideDurationModal();
+        pendingAction = null;
+    };
+    
+    // Close on background click
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            hideDurationModal();
+            pendingAction = null;
+        }
+    };
+}
+
+/**
+ * Hide duration selection modal
+ */
+function hideDurationModal() {
+    document.getElementById('durationModal').style.display = 'none';
+}
+
+/**
+ * Execute the control action with selected duration
+ */
+async function executeControl(timeoutHours) {
+    if (!pendingAction) return;
+    
+    const controlBtn = document.getElementById('controlBtn');
+    
     // Set loading state
     controlBtn.classList.add('loading');
     controlBtn.classList.remove('on', 'off');
@@ -228,7 +283,8 @@ async function handleControlClick() {
             },
             body: JSON.stringify({
                 group: currentGroup,
-                action: action
+                action: pendingAction,
+                timeout_hours: timeoutHours
             })
         });
         
@@ -244,7 +300,6 @@ async function handleControlClick() {
         const data = await response.json();
         
         if (data.success) {
-            // Update UI with new status
             updateUI(data.groups);
             hideError();
         } else {
@@ -253,9 +308,9 @@ async function handleControlClick() {
     } catch (error) {
         console.error('Control action failed:', error);
         showError('Failed to control device. ' + error.message);
-        
-        // Refresh status to get current state
         await fetchStatus();
+    } finally {
+        pendingAction = null;
     }
 }
 

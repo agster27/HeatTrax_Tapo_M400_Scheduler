@@ -89,6 +89,31 @@
                 </button>
             </div>
         </div>
+        
+        <!-- Duration Selection Modal -->
+        <div id="durationModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h3>Select Override Duration</h3>
+                <p class="modal-description">How long should manual mode stay active?</p>
+                
+                <div class="duration-options">
+                    <button class="duration-btn" data-hours="3">
+                        <span class="duration-time">3 Hours</span>
+                        <span class="duration-desc">Short override</span>
+                    </button>
+                    <button class="duration-btn" data-hours="6">
+                        <span class="duration-time">6 Hours</span>
+                        <span class="duration-desc">Medium override</span>
+                    </button>
+                    <button class="duration-btn" data-hours="9">
+                        <span class="duration-time">9 Hours</span>
+                        <span class="duration-desc">Long override</span>
+                    </button>
+                </div>
+                
+                <button id="cancelDurationBtn" class="cancel-btn">Cancel</button>
+            </div>
+        </div>
     </div>
     
     <script src="{{ url_for('static', filename='js/control.js') }}"></script>
