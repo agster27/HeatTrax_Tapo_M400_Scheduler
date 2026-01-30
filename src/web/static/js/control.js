@@ -4,6 +4,7 @@ let currentGroup = null;
 let autoRefreshInterval = null;
 let countdownInterval = null;
 let pendingAction = null;
+let durationModalHandlers = null;
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
@@ -229,28 +230,62 @@ function showDurationModal() {
     const modal = document.getElementById('durationModal');
     modal.style.display = 'flex';
     
-    // Set up duration button listeners
+    // Remove existing handlers if they exist
+    if (durationModalHandlers) {
+        modal.removeEventListener('click', durationModalHandlers.modalClick);
+        document.removeEventListener('keydown', durationModalHandlers.escapeKey);
+        document.getElementById('cancelDurationBtn').removeEventListener('click', durationModalHandlers.cancelClick);
+        durationModalHandlers.durationBtns.forEach((btn, index) => {
+            btn.removeEventListener('click', durationModalHandlers.durationClicks[index]);
+        });
+    }
+    
+    // Create new handlers
     const durationBtns = modal.querySelectorAll('.duration-btn');
+    const durationClicks = [];
+    
     durationBtns.forEach(btn => {
-        btn.onclick = () => {
+        const handler = () => {
             const hours = parseFloat(btn.dataset.hours);
             hideDurationModal();
             executeControl(hours);
         };
+        durationClicks.push(handler);
+        btn.addEventListener('click', handler);
     });
     
-    // Set up cancel button
-    document.getElementById('cancelDurationBtn').onclick = () => {
+    // Cancel button handler
+    const cancelClick = () => {
         hideDurationModal();
         pendingAction = null;
     };
+    document.getElementById('cancelDurationBtn').addEventListener('click', cancelClick);
     
-    // Close on background click
-    modal.onclick = (e) => {
+    // Background click handler
+    const modalClick = (e) => {
         if (e.target === modal) {
             hideDurationModal();
             pendingAction = null;
         }
+    };
+    modal.addEventListener('click', modalClick);
+    
+    // Escape key handler
+    const escapeKey = (e) => {
+        if (e.key === 'Escape') {
+            hideDurationModal();
+            pendingAction = null;
+        }
+    };
+    document.addEventListener('keydown', escapeKey);
+    
+    // Store handlers for cleanup
+    durationModalHandlers = {
+        durationBtns: durationBtns,
+        durationClicks: durationClicks,
+        cancelClick: cancelClick,
+        modalClick: modalClick,
+        escapeKey: escapeKey
     };
 }
 
@@ -258,7 +293,19 @@ function showDurationModal() {
  * Hide duration selection modal
  */
 function hideDurationModal() {
-    document.getElementById('durationModal').style.display = 'none';
+    const modal = document.getElementById('durationModal');
+    modal.style.display = 'none';
+    
+    // Clean up event listeners
+    if (durationModalHandlers) {
+        modal.removeEventListener('click', durationModalHandlers.modalClick);
+        document.removeEventListener('keydown', durationModalHandlers.escapeKey);
+        document.getElementById('cancelDurationBtn').removeEventListener('click', durationModalHandlers.cancelClick);
+        durationModalHandlers.durationBtns.forEach((btn, index) => {
+            btn.removeEventListener('click', durationModalHandlers.durationClicks[index]);
+        });
+        durationModalHandlers = null;
+    }
 }
 
 /**
@@ -268,6 +315,7 @@ async function executeControl(timeoutHours) {
     if (!pendingAction) return;
     
     const controlBtn = document.getElementById('controlBtn');
+    const originalAction = pendingAction;
     
     // Set loading state
     controlBtn.classList.add('loading');
@@ -308,6 +356,18 @@ async function executeControl(timeoutHours) {
     } catch (error) {
         console.error('Control action failed:', error);
         showError('Failed to control device. ' + error.message);
+        
+        // Restore button state on error
+        controlBtn.classList.remove('loading');
+        if (originalAction === 'on') {
+            controlBtn.classList.add('off');
+            controlBtn.querySelector('.btn-text').textContent = 'TURN ON';
+        } else {
+            controlBtn.classList.add('on');
+            controlBtn.querySelector('.btn-text').textContent = 'TURN OFF';
+        }
+        controlBtn.disabled = false;
+        
         await fetchStatus();
     } finally {
         pendingAction = null;

@@ -480,14 +480,18 @@ input {
 }
 
 .duration-btn:hover,
+.duration-btn:focus,
 .duration-btn:active {
     background: var(--accent-color);
     border-color: var(--accent-color);
     transform: scale(1.02);
+    outline: none;
 }
 
 .duration-btn:hover .duration-time,
 .duration-btn:hover .duration-desc,
+.duration-btn:focus .duration-time,
+.duration-btn:focus .duration-desc,
 .duration-btn:active .duration-time,
 .duration-btn:active .duration-desc {
     color: white;
@@ -515,6 +519,11 @@ input {
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
+}
+
+.cancel-btn:hover {
+    opacity: 0.85;
+    transform: scale(1.01);
 }
 
 .cancel-btn:active {

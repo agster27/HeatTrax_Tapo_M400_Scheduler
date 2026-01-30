@@ -1993,7 +1993,7 @@ class WebServer:
                             if timeout_hours <= 0 or timeout_hours > 24:
                                 return jsonify({
                                     'success': False,
-                                    'error': 'timeout_hours must be between 0 and 24'
+                                    'error': 'timeout_hours must be greater than 0 and less than or equal to 24'
                                 }), 400
                         except (ValueError, TypeError):
                             return jsonify({
