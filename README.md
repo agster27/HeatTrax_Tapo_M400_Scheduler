@@ -45,7 +45,7 @@ HeatTrax Scheduler includes powerful features for automated device control:
 - ✅ **Real-time status** of devices, weather, and scheduler
 - ✅ **Manual device control** - Turn devices and outlets on/off from the Health page
 - ✅ **Configuration editor** with validation and hot-reload
-- ✅ **Secure by default** - binds to localhost only
+- ✅ **Network accessible** - binds to `0.0.0.0` by default (configure `bind_host: 127.0.0.1` for localhost-only)
 - ✅ **Multi-device group support** with independent automation rules
 - ✅ **Weather resilience** with caching and automatic recovery
 - ✅ **Comprehensive notifications** via email and webhook
@@ -167,7 +167,7 @@ HEATTRAX_WEB_MANUAL_OVERRIDE_TIMEOUT_HOURS=3
 **Override not clearing**:
 - Check logs for manual override status
 - Verify timeout is configured correctly
-- State is persisted in `data/manual_override.json`
+- State is persisted in `state/automation_overrides.json`
 
 ## Features
 
@@ -588,12 +588,11 @@ devices:
 
 **Important**: The `location.timezone` setting controls how all time-of-day based automation rules are interpreted:
 
-- **Morning Mode**: `morning_mode.start_hour` and `end_hour` are in the configured timezone
-- **Schedule Control**: `schedule.on_time` and `off_time` are in the configured timezone
+- **Schedules**: All schedule times (clock-based `on_time`/`off_time` and solar-based `sunrise`/`sunset`) are evaluated in the configured timezone
 - **Container Timezone**: Does not matter - all times are evaluated in `location.timezone`
 
-**Example**: With `timezone: "America/New_York"` and `morning_mode.start_hour: 6` / `end_hour: 11`:
-- Morning mode is active between 06:00 and 11:00 **Eastern Time**
+**Example**: With `timezone: "America/New_York"` and a schedule with `on_time: "06:00"` and `off_time: "11:00"`:
+- The schedule is active between 06:00 and 11:00 **Eastern Time**
 - Even if the container is running in UTC, the scheduler correctly uses Eastern Time
 - This ensures your automation rules work as expected regardless of where the container runs
 
@@ -626,13 +625,15 @@ If you have an old single-device configuration (using `device:` instead of `devi
 
 ### Automation Control via Web UI
 
+> ⚠️ **Deprecated**: The legacy automation toggles (`weather_control`, `precipitation_control`, `morning_mode`) are deprecated and have been replaced by the unified conditional scheduling system. These toggles are still available in the Web UI for backward compatibility with existing configurations but will be removed in a future version. Please migrate to the `schedules` configuration format. See the [Scheduling Guide](SCHEDULING.md) for details.
+
 Automation flags can be toggled via the Web UI without editing `config.yaml`:
 
 1. Navigate to the **Groups** tab in the Web UI
 2. Each group displays toggles for:
-   - **Weather Control**: Enable/disable weather-based automation
-   - **Precipitation Control**: Enable/disable precipitation forecasting
-   - **Morning Mode**: Enable/disable early morning black ice protection
+   - **Weather Control**: Enable/disable weather-based automation *(deprecated)*
+   - **Precipitation Control**: Enable/disable precipitation forecasting *(deprecated)*
+   - **Morning Mode**: Enable/disable early morning black ice protection *(deprecated)*
 3. Toggle any flag to override the base configuration from `config.yaml`
 4. Changes apply immediately (no restart required)
 5. Overrides are stored in `state/automation_overrides.json`
@@ -889,7 +890,7 @@ services:
 
 ## Configuration
 
-See [Configuration Modes](#configuration-modes) above for an overview of single-device vs multi-device configurations.
+The system supports both single-device and multi-device configurations using the `devices` array format.
 
 ### Location Settings
 
@@ -1000,6 +1001,8 @@ thresholds:
 ```
 
 ### Morning Mode (Optional)
+
+> ⚠️ **Deprecated**: The standalone `morning_mode` configuration is deprecated and has been replaced by the unified conditional scheduling system. This configuration is still supported for backward compatibility but will be removed in a future version. Please migrate to the `schedules` configuration format. See the [Scheduling Guide](SCHEDULING.md) for details on how to configure morning schedules with temperature conditions.
 
 Black ice protection - enables mats early in the morning if temperature is low.
 
@@ -1121,7 +1124,7 @@ This scheduler uses the [python-kasa](https://github.com/python-kasa/python-kasa
 
 **Important**: Tapo devices (EP40M, etc.) require authenticated access:
 
-1. **Credentials are mandatory**: The scheduler will fail to start if `HEATTRAX_TAPO_USERNAME` or `HEATTRAX_TAPO_PASSWORD` are not set
+1. **Credentials are required**: If `HEATTRAX_TAPO_USERNAME` or `HEATTRAX_TAPO_PASSWORD` are not set, the scheduler will start in setup mode with device control disabled (see [Setup Mode](#setup-mode) section)
 2. **Cloud authentication**: Tapo devices authenticate against TP-Link cloud services using your Tapo account credentials
 3. **No legacy protocol**: Tapo devices do NOT support the legacy Kasa IOT protocol (port 9999), so older connection methods will fail
 4. **Discovery method**: The scheduler uses `Discover.discover_single()` with credentials to establish authenticated connections
