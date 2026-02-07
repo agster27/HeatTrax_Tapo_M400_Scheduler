@@ -178,8 +178,10 @@ HEATTRAX_TAPO_PASSWORD=your_tapo_password
 # Note: Device IPs are configured in config.yaml under devices.groups
 
 # Optional: Override defaults
+# DEPRECATED: Use schedules with conditions instead
 HEATTRAX_THRESHOLD_TEMP_F=34
 HEATTRAX_LEAD_TIME_MINUTES=60
+# DEPRECATED: Use schedule type 'morning' instead
 HEATTRAX_MORNING_MODE_ENABLED=true
 HEATTRAX_LOG_LEVEL=INFO
 ```
@@ -309,6 +311,8 @@ Before relying on the scheduler, test it manually:
 
 ### Adjust Temperature Threshold
 
+> ⚠️ **Deprecated**: The `thresholds` configuration block is deprecated. Use per-schedule `conditions` in the `schedules` configuration instead. See [SCHEDULING.md](../SCHEDULING.md) for the modern approach.
+
 If you want mats to activate at a different temperature:
 
 ```yaml
@@ -318,6 +322,8 @@ thresholds:
 
 ### Change Lead Time
 
+> ⚠️ **Deprecated**: The `thresholds.lead_time_minutes` setting is deprecated. Use per-schedule `conditions` with `lead_time_minutes` instead. See [SCHEDULING.md](../SCHEDULING.md) for details.
+
 To turn mats on earlier before precipitation:
 
 ```yaml
@@ -326,6 +332,8 @@ thresholds:
 ```
 
 ### Disable Morning Mode
+
+> ⚠️ **Deprecated**: The standalone `morning_mode` configuration is deprecated. Use schedule entries of type `morning` in the `schedules` configuration instead. See [SCHEDULING.md](../SCHEDULING.md) for details.
 
 If you don't want the morning frost-clearing mode:
 
