@@ -45,14 +45,6 @@ Current and historical development documentation:
 - **[Refactoring Plan](../REFACTOR.md)** - v2.0 refactoring plan and roadmap
 - **[Testing Guide](../TESTING.md)** - Comprehensive testing suite documentation
 
-### Archive
-
-Historical documentation and completed refactors:
-
-- **[REFACTOR_V1.md](REFACTOR_V1.md)** - v1.0 refactor summary (completed)
-- **[Phase4_WebUI_Implementation.md](Phase4_WebUI_Implementation.md)** - ⚠️ DEPRECATED: Phase 4 Web UI implementation summary (completed)
-- **[MOBILE_CONTROL_UI.md](MOBILE_CONTROL_UI.md)** - ⚠️ DEPRECATED: Mobile control interface UI specification (see README for current docs)
-
 ## 📖 Recommended Reading Order
 
 1. **First Time Setup**: Start with [QUICKSTART.md](QUICKSTART.md) for a 5-minute setup

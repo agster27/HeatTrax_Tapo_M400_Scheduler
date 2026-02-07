@@ -359,47 +359,6 @@ HEATTRAX_WEB_MANUAL_OVERRIDE_TIMEOUT_HOURS=3
 - Network access to the smart plug (local network)
 - Internet access for Tapo cloud authentication (required for device control)
 
-## ⚠️ Deprecated Features
-
-The following features have been **deprecated** and replaced with the unified conditional scheduling system:
-
-### Removed from UI (as of latest version)
-- **Legacy automation toggles**: `weather_control`, `precipitation_control`, `morning_mode` toggles in Groups tab
-- **Threshold configuration**: `lead_time_minutes`, `trailing_time_minutes`, `temperature_f` in Configuration tab
-- **Morning mode settings**: `morning_mode.enabled`, `start_hour`, `end_hour` in Configuration tab
-
-### Migration to New System
-All automation is now handled via **schedules** in `config.yaml`. The new system provides:
-- ✅ More flexibility with multiple schedules per group
-- ✅ Per-schedule temperature and precipitation conditions
-- ✅ Solar-based timing (sunrise/sunset with offsets)
-- ✅ Priority system for conflict resolution
-- ✅ Day-of-week filtering
-
-**Example**: To replace morning mode with a schedule:
-```yaml
-schedules:
-  - name: "Morning Black Ice Protection"
-    enabled: true
-    priority: "critical"
-    days: [1,2,3,4,5]  # Weekdays
-    on:
-      type: "time"
-      value: "06:00"
-    off:
-      type: "time"
-      value: "08:00"
-    conditions:
-      temperature_max: 32  # Only run if temp <= 32°F
-```
-
-See the [Scheduling Guide](SCHEDULING.md) for complete documentation and migration examples.
-
-### Backward Compatibility
-- Old `thresholds` and `morning_mode` config sections are still parsed but **not required**
-- Backend code that uses these sections continues to work for existing configurations
-- **Recommendation**: Migrate to schedule-based system for new deployments
-
 ## Setup Mode
 
 **New in v1.2**: HeatTrax now includes a "setup mode" that allows the application to start even when Tapo credentials are missing or invalid.
