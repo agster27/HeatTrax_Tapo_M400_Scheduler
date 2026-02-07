@@ -1022,12 +1022,35 @@ http://localhost:4328
 
 ### Authentication
 
-**Current Status:** No authentication required (v1.x)
+**Desktop Dashboard:** ❌ No authentication required
 
-**Future:** Authentication planned for future releases. For now:
-- Bind to `127.0.0.1` (localhost only) for security
+Most API endpoints, including schedule management, do not require authentication. The desktop dashboard (`/`, `/ui`) and most API endpoints are accessible without authentication.
+
+**Mobile Control:** ✅ PIN authentication required
+
+Mobile control routes (`/control` page and `/api/mat/*` endpoints) require PIN authentication via session cookie:
+
+**Protected endpoints:**
+- `GET /api/mat/status` - Get mat status for all groups
+- `POST /api/mat/control` - Control group with timeout
+- `POST /api/mat/reset-auto` - Clear manual override
+
+**Authentication flow:**
+1. User visits `/control/login`
+2. User submits PIN via `POST /api/auth/login`
+3. Server creates session cookie (24-hour lifetime)
+4. Session cookie is used for subsequent requests to protected endpoints
+
+**Configure PIN:**
+- `config.yaml`: `web.pin`
+- Environment variable: `HEATTRAX_WEB_PIN`
+
+**Security recommendations:**
+- Bind to `127.0.0.1` (localhost only) for maximum security
 - Do not expose to the internet without a reverse proxy
 - Use firewall rules to restrict access
+
+**See also:** Complete API documentation in **[API Reference](docs/API_REFERENCE.md)**
 
 ### Endpoints
 
@@ -1334,6 +1357,486 @@ curl -X PATCH http://localhost:4328/api/groups/driveway_heating/automation \
   }
 }
 ```
+
+#### `GET /api/groups/{group}/schedules`
+
+**Description:** Get all schedules for a group
+
+**Request:**
+```bash
+curl http://localhost:4328/api/groups/driveway_heating/schedules
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "group": "driveway_heating",
+  "schedules": [
+    {
+      "index": 0,
+      "name": "Morning Black Ice",
+      "enabled": true,
+      "type": "time",
+      "on_time": "06:00",
+      "off_time": "09:00",
+      "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      "conditions": {
+        "temperature_max_f": 32.0
+      },
+      "priority": "critical"
+    },
+    {
+      "index": 1,
+      "name": "Evening Protection",
+      "enabled": true,
+      "type": "solar_offset",
+      "on_offset": -60,
+      "off_offset": 30,
+      "days": ["Saturday", "Sunday"]
+    }
+  ]
+}
+```
+
+#### `POST /api/groups/{group}/schedules`
+
+**Description:** Add a new schedule to a group
+
+**Request:**
+```bash
+curl -X POST http://localhost:4328/api/groups/driveway_heating/schedules \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Weekend Warming",
+    "enabled": true,
+    "type": "time",
+    "on_time": "07:00",
+    "off_time": "11:00",
+    "days": ["Saturday", "Sunday"]
+  }'
+```
+
+**Response (201 Created):**
+```json
+{
+  "status": "ok",
+  "message": "Schedule added successfully",
+  "schedule_index": 2
+}
+```
+
+#### `GET /api/groups/{group}/schedules/{index}`
+
+**Description:** Get a specific schedule by index
+
+**Request:**
+```bash
+curl http://localhost:4328/api/groups/driveway_heating/schedules/0
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "schedule": {
+    "index": 0,
+    "name": "Morning Black Ice",
+    "enabled": true,
+    "type": "time",
+    "on_time": "06:00",
+    "off_time": "09:00",
+    "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    "conditions": {
+      "temperature_max_f": 32.0
+    },
+    "priority": "critical"
+  }
+}
+```
+
+#### `PUT /api/groups/{group}/schedules/{index}`
+
+**Description:** Update a specific schedule
+
+**Request:**
+```bash
+curl -X PUT http://localhost:4328/api/groups/driveway_heating/schedules/0 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated Morning Black Ice",
+    "enabled": true,
+    "type": "time",
+    "on_time": "05:30",
+    "off_time": "09:30",
+    "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    "conditions": {
+      "temperature_max_f": 32.0
+    }
+  }'
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "message": "Schedule updated successfully"
+}
+```
+
+#### `DELETE /api/groups/{group}/schedules/{index}`
+
+**Description:** Delete a specific schedule
+
+**Request:**
+```bash
+curl -X DELETE http://localhost:4328/api/groups/driveway_heating/schedules/2
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "message": "Schedule deleted successfully"
+}
+```
+
+#### `PUT /api/groups/{group}/schedules/{index}/enabled`
+
+**Description:** Toggle a schedule enabled/disabled status
+
+**Request:**
+```bash
+curl -X PUT http://localhost:4328/api/groups/driveway_heating/schedules/0/enabled \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled": false
+  }'
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "message": "Schedule disabled successfully"
+}
+```
+
+#### `GET /api/weather/forecast`
+
+**Description:** Get cached weather forecast data with black ice detection
+
+**Request:**
+```bash
+curl http://localhost:4328/api/weather/forecast
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "last_update": "2025-11-23T14:00:00",
+  "forecast": [
+    {
+      "time": "2025-11-23T15:00:00",
+      "temperature_f": 28.5,
+      "conditions": "Clear",
+      "precipitation_chance": 0.0,
+      "black_ice_risk": true
+    }
+  ]
+}
+```
+
+#### `GET /api/weather/mat-forecast`
+
+**Description:** Get predicted mat ON/OFF windows per group over forecast horizon
+
+**Request:**
+```bash
+curl http://localhost:4328/api/weather/mat-forecast
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "forecast_start": "2025-11-23T15:00:00",
+  "forecast_end": "2025-11-26T15:00:00",
+  "groups": {
+    "driveway_heating": {
+      "windows": [
+        {
+          "start": "2025-11-23T18:00:00",
+          "end": "2025-11-24T09:00:00",
+          "reason": "Temperature below 32°F threshold"
+        }
+      ]
+    }
+  }
+}
+```
+
+#### `GET /api/vacation_mode`
+
+**Description:** Get current vacation mode status
+
+**Request:**
+```bash
+curl http://localhost:4328/api/vacation_mode
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "vacation_mode": false
+}
+```
+
+#### `PUT /api/vacation_mode`
+
+**Description:** Set vacation mode status (persists to config.yaml)
+
+**Request:**
+```bash
+curl -X PUT http://localhost:4328/api/vacation_mode \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled": true
+  }'
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "message": "Vacation mode enabled",
+  "vacation_mode": true
+}
+```
+
+#### `GET /api/config/download`
+
+**Description:** Download the current config.yaml file
+
+**Request:**
+```bash
+curl http://localhost:4328/api/config/download -o config.yaml
+```
+
+**Response (200 OK):**
+- Content-Type: `application/x-yaml`
+- Content-Disposition: `attachment; filename=config.yaml`
+- Body: YAML file contents
+
+#### `POST /api/config/upload`
+
+**Description:** Upload and validate a new config.yaml file (creates backup before applying)
+
+**Request:**
+```bash
+curl -X POST http://localhost:4328/api/config/upload \
+  -F "file=@config.yaml"
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "message": "Configuration uploaded and validated successfully. Backup created at config.yaml.backup"
+}
+```
+
+#### `POST /api/restart`
+
+**Description:** Trigger application restart (requires Docker restart policy)
+
+**Request:**
+```bash
+curl -X POST http://localhost:4328/api/restart
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "message": "Application is restarting..."
+}
+```
+
+#### Mobile Control Endpoints (PIN-protected)
+
+These endpoints require PIN authentication via session cookie. See [Authentication](#authentication) section.
+
+##### `POST /api/auth/login`
+
+**Description:** Authenticate with PIN (creates 24-hour session)
+
+**Authentication:** ❌ Not required (this is the login endpoint)
+
+**Request:**
+```bash
+curl -X POST http://localhost:4328/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pin": "1234"
+  }'
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Login successful"
+}
+```
+
+**Response (401 Unauthorized):**
+```json
+{
+  "success": false,
+  "error": "Invalid PIN"
+}
+```
+
+##### `GET /api/mat/status`
+
+**Description:** Get mat status for all groups
+
+**Authentication:** ✅ Required (PIN session)
+
+**Request:**
+```bash
+curl http://localhost:4328/api/mat/status \
+  -H "Cookie: session=<session_cookie>"
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "groups": {
+    "heated_mats": {
+      "state": "on",
+      "mode": "manual",
+      "temperature_f": 28.5,
+      "manual_override": {
+        "active": true,
+        "expires_at": "2025-11-23T18:30:00"
+      }
+    }
+  }
+}
+```
+
+##### `POST /api/mat/control`
+
+**Description:** Control a group with optional timeout (sets manual override)
+
+**Authentication:** ✅ Required (PIN session)
+
+**Request:**
+```bash
+curl -X POST http://localhost:4328/api/mat/control \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=<session_cookie>" \
+  -d '{
+    "group": "heated_mats",
+    "action": "on",
+    "timeout_hours": 3
+  }'
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "message": "Group 'heated_mats' turned on. Manual override set for 3 hours.",
+  "expires_at": "2025-11-23T18:30:00"
+}
+```
+
+##### `POST /api/mat/reset-auto`
+
+**Description:** Clear manual override and resume automatic control
+
+**Authentication:** ✅ Required (PIN session)
+
+**Request:**
+```bash
+curl -X POST http://localhost:4328/api/mat/reset-auto \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=<session_cookie>" \
+  -d '{
+    "group": "heated_mats"
+  }'
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "message": "Manual override cleared for 'heated_mats'. Scheduler will resume automatic control."
+}
+```
+
+#### Notification Endpoints
+
+##### `GET /api/notifications/status`
+
+**Description:** Get notification provider health status
+
+**Request:**
+```bash
+curl http://localhost:4328/api/notifications/status
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "providers": {
+    "email": {
+      "name": "email",
+      "enabled": true,
+      "health": "healthy",
+      "last_check": "2025-11-23T15:00:00.123456",
+      "last_success": "2025-11-23T14:30:00.123456",
+      "last_error": null,
+      "consecutive_failures": 0
+    }
+  }
+}
+```
+
+##### `POST /api/notifications/test`
+
+**Description:** Queue a test notification (non-blocking, returns 202 Accepted)
+
+**Request:**
+```bash
+curl -X POST http://localhost:4328/api/notifications/test \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": "Test Notification",
+    "body": "This is a test"
+  }'
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "status": "queued",
+  "message": "Test notification queued for processing"
+}
+```
+
+---
+
+**For complete API documentation including all endpoints, request/response examples, and authentication details, see the [API Reference](docs/API_REFERENCE.md).**
+
+---
 
 ### Error Codes
 

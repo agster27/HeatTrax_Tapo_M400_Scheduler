@@ -16,6 +16,7 @@ Automated control system for TP-Link Kasa/Tapo smart plugs to manage heated outd
   - Troubleshooting and best practices
 
 ### Feature Documentation
+- **[API Reference](docs/API_REFERENCE.md)** - **NEW!** Complete REST API documentation with all endpoints
 - **[Web UI Guide](docs/WEB_UI_GUIDE.md)** - Web interface and JSON API reference
 - **[Manual Device Control](docs/MANUAL_CONTROL.md)** - Manual control of devices and outlets via Web UI
 - **[Environment Variables Reference](docs/ENVIRONMENT_VARIABLES.md)** - Complete environment variable documentation
@@ -186,15 +187,47 @@ HEATTRAX_WEB_MANUAL_OVERRIDE_TIMEOUT_HOURS=3
   - Clear error messages and success notifications
   - Security warnings when binding to non-local addresses
 - **JSON REST API**: Programmatic access to system status and configuration
-  - `GET /api/status` - System status, device states, weather info
-  - `GET /api/config` - Current configuration with source metadata (env/yaml)
-  - `POST /api/config` - Update configuration with validation
-  - `GET /api/health` - Health check endpoint
-  - `GET /api/ping` - Simple liveness check
-  - `GET /api/devices/status` - Detailed device and outlet states
-  - `POST /api/devices/control` - Manual device/outlet control
-  - `GET /api/groups/{group}/automation` - Get automation config for a group
-  - `PATCH /api/groups/{group}/automation` - Update automation overrides for a group
+  - **Health & Monitoring**
+    - `GET /api/health` - Health check endpoint
+    - `GET /api/ping` - Simple liveness check
+    - `GET /api/status` - System status, device states, weather info
+    - `GET /api/system/status` - Extended system status with notifications and PIN config
+  - **Device Control**
+    - `GET /api/devices/status` - Detailed device and outlet states
+    - `POST /api/devices/control` - Manual device/outlet control
+    - `POST /api/groups/{group}/control` - Control all outlets in a group
+  - **Schedule Management** (full CRUD)
+    - `GET /api/groups/{group}/schedules` - List all schedules
+    - `POST /api/groups/{group}/schedules` - Add new schedule
+    - `GET /api/groups/{group}/schedules/{index}` - Get specific schedule
+    - `PUT /api/groups/{group}/schedules/{index}` - Update schedule
+    - `DELETE /api/groups/{group}/schedules/{index}` - Delete schedule
+    - `PUT /api/groups/{group}/schedules/{index}/enabled` - Toggle enabled status
+  - **Weather**
+    - `GET /api/weather/forecast` - Cached weather forecast with black ice detection
+    - `GET /api/weather/mat-forecast` - Predicted ON/OFF windows per group
+  - **Configuration**
+    - `GET /api/config` - Current configuration with source metadata (env/yaml)
+    - `PUT /api/config` - Update configuration with validation
+    - `POST /api/credentials` - Update device credentials
+    - `GET /api/config/download` - Download config.yaml
+    - `POST /api/config/upload` - Upload and validate new config.yaml
+    - `POST /api/restart` - Restart application
+  - **Automation & Vacation**
+    - `GET /api/groups/{group}/automation` - Get automation config for a group
+    - `PATCH /api/groups/{group}/automation` - Update automation overrides
+    - `GET /api/vacation_mode` - Get vacation mode status
+    - `PUT /api/vacation_mode` - Enable/disable vacation mode
+    - `GET /api/solar_times` - Get sunrise/sunset times
+  - **Mobile Control** (PIN-protected)
+    - `POST /api/auth/login` - Authenticate with PIN (creates 24-hour session)
+    - `GET /api/mat/status` - Get mat status for all groups
+    - `POST /api/mat/control` - Control group with optional timeout
+    - `POST /api/mat/reset-auto` - Clear manual override, resume automation
+  - **Notifications**
+    - `GET /api/notifications/status` - Provider health status (email, webhook)
+    - `POST /api/notifications/test` - Queue test notification (non-blocking)
+  - See **[API Reference](docs/API_REFERENCE.md)** for complete documentation with request/response examples
 - **Configuration as Code**: `config.yaml` is the single source of truth
   - Auto-generated on first run if missing
   - Environment variables override YAML values at runtime
