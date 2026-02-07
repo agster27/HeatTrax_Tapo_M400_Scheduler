@@ -85,6 +85,27 @@ Tests for weather condition evaluation:
 - Weather offline handling
 - Edge cases and validation
 
+#### `test_black_ice_detection.py`
+Tests for black ice risk detection:
+- Perfect conditions detection (temperature, dew point spread, humidity)
+- Temperature too high scenarios
+- Dew point spread too large scenarios
+- Humidity too low scenarios
+- Edge case threshold testing
+- Custom threshold configuration
+- Weather service integration
+
+#### `test_notification_graceful_failure.py`
+Tests for notification failure handling:
+- Scheduler continues operating when notification services fail
+- System status endpoint data integrity during failures
+
+#### `test_notification_service.py`
+Tests for notification service:
+- Provider registration and routing
+- Event notification delivery
+- Disabled service behavior
+
 ### Integration Tests (`tests/integration/`)
 
 #### `test_schedule_execution.py` (17 tests)
@@ -112,6 +133,14 @@ API-like interface tests:
 - Validation endpoints
 - Weather condition integration
 - Metadata and statistics
+
+#### `test_weather_resilience.py`
+Weather resilience integration tests:
+- Weather cache save, load, and validation
+- Cache expiration and age tracking
+- Resilient service state transitions (ONLINE → DEGRADED → OFFLINE)
+- Fail-safe behavior when cache expires
+- Recovery from offline state
 
 ## Test Fixtures
 
