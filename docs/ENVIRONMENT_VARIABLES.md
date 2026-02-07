@@ -94,11 +94,13 @@ Required for controlling Tapo/Kasa devices.
 
 ### Weather Thresholds
 
+> ⚠️ **Deprecated**: These environment variables configure legacy threshold settings. Use `schedules` with per-schedule `conditions` instead. See [SCHEDULING.md](../SCHEDULING.md) for the modern scheduling approach.
+
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `HEATTRAX_THRESHOLD_TEMP_F` | Float | `34` | Temperature threshold in Fahrenheit |
-| `HEATTRAX_LEAD_TIME_MINUTES` | Integer | `60` | Minutes before precipitation to turn on |
-| `HEATTRAX_TRAILING_TIME_MINUTES` | Integer | `60` | Minutes after precipitation ends to keep on |
+| `HEATTRAX_THRESHOLD_TEMP_F` (deprecated) | Float | `34` | Temperature threshold in Fahrenheit |
+| `HEATTRAX_LEAD_TIME_MINUTES` (deprecated) | Integer | `60` | Minutes before precipitation to turn on |
+| `HEATTRAX_TRAILING_TIME_MINUTES` (deprecated) | Integer | `60` | Minutes after precipitation ends to keep on |
 
 ### Scheduler Settings
 
@@ -116,13 +118,15 @@ Required for controlling Tapo/Kasa devices.
 
 ### Morning Mode Settings
 
+> ⚠️ **Deprecated**: These environment variables configure legacy morning mode. Use schedule entries of type `morning` in the `schedules` configuration instead. See [SCHEDULING.md](../SCHEDULING.md) for the modern scheduling approach.
+
 Black ice protection with early morning activation.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `HEATTRAX_MORNING_MODE_ENABLED` | Boolean | `false` | Enable morning frost-clearing mode |
-| `HEATTRAX_MORNING_MODE_START_HOUR` | Integer | `6` | Morning mode start hour (0-23) |
-| `HEATTRAX_MORNING_MODE_END_HOUR` | Integer | `8` | Morning mode end hour (0-23) |
+| `HEATTRAX_MORNING_MODE_ENABLED` (deprecated) | Boolean | `false` | Enable morning frost-clearing mode |
+| `HEATTRAX_MORNING_MODE_START_HOUR` (deprecated) | Integer | `6` | Morning mode start hour (0-23) |
+| `HEATTRAX_MORNING_MODE_END_HOUR` (deprecated) | Integer | `8` | Morning mode end hour (0-23) |
 
 ### Logging Settings
 
@@ -235,6 +239,7 @@ services:
       # Weather Settings
       - HEATTRAX_WEATHER_ENABLED=true
       - HEATTRAX_WEATHER_PROVIDER=open-meteo
+      # DEPRECATED: Use schedules with conditions instead
       - HEATTRAX_THRESHOLD_TEMP_F=34
       - HEATTRAX_LEAD_TIME_MINUTES=60
       - HEATTRAX_TRAILING_TIME_MINUTES=60
@@ -247,7 +252,7 @@ services:
       - HEATTRAX_MAX_RUNTIME_HOURS=6
       - HEATTRAX_COOLDOWN_MINUTES=30
       
-      # Morning Mode
+      # Morning Mode - DEPRECATED: Use schedule type 'morning' instead
       - HEATTRAX_MORNING_MODE_ENABLED=true
       - HEATTRAX_MORNING_MODE_START_HOUR=6
       - HEATTRAX_MORNING_MODE_END_HOUR=8
@@ -298,6 +303,7 @@ HEATTRAX_TAPO_PASSWORD=your_password
 # Weather Settings
 HEATTRAX_WEATHER_ENABLED=true
 HEATTRAX_WEATHER_PROVIDER=open-meteo
+# DEPRECATED: Use schedules with conditions instead
 HEATTRAX_THRESHOLD_TEMP_F=34
 
 # Scheduler Settings
@@ -308,7 +314,7 @@ HEATTRAX_FORECAST_HOURS=12
 HEATTRAX_MAX_RUNTIME_HOURS=6
 HEATTRAX_COOLDOWN_MINUTES=30
 
-# Morning Mode
+# Morning Mode - DEPRECATED: Use schedule type 'morning' instead
 HEATTRAX_MORNING_MODE_ENABLED=true
 
 # Web UI (for network access - set to 0.0.0.0 for Docker/Portainer)
