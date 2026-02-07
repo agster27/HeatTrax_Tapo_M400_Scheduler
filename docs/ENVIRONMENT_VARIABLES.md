@@ -165,6 +165,7 @@ Configure the web interface for monitoring and configuration.
 |----------|------|---------|-------------|
 | `HEATTRAX_WEB_HOST` | String | `0.0.0.0` | Host/IP address to bind web UI to. Default `0.0.0.0` allows access from other machines. Set to `127.0.0.1` to restrict to localhost only. |
 | `HEATTRAX_WEB_PORT` | Integer | `4328` | Port for web UI |
+| `HEATTRAX_WEB_PIN` | String | None | PIN for mobile control authentication (4-6 digits). Required for `/control` access. Can also be set via `web.pin` in config.yaml. |
 
 **Security Note**: The default binding (`0.0.0.0`) makes the web UI accessible from other machines on your network. Do not expose this service directly to the internet. Keep it on your internal network, or place it behind a reverse proxy with authentication.
 
@@ -263,6 +264,7 @@ services:
       # Web UI (for network access)
       - HEATTRAX_WEB_HOST=0.0.0.0
       - HEATTRAX_WEB_PORT=4328
+      # - HEATTRAX_WEB_PIN=1234  # Optional: PIN for mobile control authentication (4-6 digits)
       
       # Health Check API (Optional - for container orchestration)
       # - HEATTRAX_HEALTH_SERVER_ENABLED=true
@@ -320,6 +322,7 @@ HEATTRAX_MORNING_MODE_ENABLED=true
 # Web UI (for network access - set to 0.0.0.0 for Docker/Portainer)
 HEATTRAX_WEB_HOST=0.0.0.0
 HEATTRAX_WEB_PORT=4328
+# HEATTRAX_WEB_PIN=1234  # Optional: PIN for mobile control authentication (4-6 digits)
 
 # Health Check API (Optional - for container orchestration)
 # HEATTRAX_HEALTH_SERVER_ENABLED=true
