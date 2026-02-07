@@ -58,7 +58,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete release details.
 
 ## 🚀 Quick Start
 
-Want to get started quickly? See the [Quick Start Guide](QUICKSTART.md) for a 5-minute setup.
+Want to get started quickly? See the [Quick Start Guide](docs/QUICKSTART.md) for a 5-minute setup.
 
 ### Accessing the Web UI
 
@@ -76,7 +76,7 @@ After starting the container:
 
 **Security Note**: The web UI is accessible from other machines on your network by default. Do not expose this service directly to the internet. Keep it on your internal network, or place it behind a reverse proxy with authentication. See the [Mobile Control Interface](#mobile-control-interface) section for PIN-based authentication for mobile control.
 
-**Restart Policy**: The auto-restart feature requires Docker's restart policy (e.g., `restart: always` in docker-compose.yml). See [WEB_UI_GUIDE.md](WEB_UI_GUIDE.md) for details.
+**Restart Policy**: The auto-restart feature requires Docker's restart policy (e.g., `restart: always` in docker-compose.yml). See [WEB_UI_GUIDE.md](docs/WEB_UI_GUIDE.md) for details.
 
 ## Mobile Control Interface
 
@@ -327,7 +327,7 @@ HEATTRAX_WEB_MANUAL_OVERRIDE_TIMEOUT_HOURS=3
   - **Required mode** to ensure notifications work before starting scheduler
   - Configurable via YAML and environment variables
   - Events: device lost, device found, IP changed, connectivity issues, weather mode, etc.
-  - See [HEALTH_CHECK.md](HEALTH_CHECK.md) for detailed notification configuration
+  - See [HEALTH_CHECK.md](docs/HEALTH_CHECK.md) for detailed notification configuration
 - **Robust Error Handling**: Continues operation even if individual devices fail
 
 ### Configuration & Logging
@@ -335,7 +335,7 @@ HEATTRAX_WEB_MANUAL_OVERRIDE_TIMEOUT_HOURS=3
   - Verbose logging for all API calls and device operations
   - Detailed error messages with troubleshooting guidance
   - Full exception tracebacks for debugging
-  - See [LOGGING.md](LOGGING.md) for complete logging guide
+  - See [LOGGING.md](docs/LOGGING.md) for complete logging guide
 - **Flexible Configuration**: YAML-based configuration with environment variable overrides
   - **Primary method**: Edit `config.yaml` directly or via web UI
   - Environment variables for overrides (perfect for Docker/secrets)
@@ -778,7 +778,7 @@ Configuration values are resolved in the following order (highest to lowest prio
 | `HEATTRAX_NOTIFICATION_FORECAST_ENABLED` | notifications.forecast | Enable forecast summary notifications | Boolean | `true` or `false` |
 | `HEATTRAX_NOTIFICATION_FORECAST_NOTIFY_MODE` | notifications.forecast | Notification mode: "always" or "on_change" | String | `always` |
 
-**Note**: Per-event routing configuration must be specified in `config.yaml` and cannot be overridden via environment variables. See [HEALTH_CHECK.md](HEALTH_CHECK.md) for routing examples.
+**Note**: Per-event routing configuration must be specified in `config.yaml` and cannot be overridden via environment variables. See [HEALTH_CHECK.md](docs/HEALTH_CHECK.md) for routing examples.
 
 ### Boolean Values
 
