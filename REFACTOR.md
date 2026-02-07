@@ -199,11 +199,13 @@ Setup mode functionality must be preserved:
 
 ### 8. Environment Variable Overrides
 
-All environment variable overrides defined in `docs/ENVIRONMENT_VARIABLES.md` must continue to work:
+All environment variable overrides defined in `docs/ENVIRONMENT_VARIABLES.md` must continue to work.
+
+> **Note**: The list below is a representative subset of critical variables. For a comprehensive reference of all supported environment variables, see [`docs/ENVIRONMENT_VARIABLES.md`](docs/ENVIRONMENT_VARIABLES.md).
 
 **Critical Overrides**:
 - `HEATTRAX_CONFIG_PATH` — Custom config file location
-- `HEATTRAX_STATE_DIR` — Custom state directory (not currently documented but may exist)
+
 - `HEATTRAX_LOG_LEVEL` — Runtime log level override
 - `HEATTRAX_WEB_PIN` — Mobile control PIN override
 - `HEATTRAX_WEB_PORT` — Web server port override
@@ -240,7 +242,7 @@ All environment variable overrides defined in `docs/ENVIRONMENT_VARIABLES.md` mu
 
 All existing tests must pass without modification (unless tests are updated to improve quality):
 
-**Unit Tests** (21 files in `tests/unit/`):
+**Unit Tests** (13 files in `tests/unit/`):
 - Schedule evaluation logic (`test_schedule.py` - 44 tests, `test_schedule_evaluator.py` - 27 tests)
 - Solar calculations (`test_solar_calculator.py` - 18 tests)
 - Weather conditions (`test_conditions.py` - 13 tests, `test_black_ice_detection.py`)
@@ -249,7 +251,7 @@ All existing tests must pass without modification (unless tests are updated to i
 - Notification resilience (`test_notification_service.py`, `test_notification_resilience.py`)
 - Manual override state management (`test_manual_override.py`)
 
-**Integration Tests** (55 files in `tests/integration/`):
+**Integration Tests** (26+ files in `tests/integration/`):
 - API endpoint contracts (`test_api.py` - 14 tests, `test_automation_api.py`)
 - Device control workflows (`test_device_control_api.py`)
 - Scheduler execution behavior (`test_schedule_execution.py` - 17 tests)
@@ -311,7 +313,6 @@ Run integration tests for all API endpoints:
 # API endpoint tests
 pytest tests/integration/test_api_*.py -v
 pytest tests/integration/test_device_control_api.py -v
-pytest tests/integration/test_schedule_api.py -v
 pytest tests/integration/test_weather_api.py -v
 ```
 
@@ -441,8 +442,10 @@ The following legacy code paths should be evaluated for removal while considerin
   - `automation.morning_mode` (replaced by schedule type)
   - Top-level `thresholds` section (replaced by per-schedule conditions)
   - Top-level `morning_mode` section (replaced by morning schedule type)
-- **Legacy integration test**:
+- **Legacy integration tests**:
   - `test_timezone_morning_mode.py` (tests only legacy morning mode path)
+  - `test_schedule_control_deprecation.py` (tests deprecated `schedule_control` flag behavior)
+  - `test_integration_automation.py` (tests legacy automation flag integration)
 
 **Note**: Legacy code removal should be done incrementally with user migration guides and deprecation warnings before final removal.
 
@@ -479,6 +482,7 @@ The following legacy code paths should be evaluated for removal while considerin
 - Better default values and example configurations
 - Maintain backward compatibility with existing configs
 - Document all configuration options
+- All schema changes must be backward-compatible — existing `config.yaml` files must continue to work without modification. New simplified options are additive only.
 
 **Success Criteria**:
 - Existing config files work without modification
