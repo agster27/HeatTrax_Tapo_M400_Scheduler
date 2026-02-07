@@ -54,7 +54,7 @@ HeatTrax Scheduler includes powerful features for automated device control:
 - ✅ **Full environment variable configuration** for Docker/Portainer
 - ✅ **Extensive documentation** and examples
 
-See [CHANGELOG.md](CHANGELOG.md) for complete release details.
+See [docs/CHANGELOG.md](docs/CHANGELOG.md) for complete release details.
 
 ## 🚀 Quick Start
 
