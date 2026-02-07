@@ -629,7 +629,7 @@ If you see errors like `Unable to connect to the device: 10.0.50.74:9999: [Errno
 2. **Weather-Based Groups** (e.g., heated mats):
    - **Weather Monitoring**: Checks weather forecasts every 10 minutes (configurable)
    - **Weather Resilience**: NEW! Reliable operation during internet/API outages
-     - Caches last successful forecast (default: 12 hours)
+     - Caches last successful forecast (trusted for 6 hours, usable up to 12 hours)
      - **ONLINE State**: Normal operation with fresh API data
      - **DEGRADED State**: API unavailable but using valid cached data (within 6 hours by default)
      - **OFFLINE State**: No valid data available - reverts to static schedule (weather features disabled)

@@ -102,10 +102,6 @@ devices:
   groups:
     heated_mats:
       enabled: true
-      automation:
-        weather_control: true
-        precipitation_control: true
-        morning_mode: true
       items:
         - name: "Heated Mat"
           ip_address: "192.168.1.100"  # Your Tapo device IP
@@ -351,10 +347,6 @@ devices:
   groups:
     christmas_lights:
       enabled: true
-      automation:
-        weather_control: false       # Disable weather control
-        precipitation_control: false
-        morning_mode: false
       schedules:
         - name: "Evening Lights"
           enabled: true
