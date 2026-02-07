@@ -176,8 +176,8 @@ class TestHealthServerConfig(unittest.TestCase):
         for key, value in self.original_env.items():
             os.environ[key] = value
     
-    def test_health_server_default_enabled(self):
-        """Test that health server is enabled by default."""
+    def test_health_server_default_disabled(self):
+        """Test that health server is disabled by default."""
         # Set minimal required env vars
         os.environ['HEATTRAX_LATITUDE'] = '40.0'
         os.environ['HEATTRAX_LONGITUDE'] = '-74.0'
@@ -194,9 +194,9 @@ class TestHealthServerConfig(unittest.TestCase):
         config = Config('nonexistent.yaml')
         
         health_server = config.health_server
-        self.assertTrue(health_server.get('enabled', True))
+        self.assertFalse(health_server.get('enabled', False))
         self.assertEqual(health_server.get('host', '0.0.0.0'), '0.0.0.0')
-        self.assertEqual(health_server.get('port', 8080), 8080)
+        self.assertEqual(health_server.get('port', 4329), 4329)
     
     def test_health_server_custom_config(self):
         """Test custom health server configuration."""
