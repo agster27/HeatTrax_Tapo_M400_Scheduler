@@ -38,6 +38,18 @@ Version history and changes:
 
 - **[CHANGELOG.md](CHANGELOG.md)** - Complete version history and release notes
 
+### Development & Planning
+
+Current and historical development documentation:
+
+- **[Refactoring Plan](../REFACTOR.md)** - v2.0 refactoring plan and roadmap
+
+### Archive
+
+Historical documentation and completed refactors:
+
+- **[REFACTOR_V1.md](REFACTOR_V1.md)** - v1.0 refactor summary (completed)
+
 ## 📖 Recommended Reading Order
 
 1. **First Time Setup**: Start with [QUICKSTART.md](QUICKSTART.md) for a 5-minute setup
