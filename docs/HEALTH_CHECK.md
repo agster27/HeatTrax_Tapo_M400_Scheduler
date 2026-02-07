@@ -100,16 +100,16 @@ Health server settings can be configured via environment variables or YAML:
 ```yaml
 # config.yaml
 health_server:
-  enabled: true           # Enable/disable HTTP server (default: true)
+  enabled: false          # Enable/disable HTTP server (default: false)
   host: "0.0.0.0"        # Host to bind to (default: 0.0.0.0)
-  port: 8080             # Port to listen on (default: 8080)
+  port: 4329             # Port to listen on (default: 4329)
 ```
 
 Environment variables:
 ```bash
-HEATTRAX_HEALTH_SERVER_ENABLED=true
+HEATTRAX_HEALTH_SERVER_ENABLED=false
 HEATTRAX_HEALTH_SERVER_HOST=0.0.0.0
-HEATTRAX_HEALTH_SERVER_PORT=8080
+HEATTRAX_HEALTH_SERVER_PORT=4329
 ```
 
 ### Endpoints

@@ -1018,7 +1018,7 @@ The HeatTrax Scheduler provides a JSON REST API for monitoring and configuration
 http://localhost:4328
 ```
 
-**Note:** Default is localhost (127.0.0.1). Configure via `web.bind_host` and `web.port` in config.yaml.
+**Note:** Default host is `0.0.0.0` (accessible from network). Configure via `web.bind_host` and `web.port` in config.yaml.
 
 ### Authentication
 

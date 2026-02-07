@@ -61,7 +61,7 @@ HeatTrax Scheduler includes a browser-based web UI for monitoring system status 
 
 2. **Access the web UI**:
    - Open your browser to `http://localhost:4328`
-   - Default binding is to localhost (127.0.0.1) for security
+   - Default binding is to `0.0.0.0` (all network interfaces). To restrict to localhost only, set `bind_host: '127.0.0.1'`. See the Network Access section for security considerations.
 
 3. **View status**:
    - Status tab shows current system state

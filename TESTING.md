@@ -106,6 +106,42 @@ Tests for notification service:
 - Event notification delivery
 - Disabled service behavior
 
+#### `test_auth.py`
+Tests for PIN authentication and session management:
+- Authentication flow and session tokens
+- Invalid PIN handling
+- Session expiration and cleanup
+
+#### `test_manual_override.py`
+Tests for manual override functionality:
+- Manual control overriding automated schedules
+- Override duration and expiration
+- Manual override state persistence
+
+#### `test_device_expectations_actual_state.py`
+Tests for device state expectation logic:
+- Expected vs actual state comparison
+- State mismatch detection
+- Device state validation
+
+#### `test_config_env_vars.py`
+Tests for environment variable overrides:
+- Environment variable parsing and application
+- Config file and environment variable precedence
+- Type conversion and validation
+
+#### `test_credential_validator.py`
+Tests for credential validation and placeholder detection:
+- Placeholder credential detection
+- Invalid credential format handling
+- Credential validation rules
+
+#### `test_health_server_config.py`
+Tests for health server configuration:
+- Default configuration values
+- Environment variable overrides
+- Health server settings validation
+
 ### Integration Tests (`tests/integration/`)
 
 #### `test_schedule_execution.py` (17 tests)
@@ -141,6 +177,138 @@ Weather resilience integration tests:
 - Resilient service state transitions (ONLINE → DEGRADED → OFFLINE)
 - Fail-safe behavior when cache expires
 - Recovery from offline state
+
+#### `test_web_server.py`
+Tests for web server routes and functionality:
+- Route handlers and responses
+- Web server initialization
+- HTTP request handling
+
+#### `test_web_config.py`
+Tests for web configuration management:
+- Web UI configuration loading
+- Configuration update endpoints
+- Configuration validation
+
+#### `test_web_defaults.py`
+Tests for web default configuration values:
+- Default bind host (0.0.0.0)
+- Default port (4328)
+- Default web UI settings
+
+#### `test_web_form.py`
+Tests for web form handling:
+- Form data parsing and validation
+- Form submission processing
+- Error handling for invalid inputs
+
+#### `test_web_ui_integration.py`
+Tests for web UI integration:
+- Full web UI workflow testing
+- UI component interaction
+- End-to-end UI scenarios
+
+#### `test_automation_api.py`
+Tests for automation API endpoints:
+- API endpoint functionality
+- Request/response validation
+- API error handling
+
+#### `test_weather_api.py`
+Tests for weather API integration:
+- Weather data fetching
+- API response parsing
+- Weather provider integration
+
+#### `test_weather_toggle.py`
+Tests for weather enable/disable functionality:
+- Weather toggle state management
+- Behavior when weather is disabled
+- Weather configuration changes
+
+#### `test_weather_integration.py`
+Tests for weather system integration:
+- End-to-end weather integration
+- Weather-based decision making
+- Weather service interaction
+
+#### `test_setup_mode.py`
+Tests for setup mode functionality:
+- Setup mode activation and detection
+- Setup wizard workflow
+- Initial configuration setup
+
+#### `test_integration_setup_mode.py`
+Integration tests for setup mode:
+- Complete setup mode flow
+- Device discovery in setup mode
+- Configuration persistence from setup
+
+#### `test_startup_checks.py`
+Tests for startup diagnostic checks:
+- System health validation on startup
+- Configuration verification
+- Dependency checks
+
+#### `test_config_upload_download.py`
+Tests for configuration upload and download:
+- Config file export functionality
+- Config file import and validation
+- Backup and restore operations
+
+#### `test_connection.py`
+Tests for device connection handling:
+- Device connectivity verification
+- Connection timeout handling
+- Network error scenarios
+
+#### `test_scheduler.py`
+Tests for scheduler core functionality:
+- Schedule execution engine
+- Timing and scheduling logic
+- Schedule state management
+
+#### `test_multi_device.py`
+Tests for multi-device group management:
+- Device group operations
+- Group-level scheduling
+- Multi-device coordination
+
+#### `test_multi_outlet_expectations.py`
+Tests for multi-outlet device expectations:
+- Individual outlet state expectations
+- Multi-outlet coordination
+- Outlet-specific scheduling
+
+#### `test_device_status_timeout.py`
+Tests for device status timeout handling:
+- Status query timeouts
+- Retry logic
+- Timeout error handling
+
+#### `test_health_server.py`
+Tests for health server HTTP endpoints:
+- Health check endpoint responses
+- Weather health endpoint
+- Server startup and shutdown
+
+#### `test_notification_enhancements.py`
+Tests for notification system enhancements:
+- Enhanced notification features
+- Notification formatting
+- Multi-channel notifications
+
+#### `test_shared_event_loop.py`
+Tests for shared asyncio event loop:
+- Event loop sharing between components
+- Async task coordination
+- Event loop lifecycle management
+
+#### `test_control_timeout_hours.py`
+Tests for control timeout in hours:
+- Timeout configuration
+- Long-running control operations
+- Timeout expiration handling
 
 ## Test Fixtures
 
@@ -197,6 +365,12 @@ The CI pipeline:
 3. Runs integration tests
 4. Uploads coverage to Codecov
 5. Runs advisory linting checks (flake8, black) — non-blocking
+
+**Note:** Currently, only a subset of the test suite runs in CI (7 original test files):
+- Unit tests: `test_schedule.py`, `test_solar_calculator.py`, `test_schedule_evaluator.py`, `test_conditions.py`
+- Integration tests: `test_schedule_execution.py`, `test_configuration.py`, `test_api.py`
+
+The remaining tests exist in the repository but are not yet integrated into the CI workflow. Future improvements will expand CI coverage to include all test files.
 
 ## Writing New Tests
 
