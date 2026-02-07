@@ -77,20 +77,18 @@ All scheduling behavior in `src/scheduler/` must be preserved:
 
 **Clock-Based Schedules** (`src/scheduler/schedule_evaluator.py`):
 - Time window evaluation (start_time/end_time)
-- Day-of-week filtering (mon, tue, wed, thu, fri, sat, sun)
-- Date range constraints (start_date/end_date)
+- Day-of-week filtering (1-7 for Monday-Sunday)
 - Timezone handling (local time vs UTC)
 
 **Solar-Based Schedules** (`src/scheduler/solar_calculator.py`):
 - Sunrise/sunset calculations using location coordinates
 - Relative time offsets (e.g., "30 minutes before sunset")
-- Solar event-based triggers (dawn, sunrise, sunset, dusk)
+- Solar event-based triggers (sunrise, sunset only)
 
 **Weather Conditions** (`src/scheduler/schedule_evaluator.py`):
-- Temperature threshold checks (min_temp, max_temp)
-- Precipitation/snow probability thresholds
-- Wind speed checks
-- Weather condition filtering (clear, rain, snow, etc.)
+- Temperature threshold checks (temperature_max)
+- Precipitation detection (precipitation_active)
+- Black ice risk detection (black_ice_risk)
 
 **Priority System**:
 - Schedule priority ordering (higher priority schedules override lower)
@@ -189,14 +187,15 @@ All notification features in `src/notifications/` must be preserved:
 Setup mode functionality must be preserved:
 
 **Detection**:
-- Setup mode triggered when `config.yaml` is missing or invalid
-- Environment variable `HEATTRAX_SETUP_MODE=true` forces setup mode
+- Setup mode triggered when Tapo credentials are missing, invalid, or set to placeholder values
+- Placeholder credentials include: `your_tapo_email@example.com`, `your_tapo_username`, `your_username`, `your_email@example.com`, `your_tapo_password`, `password`
 
 **Behavior**:
-- Web UI displays setup wizard instead of normal interface
-- Limited API endpoints available (only config creation/validation)
-- Device discovery and connection testing
-- Configuration validation before exiting setup mode
+- Web UI remains fully accessible with a banner indicating setup mode
+- All API endpoints remain available
+- Device control is disabled until valid credentials are configured
+- User can configure credentials via Web UI, environment variables (`HEATTRAX_TAPO_USERNAME`, `HEATTRAX_TAPO_PASSWORD`), or directly editing `config.yaml`
+- Application must be restarted after credential updates to exit setup mode
 
 ### 8. Environment Variable Overrides
 
@@ -204,20 +203,34 @@ All environment variable overrides defined in `docs/ENVIRONMENT_VARIABLES.md` mu
 
 **Critical Overrides**:
 - `HEATTRAX_CONFIG_PATH` — Custom config file location
-- `HEATTRAX_STATE_DIR` — Custom state directory
+- `HEATTRAX_STATE_DIR` — Custom state directory (not currently documented but may exist)
 - `HEATTRAX_LOG_LEVEL` — Runtime log level override
 - `HEATTRAX_WEB_PIN` — Mobile control PIN override
 - `HEATTRAX_WEB_PORT` — Web server port override
-- `HEATTRAX_SETUP_MODE` — Force setup mode
-- `TAPO_EMAIL`, `TAPO_PASSWORD` — Tapo credentials override
+- `HEATTRAX_WEB_HOST` — Web server host/IP binding
+- `HEATTRAX_TAPO_USERNAME` — Tapo account username override
+- `HEATTRAX_TAPO_PASSWORD` — Tapo account password override
 
 **Weather API Overrides**:
-- `OPENWEATHER_API_KEY` — OpenWeatherMap API key
-- `WEATHER_CACHE_TTL` — Cache time-to-live override
-- `WEATHER_RETRY_ATTEMPTS` — Retry attempt override
+- `HEATTRAX_WEATHER_ENABLED` — Enable/disable weather-based scheduling
+- `HEATTRAX_WEATHER_PROVIDER` — Weather provider selection
+- `HEATTRAX_OPENWEATHERMAP_API_KEY` — OpenWeatherMap API key (if using openweathermap provider)
+- `HEATTRAX_WEATHER_CACHE_FILE` — Path to weather cache file
+- `HEATTRAX_WEATHER_CACHE_VALID_HOURS` — Cache validity duration
+- `HEATTRAX_WEATHER_REFRESH_INTERVAL_MINUTES` — Normal polling interval
+- `HEATTRAX_WEATHER_RETRY_INTERVAL_MINUTES` — Initial retry delay after failure
+- `HEATTRAX_WEATHER_MAX_RETRY_INTERVAL_MINUTES` — Maximum backoff interval
 
-**SMTP Overrides**:
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` — Email configuration
+**Notification Overrides**:
+- `HEATTRAX_NOTIFICATIONS_REQUIRED` — If true, misconfigured providers cause startup failure
+- `HEATTRAX_NOTIFICATIONS_TEST_ON_STARTUP` — Send test notification on startup
+- `HEATTRAX_NOTIFICATION_EMAIL_ENABLED` — Enable email notifications
+- `HEATTRAX_NOTIFICATION_EMAIL_SMTP_HOST` — SMTP server hostname
+- `HEATTRAX_NOTIFICATION_EMAIL_SMTP_PORT` — SMTP server port
+- `HEATTRAX_NOTIFICATION_EMAIL_SMTP_USERNAME` — SMTP authentication username
+- `HEATTRAX_NOTIFICATION_EMAIL_SMTP_PASSWORD` — SMTP authentication password
+- `HEATTRAX_NOTIFICATION_WEBHOOK_ENABLED` — Enable webhook notifications
+- `HEATTRAX_NOTIFICATION_WEBHOOK_URL` — Webhook URL for HTTP POST
 
 ---
 
@@ -228,24 +241,29 @@ All environment variable overrides defined in `docs/ENVIRONMENT_VARIABLES.md` mu
 All existing tests must pass without modification (unless tests are updated to improve quality):
 
 **Unit Tests** (21 files in `tests/unit/`):
-- Schedule evaluation logic
-- Solar calculations
-- Configuration parsing and validation
-- Authentication and PIN handling
-- Notification resilience
-- Manual override state management
+- Schedule evaluation logic (`test_schedule.py` - 44 tests, `test_schedule_evaluator.py` - 27 tests)
+- Solar calculations (`test_solar_calculator.py` - 18 tests)
+- Weather conditions (`test_conditions.py` - 13 tests, `test_black_ice_detection.py`)
+- Configuration parsing and validation (`test_config_manager.py`, `test_config_env_vars.py`)
+- Authentication and PIN handling (`test_auth.py`)
+- Notification resilience (`test_notification_service.py`, `test_notification_resilience.py`)
+- Manual override state management (`test_manual_override.py`)
 
-**Integration Tests** (55+ files in `tests/integration/`):
-- All API endpoint contracts
-- Device control workflows
-- Scheduler execution behavior
-- Weather service integration
-- Configuration persistence
-- Setup mode activation
+**Integration Tests** (55 files in `tests/integration/`):
+- API endpoint contracts (`test_api.py` - 14 tests, `test_automation_api.py`)
+- Device control workflows (`test_device_control_api.py`)
+- Scheduler execution behavior (`test_schedule_execution.py` - 17 tests)
+- Weather service integration (`test_weather_api.py`, `test_weather_resilience.py`)
+- Configuration persistence (`test_configuration.py` - 17 tests, `test_config_persistence.py`)
+- Setup mode activation (`test_setup_mode.py`, `test_integration_setup_mode.py`)
 
 **Test Command**: `pytest -v`
 
-**Expected Result**: All 150+ tests pass
+**Expected Result**: All ~150+ tests pass
+
+**CI Test Suite** (subset in `.github/workflows/test.yml`):
+- Unit: `test_schedule.py`, `test_solar_calculator.py`, `test_schedule_evaluator.py`, `test_conditions.py`
+- Integration: `test_schedule_execution.py`, `test_configuration.py`, `test_api.py`
 
 ### 2. Manual Testing Checklist
 
@@ -383,9 +401,16 @@ Other related documentation:
 **Tasks**:
 - [x] Fix critical contradictions in docs (#129)
 - [x] Mark deprecated content (#131)
-- [ ] Complete API documentation (#133)
+- [x] Complete API documentation (#133) - `docs/API_REFERENCE.md` exists and appears comprehensive
 - [ ] Consolidate README.md files (#135)
 - [x] Archive v1.0 refactor doc, create v2.0 plan (#137)
+
+**Stale Document Cleanup**:
+
+The following documents are outdated and should be addressed:
+
+- **`MIGRATION_STATUS.md`** - Shows Phase 4 (Web UI), Phase 5 (Docs), and Phase 6 (Testing) as "Not Started" but all are actually complete. Should be archived to `docs/archive/` or deleted.
+- **`docs/Phase4_WebUI_Implementation.md`** (if exists) - Implementation summary for a completed phase. Should be archived to `docs/archive/` or similar.
 
 **Deliverables**:
 - Accurate, comprehensive documentation
@@ -402,6 +427,24 @@ Other related documentation:
 - Refactor complex functions (>100 lines) into smaller units
 - Improve naming conventions and code clarity
 - Add inline documentation (docstrings)
+
+**Legacy Code Removal Scope**:
+
+The following legacy code paths should be evaluated for removal while considering backward compatibility:
+
+- **Legacy scheduler methods** in `src/scheduler/scheduler_enhanced.py`:
+  - `_should_turn_on_legacy()` method
+  - `_should_turn_off_legacy()` method
+- **Legacy configuration keys**:
+  - `automation.weather_control` (replaced by schedule conditions)
+  - `automation.precipitation_control` (replaced by schedule conditions)
+  - `automation.morning_mode` (replaced by schedule type)
+  - Top-level `thresholds` section (replaced by per-schedule conditions)
+  - Top-level `morning_mode` section (replaced by morning schedule type)
+- **Legacy integration test**:
+  - `test_timezone_morning_mode.py` (tests only legacy morning mode path)
+
+**Note**: Legacy code removal should be done incrementally with user migration guides and deprecation warnings before final removal.
 
 **Success Criteria**:
 - All tests pass
