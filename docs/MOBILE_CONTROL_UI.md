@@ -1,5 +1,7 @@
 # Mobile Control Interface - UI Demonstration
 
+> ⚠️ **DEPRECATED**: This is a historical implementation planning document. For current mobile control documentation, see the [Mobile Control Interface](../README.md#mobile-control-interface) section in README.md. This file is scheduled for removal in the next cleanup pass.
+
 This document describes the mobile control interface UI that has been implemented.
 
 ## Login Page (`/control/login`)

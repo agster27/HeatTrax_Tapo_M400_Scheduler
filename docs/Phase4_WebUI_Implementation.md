@@ -1,5 +1,7 @@
 # Phase 4: Web UI Implementation Summary
 
+> ⚠️ **DEPRECATED**: This is a historical implementation summary from Phase 4 development. For current Web UI documentation, see [WEB_UI_GUIDE.md](WEB_UI_GUIDE.md). This file is scheduled for removal in the next cleanup pass.
+
 ## Overview
 This document summarizes the complete implementation of the web-based schedule management interface for HeatTrax Tapo M400 Scheduler.
 
