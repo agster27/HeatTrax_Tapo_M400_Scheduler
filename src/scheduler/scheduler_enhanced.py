@@ -271,10 +271,8 @@ class EnhancedScheduler:
         except NotificationValidationError as e:
             # Catch any other notification errors
             self.logger.error(f"Error initializing notifications: {e}", exc_info=True)
-            
-            if required:
-                self.logger.error("Notifications required but initialization failed - continuing anyway")
-                self.logger.error("Notifications will be DISABLED. Fix configuration to enable notifications.")
+            self.logger.error("Notification initialization failed - notifications will be DISABLED.")
+            self.logger.error("Fix notification configuration to enable notifications.")
             
             self.notification_service = None
             self.notification_service_available = False
