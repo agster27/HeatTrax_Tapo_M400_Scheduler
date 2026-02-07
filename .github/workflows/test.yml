@@ -31,11 +31,11 @@ jobs:
     
     - name: Run unit tests
       run: |
-        pytest tests/unit/test_schedule.py tests/unit/test_solar_calculator.py tests/unit/test_schedule_evaluator.py tests/unit/test_conditions.py -v --cov=src --cov-report=term-missing --cov-report=xml --cov-report=html
+        pytest tests/unit/ -v --cov=src --cov-report=term-missing --cov-report=xml --cov-report=html
     
     - name: Run integration tests
       run: |
-        pytest tests/integration/test_schedule_execution.py tests/integration/test_configuration.py tests/integration/test_api.py -v --cov=src --cov-append --cov-report=term-missing --cov-report=xml --cov-report=html
+        pytest tests/integration/ -v --cov=src --cov-append --cov-report=term-missing --cov-report=xml --cov-report=html
     
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4
@@ -78,10 +78,13 @@ jobs:
         python -m pip install --upgrade pip
         pip install flake8 black
     
-    - name: Lint with flake8
+    - name: Lint with flake8 (critical errors)
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 src tests --count --select=E9,F63,F7,F82 --show-source --statistics
+    
+    - name: Lint with flake8 (style warnings)
+      run: |
         # exit-zero treats all errors as warnings
         flake8 src tests --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
       continue-on-error: true
@@ -90,3 +93,16 @@ jobs:
       run: |
         black --check src tests --line-length=100
       continue-on-error: true
+
+  docker-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build Docker image
+      run: |
+        docker build . -t heattrax-scheduler:test
+        echo "Docker build completed successfully"
