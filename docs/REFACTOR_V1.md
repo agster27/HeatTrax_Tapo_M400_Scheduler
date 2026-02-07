@@ -1,3 +1,5 @@
+> 📦 **Archived** — This document describes the v1.0 refactor completed previously. For the upcoming refactor plan, see [REFACTOR.md](../REFACTOR.md).
+
 # Refactored HeatTrax_Tapo_M400_Scheduler Code
 
 ## Key Changes
