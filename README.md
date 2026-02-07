@@ -557,10 +557,6 @@ devices:
   groups:
     heated_mats:
       enabled: true
-      automation:
-        weather_control: true
-        precipitation_control: true
-        morning_mode: true
       schedules:
         - name: "Morning Black Ice Protection"
           enabled: true
@@ -640,11 +636,7 @@ If you see errors like `Unable to connect to the device: 10.0.50.74:9999: [Errno
      - Automatic retry with exponential backoff (5min → 10min → 20min → 40min → 60min max)
      - Alerts when offline longer than threshold (default: 30 minutes)
      - Automatic recovery notification when API becomes available again
-   - **Precipitation Control**: 
-     - Group turns ON 60 minutes before precipitation when temp < 34°F
-     - Group stays ON during precipitation
-     - Group turns OFF 60 minutes after precipitation ends
-   - **Morning Mode**: Enables group between 6-8 AM if temp is below threshold
+   - **Schedule Evaluation**: The unified conditional scheduling system evaluates all active schedules for the group. Each schedule can specify weather conditions (temperature thresholds, precipitation), time windows (clock-based or solar-based), priorities, and day-of-week filters. See the [Scheduling Guide](SCHEDULING.md) for details.
    - **Group Action**: All devices in group turn on/off together
 
 3. **Schedule-Based Groups** (e.g., Christmas lights):

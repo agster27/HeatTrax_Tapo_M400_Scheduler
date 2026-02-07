@@ -4,9 +4,9 @@ This document describes the comprehensive testing suite for the HeatTrax Tapo M4
 
 ## Overview
 
-The project includes **150 comprehensive tests** covering unit tests and integration tests for the scheduler system:
-- **102 unit tests** for core components (Schedule, ScheduleEvaluator, SolarCalculator, Conditions)
-- **48 integration tests** for end-to-end behavior and API interactions
+The project includes a comprehensive test suite covering unit tests and integration tests for the scheduler system:
+- **Unit tests** for core components (Schedule, ScheduleEvaluator, SolarCalculator, Conditions)
+- **Integration tests** for end-to-end behavior and API interactions
 
 ## Quick Start
 
@@ -167,7 +167,7 @@ The CI pipeline:
 2. Runs unit tests with coverage
 3. Runs integration tests
 4. Uploads coverage to Codecov
-5. Runs linting checks (flake8, black)
+5. Runs advisory linting checks (flake8, black) — non-blocking
 
 ## Writing New Tests
 
