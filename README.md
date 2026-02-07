@@ -716,16 +716,16 @@ Configuration values are resolved in the following order (highest to lowest prio
 | `HEATTRAX_WEATHER_OUTAGE_ALERT_AFTER_MINUTES` | weather_api.resilience | Alert threshold (minutes offline) | Integer | `30` |
 | `HEATTRAX_TAPO_USERNAME` | devices.credentials | Tapo account username | String | `user@example.com` |
 | `HEATTRAX_TAPO_PASSWORD` | devices.credentials | Tapo account password | String | `your_password` |
-| `HEATTRAX_THRESHOLD_TEMP_F` | thresholds | Temperature threshold (°F) | Float | `34` |
-| `HEATTRAX_LEAD_TIME_MINUTES` | thresholds | Minutes before precipitation | Integer | `60` |
-| `HEATTRAX_TRAILING_TIME_MINUTES` | thresholds | Minutes after precipitation | Integer | `60` |
+| `HEATTRAX_THRESHOLD_TEMP_F` (deprecated) | thresholds | Temperature threshold (°F) | Float | `34` |
+| `HEATTRAX_LEAD_TIME_MINUTES` (deprecated) | thresholds | Minutes before precipitation | Integer | `60` |
+| `HEATTRAX_TRAILING_TIME_MINUTES` (deprecated) | thresholds | Minutes after precipitation | Integer | `60` |
 | `HEATTRAX_CHECK_INTERVAL_MINUTES` | scheduler | Weather check interval | Integer | `10` |
 | `HEATTRAX_FORECAST_HOURS` | scheduler | Forecast look-ahead hours | Integer | `12` |
 | `HEATTRAX_MAX_RUNTIME_HOURS` | safety | Maximum continuous runtime | Float | `6` |
 | `HEATTRAX_COOLDOWN_MINUTES` | safety | Cooldown period | Integer | `30` |
-| `HEATTRAX_MORNING_MODE_ENABLED` | morning_mode | Enable morning mode | Boolean | `true` or `false` |
-| `HEATTRAX_MORNING_MODE_START_HOUR` | morning_mode | Morning mode start (0-23) | Integer | `6` |
-| `HEATTRAX_MORNING_MODE_END_HOUR` | morning_mode | Morning mode end (0-23) | Integer | `8` |
+| `HEATTRAX_MORNING_MODE_ENABLED` (deprecated) | morning_mode | Enable morning mode | Boolean | `true` or `false` |
+| `HEATTRAX_MORNING_MODE_START_HOUR` (deprecated) | morning_mode | Morning mode start (0-23) | Integer | `6` |
+| `HEATTRAX_MORNING_MODE_END_HOUR` (deprecated) | morning_mode | Morning mode end (0-23) | Integer | `8` |
 | `HEATTRAX_LOG_LEVEL` | logging | Logging level | String | `INFO`, `DEBUG` |
 | `HEATTRAX_HEALTH_CHECK_INTERVAL_HOURS` | health_check | Hours between health checks | Float | `24` |
 | `HEATTRAX_HEALTH_CHECK_MAX_FAILURES` | health_check | Max consecutive failures before re-init | Integer | `3` |
@@ -799,6 +799,7 @@ services:
       # Environment variables can only override credentials and settings
       - HEATTRAX_TAPO_USERNAME=your_username
       - HEATTRAX_TAPO_PASSWORD=your_password
+      # DEPRECATED: Use schedules with conditions instead
       - HEATTRAX_THRESHOLD_TEMP_F=34
       - HEATTRAX_LEAD_TIME_MINUTES=60
       - HEATTRAX_TRAILING_TIME_MINUTES=60
@@ -806,6 +807,7 @@ services:
       - HEATTRAX_FORECAST_HOURS=12
       - HEATTRAX_MAX_RUNTIME_HOURS=6
       - HEATTRAX_COOLDOWN_MINUTES=30
+      # DEPRECATED: Use schedule type 'morning' instead
       - HEATTRAX_MORNING_MODE_ENABLED=true
       - HEATTRAX_MORNING_MODE_START_HOUR=6
       - HEATTRAX_MORNING_MODE_END_HOUR=8
@@ -831,6 +833,7 @@ HEATTRAX_TIMEZONE=America/New_York
 # Note: Device IPs and group configuration must be in config.yaml mounted as volume
 HEATTRAX_TAPO_USERNAME=your_username
 HEATTRAX_TAPO_PASSWORD=your_password
+# DEPRECATED: Use schedules with conditions instead
 HEATTRAX_THRESHOLD_TEMP_F=34
 HEATTRAX_LEAD_TIME_MINUTES=60
 HEATTRAX_TRAILING_TIME_MINUTES=60
@@ -838,6 +841,7 @@ HEATTRAX_CHECK_INTERVAL_MINUTES=10
 HEATTRAX_FORECAST_HOURS=12
 HEATTRAX_MAX_RUNTIME_HOURS=6
 HEATTRAX_COOLDOWN_MINUTES=30
+# DEPRECATED: Use schedule type 'morning' instead
 HEATTRAX_MORNING_MODE_ENABLED=true
 HEATTRAX_MORNING_MODE_START_HOUR=6
 HEATTRAX_MORNING_MODE_END_HOUR=8
@@ -993,6 +997,8 @@ devices:
 
 ### Weather Thresholds
 
+> ⚠️ **Deprecated**: The `thresholds` configuration block is deprecated. Use per-schedule `conditions` in the `schedules` configuration instead. See the [Scheduling Guide](SCHEDULING.md) for details on the modern approach.
+
 ```yaml
 thresholds:
   temperature_f: 34              # Temperature threshold in Fahrenheit
@@ -1002,7 +1008,7 @@ thresholds:
 
 ### Morning Mode (Optional)
 
-> ⚠️ **Deprecated**: The standalone `morning_mode` configuration is deprecated and has been replaced by the unified conditional scheduling system. This configuration is still supported for backward compatibility but will be removed in a future version. Please migrate to the `schedules` configuration format. See the [Scheduling Guide](SCHEDULING.md) for details on how to configure morning schedules with temperature conditions.
+> ⚠️ **Deprecated**: The standalone `morning_mode` configuration is deprecated. Use schedule entries of type `morning` in the `schedules` configuration instead. See the [Scheduling Guide](SCHEDULING.md) for details.
 
 Black ice protection - enables mats early in the morning if temperature is low.
 
@@ -1308,7 +1314,7 @@ services:
       - HEATTRAX_TAPO_PASSWORD=your_tapo_password
       # Note: Device IPs are configured in config.yaml - mount it as a volume
       
-      # Weather Thresholds
+      # Weather Thresholds - DEPRECATED: Use schedules with conditions instead
       - HEATTRAX_THRESHOLD_TEMP_F=34
       - HEATTRAX_LEAD_TIME_MINUTES=60
       - HEATTRAX_TRAILING_TIME_MINUTES=60
@@ -1321,7 +1327,7 @@ services:
       - HEATTRAX_MAX_RUNTIME_HOURS=6
       - HEATTRAX_COOLDOWN_MINUTES=30
       
-      # Morning Mode Settings
+      # Morning Mode Settings - DEPRECATED: Use schedule type 'morning' instead
       - HEATTRAX_MORNING_MODE_ENABLED=true
       - HEATTRAX_MORNING_MODE_START_HOUR=6
       - HEATTRAX_MORNING_MODE_END_HOUR=8
@@ -1390,6 +1396,7 @@ services:
       - HEATTRAX_LATITUDE=40.7128
       - HEATTRAX_LONGITUDE=-74.0060
       - HEATTRAX_TIMEZONE=America/New_York
+      # DEPRECATED: Use schedules with conditions instead
       - HEATTRAX_THRESHOLD_TEMP_F=34
       - HEATTRAX_LEAD_TIME_MINUTES=60
       - HEATTRAX_TRAILING_TIME_MINUTES=60
@@ -1397,6 +1404,7 @@ services:
       - HEATTRAX_FORECAST_HOURS=12
       - HEATTRAX_MAX_RUNTIME_HOURS=6
       - HEATTRAX_COOLDOWN_MINUTES=30
+      # DEPRECATED: Use schedule type 'morning' instead
       - HEATTRAX_MORNING_MODE_ENABLED=true
       - HEATTRAX_MORNING_MODE_START_HOUR=6
       - HEATTRAX_MORNING_MODE_END_HOUR=8
