@@ -25,6 +25,7 @@ Master the scheduling system and key features:
 ### User Guides
 Learn how to use the application features:
 
+- **[API_REFERENCE.md](API_REFERENCE.md)** - **⭐ NEW!** Complete REST API documentation with all endpoints
 - **[WEB_UI_GUIDE.md](WEB_UI_GUIDE.md)** - Web user interface guide and JSON API reference
 - **[MANUAL_CONTROL.md](MANUAL_CONTROL.md)** - Manual device and outlet control instructions
 - **[HEALTH_CHECK.md](HEALTH_CHECK.md)** - Health monitoring and notification system
@@ -51,6 +52,7 @@ Version history and changes:
 - **Installation & Setup**: [QUICKSTART.md](QUICKSTART.md) or [SETUP.md](SETUP.md)
 - **Configuration**: [SETUP.md](SETUP.md) and [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)
 - **Scheduling**: [Scheduling Guide](../SCHEDULING.md) - Complete scheduling system documentation
+- **API Reference**: [API_REFERENCE.md](API_REFERENCE.md) - Complete REST API documentation
 - **Using Features**: [WEB_UI_GUIDE.md](WEB_UI_GUIDE.md), [MANUAL_CONTROL.md](MANUAL_CONTROL.md)
 - **Monitoring & Health**: [HEALTH_CHECK.md](HEALTH_CHECK.md), [LOGGING.md](LOGGING.md)
 - **Version History**: [CHANGELOG.md](CHANGELOG.md)

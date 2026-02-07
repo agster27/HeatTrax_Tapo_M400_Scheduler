@@ -173,9 +173,78 @@ docker start heattrax-scheduler
 
 ## API Endpoints
 
-The web UI is built on a JSON REST API that you can also use programmatically:
+The web UI is built on a comprehensive JSON REST API that you can also use programmatically.
 
-### GET /api/health
+### Authentication
+
+**Desktop Dashboard (No Authentication):**
+- Most API endpoints do not require authentication
+- Desktop UI routes (`/`, `/ui`) are publicly accessible
+- Suitable for monitoring and configuration on trusted networks
+
+**Mobile Control (PIN Authentication Required):**
+- Mobile control page (`/control`) requires PIN authentication
+- Protected API endpoints: `/api/mat/status`, `/api/mat/control`, `/api/mat/reset-auto`
+- Authentication via session cookie (24-hour lifetime)
+- Login endpoint: `POST /api/auth/login` with PIN
+
+**Security Note:** Ensure the web UI is not exposed to the internet without a reverse proxy. Bind to `127.0.0.1` for localhost-only access.
+
+### Quick Reference
+
+Below is a quick reference of available endpoints. For complete documentation with request/response examples, see the **[API Reference](API_REFERENCE.md)**.
+
+#### Health & Monitoring
+- `GET /api/health` - Health check endpoint
+- `GET /api/ping` - Simple liveness check  
+- `GET /api/status` - System status, device states, weather info
+- `GET /api/system/status` - Extended system status with notifications and PIN config
+
+#### Device Control
+- `GET /api/devices/status` - Detailed device and outlet states
+- `POST /api/devices/control` - Manual device/outlet control
+- `POST /api/groups/{group}/control` - Control all outlets in a group
+
+#### Schedule Management (Full CRUD)
+- `GET /api/groups/{group}/schedules` - List all schedules
+- `POST /api/groups/{group}/schedules` - Add new schedule
+- `GET /api/groups/{group}/schedules/{index}` - Get specific schedule
+- `PUT /api/groups/{group}/schedules/{index}` - Update schedule
+- `DELETE /api/groups/{group}/schedules/{index}` - Delete schedule
+- `PUT /api/groups/{group}/schedules/{index}/enabled` - Toggle enabled status
+
+#### Weather
+- `GET /api/weather/forecast` - Cached weather forecast with black ice detection
+- `GET /api/weather/mat-forecast` - Predicted ON/OFF windows per group
+
+#### Configuration
+- `GET /api/config` - Current configuration with source metadata (env/yaml)
+- `PUT /api/config` - Update configuration with validation
+- `POST /api/credentials` - Update device credentials
+- `GET /api/config/download` - Download config.yaml
+- `POST /api/config/upload` - Upload and validate new config.yaml
+- `POST /api/restart` - Restart application
+
+#### Automation & Vacation
+- `GET /api/groups/{group}/automation` - Get automation config
+- `PATCH /api/groups/{group}/automation` - Update automation overrides
+- `GET /api/vacation_mode` - Get vacation mode status
+- `PUT /api/vacation_mode` - Enable/disable vacation mode
+- `GET /api/solar_times` - Get sunrise/sunset times
+
+#### Mobile Control (PIN-protected)
+- `POST /api/auth/login` - Authenticate with PIN (creates 24-hour session)
+- `GET /api/mat/status` - Get mat status for all groups ✅ Auth required
+- `POST /api/mat/control` - Control group with timeout ✅ Auth required
+- `POST /api/mat/reset-auto` - Clear manual override ✅ Auth required
+
+#### Notifications
+- `GET /api/notifications/status` - Provider health status (email, webhook)
+- `POST /api/notifications/test` - Queue test notification (non-blocking)
+
+### Example Usage
+
+#### GET /api/health
 Health check endpoint.
 
 **Response**:
@@ -187,7 +256,7 @@ Health check endpoint.
 }
 ```
 
-### GET /api/status
+#### GET /api/status
 System status information.
 
 **Response**:
@@ -206,7 +275,7 @@ System status information.
 }
 ```
 
-### GET /api/config
+#### GET /api/config
 Current configuration with source metadata. Fields include information about whether they're controlled by environment variables or YAML.
 
 **Response**:
@@ -254,7 +323,7 @@ Current configuration with source metadata. Fields include information about whe
 - `env_var`: Name of the environment variable (only present when `source` is `"env"`)
 - `readonly`: Boolean indicating if the field can be modified via the UI
 
-### PUT or POST /api/config
+#### PUT or POST /api/config
 Update configuration. Note: Fields overridden by environment variables cannot be changed via this API.
 
 **Request**:
@@ -288,7 +357,7 @@ Update configuration. Note: Fields overridden by environment variables cannot be
 }
 ```
 
-### GET /api/ping
+#### GET /api/ping
 Simple liveness check.
 
 **Response**:
@@ -299,7 +368,7 @@ Simple liveness check.
 }
 ```
 
-### POST /api/restart
+#### POST /api/restart
 Trigger application restart by exiting the process. This endpoint is automatically called by the Web UI after saving configuration.
 
 **Important**: This endpoint requires a Docker restart policy (e.g., `restart: always`) to automatically restart the container after exit. Without a restart policy, the application will exit and require manual restart.
@@ -322,6 +391,12 @@ Trigger application restart by exiting the process. This endpoint is automatical
 - The Web UI will become temporarily unavailable (5-10 seconds)
 
 **Security**: This endpoint only accepts POST requests to prevent accidental restarts from simple link clicks.
+
+---
+
+**For complete API documentation with all endpoints, detailed request/response examples, and authentication details, see the [API Reference](API_REFERENCE.md).**
+
+---
 
 ## Secret Handling
 
