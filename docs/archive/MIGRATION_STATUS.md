@@ -1,5 +1,7 @@
 # Unified Scheduling System - Migration Status
 
+> ⚠️ **Archived Document** — This document was the migration tracking file for the unified scheduling system migration (v1.0). All phases listed here (1-6) are now complete. This file is preserved for historical reference only. For the current refactoring plan, see [REFACTOR.md](../../REFACTOR.md).
+
 ## Overview
 This document tracks the implementation status of the unified conditional scheduling system that replaces separate automation toggles with a flexible, schedule-based approach.
 
