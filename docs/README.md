@@ -29,7 +29,6 @@ Learn how to use the application features:
 - **[API_REFERENCE.md](API_REFERENCE.md)** - **⭐ NEW!** Complete REST API documentation with all endpoints
 - **[WEB_UI_GUIDE.md](WEB_UI_GUIDE.md)** - Web user interface guide and JSON API reference
 - **[MANUAL_CONTROL.md](MANUAL_CONTROL.md)** - Manual device and outlet control instructions
-- **[MOBILE_CONTROL_UI.md](MOBILE_CONTROL_UI.md)** - Mobile control interface UI specification and design
 - **[HEALTH_CHECK.md](HEALTH_CHECK.md)** - Health monitoring and notification system
 - **[LOGGING.md](LOGGING.md)** - Logging configuration and troubleshooting
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Troubleshooting guide and FAQ
@@ -44,13 +43,15 @@ Version history and changes:
 Current and historical development documentation:
 
 - **[Refactoring Plan](../REFACTOR.md)** - v2.0 refactoring plan and roadmap
+- **[Testing Guide](../TESTING.md)** - Comprehensive testing suite documentation
 
 ### Archive
 
 Historical documentation and completed refactors:
 
 - **[REFACTOR_V1.md](REFACTOR_V1.md)** - v1.0 refactor summary (completed)
-- **[Phase4_WebUI_Implementation.md](Phase4_WebUI_Implementation.md)** - Phase 4 Web UI implementation summary (completed)
+- **[Phase4_WebUI_Implementation.md](Phase4_WebUI_Implementation.md)** - ⚠️ DEPRECATED: Phase 4 Web UI implementation summary (completed)
+- **[MOBILE_CONTROL_UI.md](MOBILE_CONTROL_UI.md)** - ⚠️ DEPRECATED: Mobile control interface UI specification (see README for current docs)
 
 ## 📖 Recommended Reading Order
 
