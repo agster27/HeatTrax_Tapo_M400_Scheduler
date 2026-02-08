@@ -546,7 +546,7 @@ class EnhancedScheduler:
                                     
                                     if black_ice_result and black_ice_result != (False, None, None, None):
                                         has_risk, risk_time, risk_temp, risk_dewpoint = black_ice_result
-                                        # Consider black ice risk active if expected within next hour
+                                        # Consider black ice risk active if expected within 60 minutes
                                         if has_risk and risk_time:
                                             time_to_risk = (risk_time - now_local).total_seconds() / 60
                                             if time_to_risk <= 60:
