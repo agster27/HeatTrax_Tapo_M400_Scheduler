@@ -477,24 +477,28 @@ class EnhancedScheduler:
             self.logger.debug(f"Group '{group_name}': Using legacy automation logic")
             return await self._should_turn_on_legacy(group_name, now_local)
     
-    async def _should_turn_on_unified(
-        self, 
-        group_name: str, 
-        schedules: List[Schedule], 
-        now_local: datetime
-    ) -> bool:
+    async def _gather_weather_conditions(
+        self,
+        group_name: str,
+        now_local: datetime,
+        include_black_ice: bool = True
+    ) -> Tuple[Optional[Dict[str, Any]], bool]:
         """
-        Unified schedule evaluation logic.
+        Gather current weather conditions for schedule evaluation.
         
         Args:
-            group_name: Name of the group
-            schedules: List of schedules for the group
-            now_local: Current local time
+            group_name: Name of the device group (for logging context)
+            now_local: Current local time (for precipitation lead-time calculation)
+            include_black_ice: Whether to check black ice risk (default True)
             
         Returns:
-            True if any schedule wants device ON
+            Tuple of (weather_conditions dict or None, weather_offline bool)
+            
+            weather_conditions dict contains:
+                - temperature_f: Current temperature in Fahrenheit
+                - precipitation_active: Whether precipitation is active/imminent
+                - black_ice_risk: Whether black ice risk is detected (only if include_black_ice=True)
         """
-        # Get weather conditions if available
         weather_conditions = None
         weather_offline = False
         
@@ -516,39 +520,43 @@ class EnhancedScheduler:
                         precip_active = False
                         if forecast_result and forecast_result != (False, None, None):
                             has_precip, precip_time, _ = forecast_result
-                            # Consider precipitation active if expected within next hour
+                            # Consider precipitation active if expected within configured lead time
                             if has_precip and precip_time:
+                                raw_config = self._get_raw_config()
+                                thresholds = raw_config.get('thresholds', {})
+                                lead_time_minutes = thresholds.get('lead_time_minutes', 60)
                                 time_to_precip = (precip_time - now_local).total_seconds() / 60
-                                precip_active = time_to_precip <= 60
+                                precip_active = time_to_precip <= lead_time_minutes
                         
-                        # Check for black ice risk if enabled
+                        # Check for black ice risk if enabled and requested
                         black_ice_risk = False
-                        raw_config = self._get_raw_config()
-                        thresholds = raw_config.get('thresholds', {})
-                        black_ice_config = thresholds.get('black_ice_detection', {})
-                        
-                        if black_ice_config.get('enabled', True):
-                            try:
-                                black_ice_result = await self.weather.check_black_ice_risk(
-                                    hours_ahead=self.config.scheduler.get('forecast_hours', 12),
-                                    temperature_max_f=black_ice_config.get('temperature_max_f', 36.0),
-                                    dew_point_spread_f=black_ice_config.get('dew_point_spread_f', 4.0),
-                                    humidity_min_percent=black_ice_config.get('humidity_min_percent', 80.0)
-                                )
-                                
-                                if black_ice_result and black_ice_result != (False, None, None, None):
-                                    has_risk, risk_time, risk_temp, risk_dewpoint = black_ice_result
-                                    # Consider black ice risk active if expected within next hour
-                                    if has_risk and risk_time:
-                                        time_to_risk = (risk_time - now_local).total_seconds() / 60
-                                        if time_to_risk <= 60:
-                                            black_ice_risk = True
-                                            self.logger.info(
-                                                f"BLACK ICE RISK DETECTED for group '{group_name}': "
-                                                f"temp={risk_temp}°F, dewpoint={risk_dewpoint}°F at {risk_time}"
-                                            )
-                            except Exception as e:
-                                self.logger.warning(f"Failed to check black ice risk: {e}")
+                        if include_black_ice:
+                            raw_config = self._get_raw_config()
+                            thresholds = raw_config.get('thresholds', {})
+                            black_ice_config = thresholds.get('black_ice_detection', {})
+                            
+                            if black_ice_config.get('enabled', True):
+                                try:
+                                    black_ice_result = await self.weather.check_black_ice_risk(
+                                        hours_ahead=self.config.scheduler.get('forecast_hours', 12),
+                                        temperature_max_f=black_ice_config.get('temperature_max_f', 36.0),
+                                        dew_point_spread_f=black_ice_config.get('dew_point_spread_f', 4.0),
+                                        humidity_min_percent=black_ice_config.get('humidity_min_percent', 80.0)
+                                    )
+                                    
+                                    if black_ice_result and black_ice_result != (False, None, None, None):
+                                        has_risk, risk_time, risk_temp, risk_dewpoint = black_ice_result
+                                        # Consider black ice risk active if expected within 60 minutes
+                                        if has_risk and risk_time:
+                                            time_to_risk = (risk_time - now_local).total_seconds() / 60
+                                            if time_to_risk <= 60:
+                                                black_ice_risk = True
+                                                self.logger.info(
+                                                    f"BLACK ICE RISK DETECTED for group '{group_name}': "
+                                                    f"temp={risk_temp}°F, dewpoint={risk_dewpoint}°F at {risk_time}"
+                                                )
+                                except Exception as e:
+                                    self.logger.warning(f"Failed to check black ice risk: {e}")
                         
                         weather_conditions = {
                             'temperature_f': temp_f,
@@ -557,6 +565,30 @@ class EnhancedScheduler:
                         }
                 except Exception as e:
                     self.logger.warning(f"Failed to get weather conditions: {e}")
+        
+        return (weather_conditions, weather_offline)
+    
+    async def _should_turn_on_unified(
+        self, 
+        group_name: str, 
+        schedules: List[Schedule], 
+        now_local: datetime
+    ) -> bool:
+        """
+        Unified schedule evaluation logic.
+        
+        Args:
+            group_name: Name of the group
+            schedules: List of schedules for the group
+            now_local: Current local time
+            
+        Returns:
+            True if any schedule wants device ON
+        """
+        # Get weather conditions if available
+        weather_conditions, weather_offline = await self._gather_weather_conditions(
+            group_name, now_local, include_black_ice=True
+        )
         
         # Evaluate schedules
         should_on, winning_schedule, reason = self.schedule_evaluator.should_turn_on(
@@ -714,57 +746,9 @@ class EnhancedScheduler:
         schedules = self.group_schedules.get(group_name, [])
         if schedules and self.schedule_evaluator:
             # Get weather conditions to determine which schedule is active
-            weather_conditions = None
-            weather_offline = False
-            
-            if self.weather_enabled and self.weather:
-                weather_offline = self.weather.is_offline()
-                if not weather_offline:
-                    try:
-                        conditions = await self.weather.get_current_conditions()
-                        if conditions:
-                            temp_f, precip_mm = conditions
-                            forecast_result = await self.weather.check_precipitation_forecast(
-                                hours_ahead=self.config.scheduler.get('forecast_hours', 12),
-                                temperature_threshold_f=999
-                            )
-                            precip_active = False
-                            if forecast_result and forecast_result != (False, None, None):
-                                has_precip, precip_time, _ = forecast_result
-                                if has_precip and precip_time:
-                                    time_to_precip = (precip_time - now_local).total_seconds() / 60
-                                    precip_active = time_to_precip <= 60
-                            
-                            # Check for black ice risk if enabled
-                            black_ice_risk = False
-                            raw_config = self._get_raw_config()
-                            thresholds = raw_config.get('thresholds', {})
-                            black_ice_config = thresholds.get('black_ice_detection', {})
-                            
-                            if black_ice_config.get('enabled', True):
-                                try:
-                                    black_ice_result = await self.weather.check_black_ice_risk(
-                                        hours_ahead=self.config.scheduler.get('forecast_hours', 12),
-                                        temperature_max_f=black_ice_config.get('temperature_max_f', 36.0),
-                                        dew_point_spread_f=black_ice_config.get('dew_point_spread_f', 4.0),
-                                        humidity_min_percent=black_ice_config.get('humidity_min_percent', 80.0)
-                                    )
-                                    
-                                    if black_ice_result and black_ice_result != (False, None, None, None):
-                                        has_risk, risk_time, _, _ = black_ice_result
-                                        if has_risk and risk_time:
-                                            time_to_risk = (risk_time - now_local).total_seconds() / 60
-                                            black_ice_risk = time_to_risk <= 60
-                                except Exception as e:
-                                    self.logger.warning(f"Failed to check black ice risk: {e}")
-                            
-                            weather_conditions = {
-                                'temperature_f': temp_f,
-                                'precipitation_active': precip_active,
-                                'black_ice_risk': black_ice_risk
-                            }
-                    except Exception as e:
-                        self.logger.warning(f"Failed to get weather conditions: {e}")
+            weather_conditions, weather_offline = await self._gather_weather_conditions(
+                group_name, now_local, include_black_ice=True
+            )
             
             # Check if any schedule wants device on
             should_on, winning_schedule, _ = self.schedule_evaluator.should_turn_on(
@@ -916,60 +900,9 @@ class EnhancedScheduler:
         has_conditions = any(schedule.has_conditions() for schedule in schedules)
         
         if has_conditions:
-            if self.weather_enabled and self.weather:
-                try:
-                    weather_offline = self.weather.is_offline()
-                    if not weather_offline:
-                        conditions = await self.weather.get_current_conditions()
-                        if conditions:
-                            temp_f, _ = conditions
-                            
-                            # Check for precipitation in forecast
-                            forecast_result = await self.weather.check_precipitation_forecast(
-                                hours_ahead=self.config.scheduler.get('forecast_hours', 12),
-                                temperature_threshold_f=999  # We'll check temp in schedule conditions
-                            )
-                            
-                            precip_active = False
-                            if forecast_result and forecast_result != (False, None, None):
-                                has_precip, precip_time, _ = forecast_result
-                                # Consider precipitation active if expected within next hour
-                                if has_precip and precip_time:
-                                    time_to_precip = (precip_time - current_time).total_seconds() / 60
-                                    precip_active = time_to_precip <= 60
-                            
-                            # Check for black ice risk if enabled
-                            black_ice_risk = False
-                            raw_config = self._get_raw_config()
-                            thresholds = raw_config.get('thresholds', {})
-                            black_ice_config = thresholds.get('black_ice_detection', {})
-                            
-                            if black_ice_config.get('enabled', True):
-                                try:
-                                    black_ice_result = await self.weather.check_black_ice_risk(
-                                        hours_ahead=self.config.scheduler.get('forecast_hours', 12),
-                                        temperature_max_f=black_ice_config.get('temperature_max_f', 36.0),
-                                        dew_point_spread_f=black_ice_config.get('dew_point_spread_f', 4.0),
-                                        humidity_min_percent=black_ice_config.get('humidity_min_percent', 80.0)
-                                    )
-                                    
-                                    if black_ice_result and black_ice_result != (False, None, None, None):
-                                        has_risk, risk_time, _, _ = black_ice_result
-                                        # Consider black ice risk active if expected within next hour
-                                        if has_risk and risk_time:
-                                            time_to_risk = (risk_time - current_time).total_seconds() / 60
-                                            black_ice_risk = time_to_risk <= 60
-                                except Exception as e:
-                                    self.logger.warning(f"Failed to check black ice risk: {e}")
-                            
-                            weather_conditions = {
-                                'temperature_f': temp_f,
-                                'precipitation_active': precip_active,
-                                'black_ice_risk': black_ice_risk
-                            }
-                except Exception as e:
-                    self.logger.warning(f"Could not get weather conditions for schedule evaluation: {e}")
-                    weather_offline = True
+            weather_conditions, weather_offline = await self._gather_weather_conditions(
+                group_name, current_time, include_black_ice=False
+            )
         
         # Evaluate schedules
         should_on, active_schedule, reason = self.schedule_evaluator.should_turn_on(
