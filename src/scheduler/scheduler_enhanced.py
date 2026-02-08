@@ -170,7 +170,6 @@ class EnhancedScheduler:
             else:
                 self.group_schedules[group_name] = []
     
-    
     def _get_raw_config(self) -> Dict[str, Any]:
         """
         Get the raw configuration dictionary from the config object.
@@ -592,7 +591,6 @@ class EnhancedScheduler:
         
         return should_on
     
-
     async def should_turn_off_group(self, group_name: str) -> bool:
         """
         Determine if a device group should be turned off using unified scheduling.
@@ -663,7 +661,6 @@ class EnhancedScheduler:
             # No schedules want device on
             return True
     
-
     async def _should_schedule_clear_override(self, group_name: str, override_action: str) -> bool:
         """
         Check if a schedule boundary should clear the manual override.
